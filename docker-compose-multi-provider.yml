@@ -75,6 +75,22 @@ services:
       - docduck
     restart: unless-stopped
 
+  # Static web UI (React) served via nginx
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: http://api:8080
+    container_name: docduck-web
+    ports:
+      - "5173:80"  # expose on host port 5173 (adjust as needed)
+    depends_on:
+      - api
+    networks:
+      - docduck
+    restart: unless-stopped
+
 networks:
   docduck:
     driver: bridge

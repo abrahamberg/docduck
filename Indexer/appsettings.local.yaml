@@ -1,0 +1,35 @@
+# Local-only DocDuck Indexer Configuration
+OpenAi:
+  ApiKey: "${OPENAI_API_KEY}"
+  BaseUrl: "https://api.openai.com/v1"
+  EmbedModel: "text-embedding-3-small"
+  BatchSize: 100
+
+Database:
+  ConnectionString: "${DB_CONNECTION_STRING}"
+
+Chunking:
+  ChunkSize: 500
+  ChunkOverlap: 50
+  CleanupOrphanedDocuments: true
+  ForceFullReindex: false
+
+Providers:
+  Local:
+    Enabled: true
+    Name: "LocalFiles"
+    RootPath: "/data/documents"
+    Recursive: true
+    FileExtensions:
+      - ".docx"
+      - ".pdf"
+      - ".txt"
+    ExcludePatterns:
+      - ".git"
+      - "node_modules"
+      - "__pycache__"
+
+  OneDrive:
+    Enabled: false
+  S3:
+    Enabled: false

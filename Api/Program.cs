@@ -93,17 +93,23 @@ app.MapGet("/health", async (VectorSearchService searchService) =>
     {
         var chunkCount = await searchService.GetChunkCountAsync();
         var docCount = await searchService.GetDocumentCountAsync();
-        
+
+        var openAiKeyPresent = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENAI_API_KEY"));
+        var dbConnectionPresent = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DB_CONNECTION_STRING"));
+
         return Results.Ok(new
         {
             status = "healthy",
             timestamp = DateTime.UtcNow,
             chunks = chunkCount,
-            documents = docCount
+            documents = docCount,
+            openAiKeyPresent,
+            dbConnectionPresent
         });
     }
     catch (Exception ex)
     {
+        
         logger.LogError(ex, "Health check failed");
         return Results.Problem("Service unhealthy");
     }

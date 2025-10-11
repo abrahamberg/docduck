@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: docduck
+      POSTGRES_USER: docduck
+      POSTGRES_PASSWORD: docduck123
+    volumes:
+      - pgdata_local:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docduck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docduck_local
+
+  indexer:
+    build:
+      context: ./Indexer
+      dockerfile: Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DB_CONNECTION_STRING: "Host=postgres;Database=docduck;Username=docduck;Password=docduck123"
+    volumes:
+      - ./Indexer/appsettings.local.yaml:/app/appsettings.yaml:ro
+      - ${LOCAL_DOCS_PATH}:/data/documents:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - docduck_local
+    restart: "no"
+
+  api:
+    build:
+      context: ./Api
+      dockerfile: Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DB_CONNECTION_STRING: "Host=postgres;Database=docduck;Username=docduck;Password=docduck123"
+      ASPNETCORE_URLS: "http://+:8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - docduck_local
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: http://api:8080
+    environment:
+      # For clarity; not needed by build since we pass arg
+      VITE_API_BASE: http://api:8080
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+    networks:
+      - docduck_local
+
+networks:
+  docduck_local:
+    driver: bridge
+
+volumes:
+  pgdata_local:
