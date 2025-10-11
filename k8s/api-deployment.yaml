@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docduck-api
+  labels:
+    app: docduck-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docduck-api
+  template:
+    metadata:
+      labels:
+        app: docduck-api
+    spec:
+      containers:
+      - name: api
+        image: docduck-api:latest  # Replace with your registry/image
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: DB_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: docduck-secrets
+              key: db-connection-string
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: docduck-secrets
+              key: openai-api-key
+        - name: OPENAI_BASE_URL
+          value: "https://api.openai.com/v1"
+        - name: OPENAI_EMBED_MODEL
+          value: "text-embedding-3-small"
+        - name: OPENAI_CHAT_MODEL
+          value: "gpt-4o-mini"
+        - name: DEFAULT_TOP_K
+          value: "8"
+        - name: MAX_TOP_K
+          value: "20"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docduck-api
+  labels:
+    app: docduck-api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: docduck-api
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docduck-api
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: docduck.yourdomain.com  # Replace with your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: docduck-api
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - docduck.yourdomain.com
+    secretName: docduck-tls

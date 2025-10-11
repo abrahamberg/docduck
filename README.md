@@ -1,9 +1,17 @@
-# Indexer - OneDrive to Postgres Vector Search
+# DocDuck - OneDrive Document Search with RAG
 
-A .NET 8 console application that indexes Microsoft OneDrive `.docx` documents into PostgreSQL with pgvector embeddings via OpenAI.
+A complete .NET 8 solution for indexing Microsoft OneDrive documents and providing AI-powered search with citations using PostgreSQL + pgvector and OpenAI.
 
-## Features
+## 🎯 Overview
 
+DocDuck consists of two main components:
+
+1. **Indexer** - Console application that downloads Word documents from OneDrive, extracts text, generates embeddings, and stores them in PostgreSQL
+2. **Query API** - Minimal ASP.NET Core API providing RAG (Retrieval-Augmented Generation) endpoints for semantic search and chat
+
+## ✨ Features
+
+### Indexer
 - **Microsoft Graph Integration**: Authenticates via client credentials to enumerate and download OneDrive files
 - **Text Extraction**: Extracts plain text from `.docx` files using OpenXML SDK
 - **Smart Chunking**: Splits text into overlapping chunks with configurable size and overlap
@@ -11,6 +19,13 @@ A .NET 8 console application that indexes Microsoft OneDrive `.docx` documents i
 - **PostgreSQL Storage**: Stores chunks and embeddings in Postgres with pgvector extension
 - **Idempotency**: Tracks file ETags to skip unchanged documents
 - **K8s Ready**: Handles SIGTERM gracefully, runs as a CronJob/Job, exits with proper codes
+
+### Query API
+- **RAG Pipeline**: Embed question → kNN search → Generate answer with citations
+- **Dual Endpoints**: `/query` (simple Q&A) and `/chat` (conversation with history)
+- **Vector Search**: Fast similarity search using pgvector with cosine distance
+- **Memory Efficient**: Optimized for ≤512 MiB runtime footprint
+- **Production Ready**: Health checks, structured logging, Docker & Kubernetes deployment
 
 ## Prerequisites
 
@@ -21,36 +36,39 @@ A .NET 8 console application that indexes Microsoft OneDrive `.docx` documents i
 
 ## Database Setup
 
-Create the required tables in your PostgreSQL database:
+### Quick Setup (Recommended)
 
-```sql
--- Enable pgvector extension
-CREATE EXTENSION IF NOT EXISTS vector;
+Use the included database utility script:
 
--- Table for document chunks with embeddings
-CREATE TABLE docs_chunks (
-    id BIGSERIAL PRIMARY KEY,
-    doc_id TEXT NOT NULL,
-    filename TEXT NOT NULL,
-    chunk_num INT NOT NULL,
-    text TEXT NOT NULL,
-    metadata JSONB,
-    embedding vector(1536),
-    created_at TIMESTAMPTZ DEFAULT now(),
-    UNIQUE (doc_id, chunk_num)
-);
+```bash
+# Test connection
+./db-util.sh test
 
--- Table for tracking file state (ETag, last modified)
-CREATE TABLE docs_files (
-    doc_id TEXT PRIMARY KEY,
-    filename TEXT NOT NULL,
-    etag TEXT NOT NULL,
-    last_modified TIMESTAMPTZ NOT NULL
-);
+# Initialize schema (creates tables and indexes)
+./db-util.sh init
 
--- Optional: Create index for vector similarity search
-CREATE INDEX ON docs_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+# Verify pgvector extension
+./db-util.sh check
+
+# View statistics
+./db-util.sh stats
 ```
+
+### Manual Setup
+
+Or run the SQL directly:
+
+```bash
+psql -h localhost -U postgres -d vectors -f sql/01-init-schema.sql
+```
+
+The schema includes:
+- `docs_chunks` table with vector embeddings (1536 dimensions)
+- `docs_files` table for tracking file state (ETags)
+- IVFFlat index for fast similarity search
+- Supporting indexes for metadata queries
+
+See [sql/01-init-schema.sql](sql/01-init-schema.sql) for details.
 
 ## Configuration
 
@@ -106,7 +124,9 @@ All configuration is read from environment variables:
 
 ## Running Locally
 
-### 1. Set environment variables
+### Indexer
+
+#### 1. Set environment variables
 
 ```bash
 export GRAPH_TENANT_ID="your-tenant-id"
@@ -124,7 +144,7 @@ export DB_CONNECTION_STRING="Host=localhost;Database=vectors;Username=postgres;P
 export MAX_FILES=3
 ```
 
-### 2. Build and run
+#### 2. Build and run indexer
 
 ```bash
 cd Indexer
@@ -132,16 +152,145 @@ dotnet build
 dotnet run
 ```
 
-### 3. Run tests
+#### 3. Monitor and verify
+
+```bash
+# Check database statistics
+./db-util.sh stats
+
+# View recently indexed documents
+./db-util.sh recent
+
+# Run health check
+./db-util.sh health
+```
+
+### Query API
+
+#### 1. Set environment variables
+
+```bash
+export DB_CONNECTION_STRING="Host=localhost;Database=vectors;Username=postgres;Password=password;MinPoolSize=1;MaxPoolSize=5"
+export OPENAI_API_KEY="sk-..."
+```
+
+#### 2. Run the API
+
+```bash
+cd Api
+dotnet run
+```
+
+API starts on `http://localhost:5000`
+
+#### 3. Test the API
+
+```bash
+# Health check
+curl http://localhost:5000/health
+
+# Query
+curl -X POST http://localhost:5000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is this project about?"}'
+
+# Or use the test script
+./test-api.sh
+```
+
+### 4. Run tests
 
 ```bash
 cd Indexer.Tests
 dotnet test
+
+# For integration tests (requires PostgreSQL)
+export TEST_DB_CONNECTION_STRING="Host=localhost;Database=vectors_test;Username=postgres;Password=password"
+dotnet test
 ```
+
+## Database Management
+
+The included `db-util.sh` script provides convenient database management commands:
+
+```bash
+./db-util.sh test        # Test database connection
+./db-util.sh init        # Initialize schema
+./db-util.sh check       # Verify pgvector extension
+./db-util.sh stats       # Show statistics
+./db-util.sh recent      # Show recently indexed docs
+./db-util.sh health      # Run health check
+./db-util.sh maintain    # Run VACUUM/ANALYZE
+./db-util.sh backup      # Create backup
+./db-util.sh shell       # Open psql shell
+```
+
+For advanced queries and maintenance, see:
+- [sql/02-queries.sql](sql/02-queries.sql) - Analysis and search queries
+- [sql/03-maintenance.sql](sql/03-maintenance.sql) - Maintenance tasks
+- [PGVECTOR.md](PGVECTOR.md) - Detailed pgvector documentation
+
+## Architecture
+
+### Data Flow
+
+```
+Indexer Pipeline:
+OneDrive → Download .docx → Extract Text → Chunk → 
+Generate Embeddings → Store in PostgreSQL (pgvector)
+
+Query Pipeline:
+User Question → Embed Question → kNN Search (pgvector) → 
+Build Context → OpenAI Generation → Answer + Citations
+```
+
+### Components
+
+```
+docduck/
+├── Indexer/           # Document indexing service
+│   ├── Services/      # Graph, OpenAI, Database services
+│   └── Options/       # Configuration options
+├── Api/               # Query/Chat RAG API
+│   ├── Services/      # OpenAI client, Vector search
+│   └── Models/        # Request/response models
+├── sql/               # Database scripts
+├── k8s/               # Kubernetes manifests
+└── db-util.sh         # Database management CLI
+```
+
+## Query API Usage
+
+The API provides two main endpoints for querying indexed documents:
+
+### Simple Query
+```bash
+curl -X POST http://localhost:5000/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What are the main features?",
+    "topK": 8
+  }'
+```
+
+### Chat with History
+```bash
+curl -X POST http://localhost:5000/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Can you elaborate on that?",
+    "history": [
+      {"role": "user", "content": "Previous question"},
+      {"role": "assistant", "content": "Previous answer"}
+    ]
+  }'
+```
+
+See [Api/README.md](Api/README.md) and [API_IMPLEMENTATION.md](API_IMPLEMENTATION.md) for complete API documentation.
 
 ## Docker/Kubernetes Deployment
 
-### Example Dockerfile
+### Indexer Dockerfile
 
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
