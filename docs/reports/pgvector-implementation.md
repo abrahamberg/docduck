@@ -32,7 +32,7 @@ The PostgreSQL + pgvector storage layer has been **fully implemented** in DocDuc
 
 #### 📚 Documentation
 
-1. **PGVECTOR.md** - Comprehensive guide covering:
+1. **pgvector.md** - Comprehensive guide covering:
    - Architecture and table design
    - Vector operations and distance metrics
    - Performance tuning (index parameters, connection pooling)
@@ -273,7 +273,7 @@ All 10+ tests covering:
 
 ## 📚 Additional Resources
 
-- **PGVECTOR.md** - Detailed implementation guide
+- **pgvector.md** - Detailed implementation guide
 - **sql/** - Complete SQL toolkit
 - **db-util.sh** - CLI management tool
 - **VectorRepository.cs** - Implementation reference

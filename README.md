@@ -228,7 +228,7 @@ The included `db-util.sh` script provides convenient database management command
 For advanced queries and maintenance, see:
 - [sql/02-queries.sql](sql/02-queries.sql) - Analysis and search queries
 - [sql/03-maintenance.sql](sql/03-maintenance.sql) - Maintenance tasks
-- [PGVECTOR.md](PGVECTOR.md) - Detailed pgvector documentation
+- [docs/database/pgvector.md](docs/database/pgvector.md) - Detailed pgvector documentation
 
 ## Architecture
 
@@ -286,7 +286,7 @@ curl -X POST http://localhost:5000/chat \
   }'
 ```
 
-See [Api/README.md](Api/README.md) and [API_IMPLEMENTATION.md](API_IMPLEMENTATION.md) for complete API documentation.
+See [Api/README.md](Api/README.md) and [docs/reports/api-implementation.md](docs/reports/api-implementation.md) for complete API documentation.
 
 ## Docker/Kubernetes Deployment
 
@@ -448,6 +448,14 @@ dotnet test
 - Structured logging with Microsoft.Extensions.Logging
 - Async/await end-to-end with CancellationToken support
 - Pragmatic SOLID: small, focused services with clear responsibilities
+
+## Documentation
+
+- Full docs live under `docs/`:
+  - Guides: [docs/guides/quickstart.md](docs/guides/quickstart.md), [docs/guides/authentication.md](docs/guides/authentication.md), [docs/guides/developer-guide.md](docs/guides/developer-guide.md)
+  - Database: [docs/database/pgvector.md](docs/database/pgvector.md), [docs/database/pgvector-quickref.md](docs/database/pgvector-quickref.md)
+  - Architecture: [docs/architecture.md](docs/architecture.md)
+  - Changelog: [docs/changelog.md](docs/changelog.md)
 
 ## License
 

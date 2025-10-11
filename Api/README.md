@@ -444,5 +444,5 @@ MIT
 ## See Also
 
 - [Main README](../README.md) - Overall project documentation
-- [PGVECTOR.md](../PGVECTOR.md) - Database implementation details
+ - [pgvector docs](../docs/database/pgvector.md) - Database implementation details
 - [Indexer README](../Indexer/README.md) - Indexing pipeline

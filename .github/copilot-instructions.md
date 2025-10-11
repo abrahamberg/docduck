@@ -91,3 +91,10 @@ These instructions guide suggestions and edits in this repository. Favor readabi
 
 ---
 By default, generate code that is clean, small, and obvious; apply SOLID where it reduces real complexity, not as ceremony.
+
+## Documentation policy (repo hygiene)
+- Keep only a concise `README.md` in the repository root. All other documentation must be placed under `docs/`.
+- Prefer updating existing canonical docs over creating new top-level files. Avoid duplicated content.
+- Place how-to guides under `docs/guides/` (e.g., `quickstart.md`, `authentication.md`, `developer-guide.md`).
+- Place database docs under `docs/database/` (e.g., `pgvector.md`, `pgvector-quickref.md`).
+- Put ephemeral or auto-generated implementation summaries under `docs/reports/` (e.g., `api-implementation.md`, `pgvector-implementation.md`). If the information has no long-term value, do not generate a new file; integrate the useful bits into existing guides instead.

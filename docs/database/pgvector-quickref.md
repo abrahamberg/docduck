@@ -225,10 +225,10 @@ psql -c "SET ivfflat.probes = 20;"
 
 ## 📚 More Information
 
-- **Full Documentation**: See [PGVECTOR.md](PGVECTOR.md)
-- **SQL Examples**: See [sql/02-queries.sql](sql/02-queries.sql)
-- **Maintenance**: See [sql/03-maintenance.sql](sql/03-maintenance.sql)
-- **Schema**: See [sql/01-init-schema.sql](sql/01-init-schema.sql)
+- **Full Documentation**: See [pgvector.md](./pgvector.md)
+- **SQL Examples**: See [sql/02-queries.sql](../../sql/02-queries.sql)
+- **Maintenance**: See [sql/03-maintenance.sql](../../sql/03-maintenance.sql)
+- **Schema**: See [sql/01-init-schema.sql](../../sql/01-init-schema.sql)
 
 ## 🎯 Quick Health Check
 

@@ -90,7 +90,7 @@ CREATE INDEX IF NOT EXISTS idx_docs_chunks_embedding ON docs_chunks USING ivffla
 4. **Write Indexer** (detailed code skeleton below). Build a Job manifest and run once (or CronJob for delta).  
 5. **Write API** (detailed code skeleton below). Keep pool size small. Single-threaded worker, no heavy background tasks.  
 6. **React UI** — minimal chat UI: send question to `/query`, display answer and list of sources (click to view OneDrive link).  
-7. **Dockerize** both Api and Indexer. Optimize images using `dotnet publish -c Release -p:PublishTrimmed=true -p:PublishSingleFile=false` if needed.  
+7. **Dockerize** both Api and Indexer. Optimize images using `dotnet publish -c Release -o ./bin/Release/net8.0/publish` if needed.  
 8. **Kubernetes manifests / Helm values** — Deployment for Api (resources), CronJob for Indexer, Service + Ingress.  
 9. **Bring up in k3s**: create secrets (DB_DSN, OPENAI_KEY, AZURE_CLIENT_ID/SECRET), apply manifests.  
 10. **Initial indexing**: run indexer Job, verify rows in `docs_chunks`.  
@@ -263,4 +263,3 @@ Choose which items to generate and I will create them in the repo.
 ---
 
 *Document version:* 2025-10-11 — concise, implementation-ready.
-

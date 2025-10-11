@@ -433,6 +433,6 @@ LIMIT 10;
 
 ## See Also
 
-- [schema.sql](schema.sql) - Database initialization script
-- [VectorRepository.cs](Indexer/Services/VectorRepository.cs) - C# implementation
-- [QUICKSTART.md](QUICKSTART.md) - Getting started guide
+- [sql/01-init-schema.sql](../../sql/01-init-schema.sql) - Database initialization script
+- [Indexer/Services/VectorRepository.cs](../../Indexer/Services/VectorRepository.cs) - C# implementation
+- [Quick Start](../guides/quickstart.md) - Getting started guide

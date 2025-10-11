@@ -108,7 +108,7 @@ export $(cat .env | xargs)
 
 # Build and run
 cd Indexer
-dotnet run
+ dotnet run
 ```
 
 ## 6. Expected Output
