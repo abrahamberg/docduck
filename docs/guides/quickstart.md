@@ -13,16 +13,27 @@ This page is intentionally minimal. You will get the app running locally, open t
 - OpenAI API key (standard account) exported as `OPENAI_API_KEY`
 - A folder of documents on your machine (absolute path)
 
-## 1. Set Environment Variables
-Replace placeholders before running.
+## 1. Create `.env.local`
+Add a file in the project root named `.env.local` with:
+```
+OPENAI_API_KEY=sk-your-key
+LOCAL_DOCS_PATH=/absolute/path/to/docs
+```
+Replace the placeholders. The path must be absolute and point to a folder containing your `.pdf`, `.docx`, or `.txt` files.
+
+Load it into your shell (so `docker compose` can see the values):
 ```bash
-export OPENAI_API_KEY="sk-..."          # required
-export LOCAL_DOCS_PATH="/abs/path/to/docs"  # your documents folder
+set -a; source .env.local; set +a
+```
+Quick sanity check:
+```bash
+ls -1 "$LOCAL_DOCS_PATH" | head
 ```
 
 ## 2. Launch Everything
+Use the modern syntax (`docker compose`).
 ```bash
-docker-compose -f docker-compose-local.yml up --build
+docker compose -f docker-compose-local.yml up --build
 ```
 Containers:
 - `postgres` – stores chunks (pgvector enabled)
@@ -62,7 +73,7 @@ Fields:
 ## 6. Re-Index After Adding Files
 Add or modify files in `LOCAL_DOCS_PATH`, then rerun:
 ```bash
-docker-compose -f docker-compose-local.yml run --rm indexer
+docker compose -f docker-compose-local.yml run --rm indexer
 ```
 This performs a fresh ingestion (upserts modified chunks).
 
@@ -76,7 +87,7 @@ curl -X POST http://localhost:8080/query \
 
 ## 8. Clean Up
 ```bash
-docker-compose -f docker-compose-local.yml down -v
+docker compose -f docker-compose-local.yml down -v
 ```
 Removes containers + volumes (you keep your local docs).
 
