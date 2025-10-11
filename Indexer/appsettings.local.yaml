@@ -6,7 +6,7 @@ OpenAi:
   BatchSize: 100
 
 Database:
-  ConnectionString: "${DB_CONNECTION_STRING}"
+  ConnectionString: "Host=postgres;Database=docduck;Username=docduck;Password=docduck123"
 
 Chunking:
   ChunkSize: 500

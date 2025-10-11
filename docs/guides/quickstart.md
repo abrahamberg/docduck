@@ -35,6 +35,7 @@ Use the modern syntax (`docker compose`).
 ```bash
 docker compose -f docker-compose-local.yml up --build
 ```
+Run this from the project root (the directory that contains `docker-compose-local.yml`, `Api/`, `Indexer/`, and `web/`). Running from another directory can cause `failed to read dockerfile: open Dockerfile: no such file or directory` errors.
 Containers:
 - `postgres` – stores chunks (pgvector enabled)
 - `indexer` – runs once, ingests files from `LOCAL_DOCS_PATH`, then exits

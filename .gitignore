@@ -63,3 +63,6 @@ npm-debug.log
 yarn-error.log
 dist/
 build/
+
+# env
+.env.local
