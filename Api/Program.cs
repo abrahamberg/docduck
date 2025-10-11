@@ -55,6 +55,7 @@ builder.Services.AddHttpClient<OpenAiClient>()
 
 // Register services
 builder.Services.AddSingleton<VectorSearchService>();
+builder.Services.AddSingleton<ChatService>();
 
 // Add CORS for development
 builder.Services.AddCors(options =>
@@ -194,8 +195,7 @@ app.MapPost("/query", async (
 // Chat endpoint - conversation with history and optional provider filtering
 app.MapPost("/chat", async (
     ChatRequest request,
-    OpenAiClient openAiClient,
-    VectorSearchService searchService,
+    ChatService chatService,
     CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.Message))
@@ -205,59 +205,9 @@ app.MapPost("/chat", async (
 
     try
     {
-        logger.LogInformation("Processing chat message: {Message} (Provider: {Type}/{Name})", 
-            request.Message, request.ProviderType ?? "all", request.ProviderName ?? "all");
-
-        // 1. Generate embedding for the current message
-        var messageEmbedding = await openAiClient.EmbedAsync(request.Message, ct);
-
-        // 2. Search for similar chunks with optional provider filter
-        var sources = await searchService.SearchAsync(
-            messageEmbedding, 
-            request.TopK, 
-            request.ProviderType, 
-            request.ProviderName, 
-            ct);
-
-        if (sources.Count == 0)
-        {
-            return Results.Ok(new ChatResponse(
-                Answer: "I couldn't find any relevant information in the indexed documents.",
-                Sources: new List<Source>(),
-                TokensUsed: 0,
-                History: request.History ?? new List<ChatMessage>()
-            ));
-        }
-
-        // 3. Convert history to tuples
-        var historyTuples = request.History?
-            .Select(h => (h.Role, h.Content))
-            .ToList();
-
-        // 4. Generate answer with conversation history
-        var contextChunks = sources.Select(s => s.Text).ToList();
-        var (answer, tokensUsed) = await openAiClient.GenerateAnswerAsync(
-            request.Message,
-            contextChunks,
-            historyTuples,
-            ct);
-
-        // 5. Build updated history
-        var updatedHistory = new List<ChatMessage>(request.History ?? new List<ChatMessage>())
-        {
-            new ChatMessage("user", request.Message),
-            new ChatMessage("assistant", answer)
-        };
-
-        // 6. Return response
-        var response = new ChatResponse(
-            Answer: answer,
-            Sources: sources,
-            TokensUsed: tokensUsed,
-            History: updatedHistory
-        );
-
-        logger.LogInformation("Chat completed successfully ({Tokens} tokens)", tokensUsed);
+        logger.LogInformation("Processing chat message (iterative): {Message}", request.Message);
+        var response = await chatService.ProcessAsync(request, ct);
+        logger.LogInformation("Chat completed ({Tokens} tokens)", response.TokensUsed);
         return Results.Ok(response);
     }
     catch (Exception ex)

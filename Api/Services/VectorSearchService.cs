@@ -211,4 +211,49 @@ public class VectorSearchService
 
         return providers;
     }
+
+    /// <summary>
+    /// Fetch surrounding chunks for given doc/chunk list plus optional document top snippet.
+    /// </summary>
+    public async Task<Dictionary<string, List<Source>>> FetchContextWindowAsync(
+        List<(string DocId, int ChunkNum)> targets,
+        int window = 1,
+        CancellationToken ct = default)
+    {
+        if (targets.Count == 0) return new Dictionary<string, List<Source>>();
+        await using var conn = new NpgsqlConnection(_dbOptions.ConnectionString);
+        await conn.OpenAsync(ct);
+
+        var result = new Dictionary<string, List<Source>>();
+
+        foreach (var group in targets.GroupBy(t => t.DocId))
+        {
+            var docId = group.Key;
+            var chunkNums = group.Select(g => g.ChunkNum).ToList();
+            var minChunk = chunkNums.Min() - window;
+            var maxChunk = chunkNums.Max() + window;
+            var sql = @"SELECT doc_id, filename, provider_type, provider_name, chunk_num, text, embedding <=> embedding AS distance FROM docs_chunks WHERE doc_id = @doc AND chunk_num BETWEEN @min AND @max ORDER BY chunk_num";
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("doc", docId);
+            cmd.Parameters.AddWithValue("min", minChunk);
+            cmd.Parameters.AddWithValue("max", maxChunk);
+            var list = new List<Source>();
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var dId = reader.GetString(0);
+                var filename = reader.GetString(1);
+                var pType = reader.GetString(2);
+                var pName = reader.GetString(3);
+                var cNum = reader.GetInt32(4);
+                var text = reader.GetString(5);
+                var dist = 0.0; // distance not meaningful here
+                var citation = $"[{pType}/{pName}:{filename}#chunk{cNum}]";
+                list.Add(new Source(dId, filename, cNum, text, dist, citation, pType, pName));
+            }
+            await reader.CloseAsync();
+            result[docId] = list;
+        }
+        return result;
+    }
 }

@@ -78,7 +78,8 @@ public class OpenAiClient
         string question,
         List<string> contextChunks,
         List<(string Role, string Content)>? history = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool useLargeModel = false)
     {
         ArgumentNullException.ThrowIfNull(question);
         ArgumentNullException.ThrowIfNull(contextChunks);
@@ -129,7 +130,7 @@ public class OpenAiClient
 
         var payload = new
         {
-            model = _options.ChatModel,
+            model = useLargeModel ? _options.ChatModelLarge : _options.ChatModelSmall,
             messages,
             max_tokens = _options.MaxTokens,
             temperature = _options.Temperature
@@ -162,6 +163,118 @@ public class OpenAiClient
         _logger.LogInformation("Generated answer ({Tokens} tokens)", tokensUsed);
 
         return (answer, tokensUsed);
+    }
+
+    /// <summary>
+    /// Use small model to refine user input into an effective concise search phrase.
+    /// </summary>
+    public async Task<string> RefineQueryPhraseAsync(
+        string original,
+        List<Api.Models.ChatMessage> history,
+        CancellationToken ct = default)
+    {
+        var messages = new List<object>
+        {
+            new { role = "system", content = "Refine user input into a concise search phrase (5-20 words) capturing core intent; remove pleasantries." },
+            new { role = "user", content = original }
+        };
+
+        var payload = new
+        {
+            model = _options.ChatModelSmall,
+            messages,
+            max_tokens = 60,
+            temperature = 0.3
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/chat/completions")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+        };
+        var response = await _httpClient.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(ct);
+        var result = JsonSerializer.Deserialize<ChatCompletionResponse>(body);
+        return result?.Choices.First().Message.Content.Trim() ?? original;
+    }
+
+    /// <summary>
+    /// Suggest a rephrased query for second attempt.
+    /// </summary>
+    public async Task<string> RephraseForRetryAsync(string previous, List<Api.Models.ChatMessage> history, CancellationToken ct = default)
+    {
+        var messages = new List<object>
+        {
+            new { role = "system", content = "Provide an alternative phrasing better suited for semantic embedding search; output only the phrase." },
+            new { role = "user", content = previous }
+        };
+
+        var payload = new
+        {
+            model = _options.ChatModelSmall,
+            messages,
+            max_tokens = 40,
+            temperature = 0.4
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/chat/completions")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+        };
+        var response = await _httpClient.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(ct);
+        var result = JsonSerializer.Deserialize<ChatCompletionResponse>(body);
+        return result?.Choices.First().Message.Content.Trim() ?? previous;
+    }
+
+    /// <summary>
+    /// Evaluate whether provided chunks are sufficient to answer; may suggest refined query.
+    /// </summary>
+    public async Task<(bool Answerable, string? SuggestedQuery, int TokensUsed)> EvaluateAnswerabilityAsync(
+        string query,
+        List<string> chunks,
+        CancellationToken ct = default)
+    {
+        var context = string.Join("\n\n", chunks.Select((c, i) => $"[{i + 1}] {c}"));
+        var messages = new List<object>
+        {
+            new { role = "system", content = "Determine if answer can be produced ONLY from given context. Reply JSON with fields: answerable:boolean, suggested_query:string|null." },
+            new { role = "user", content = $"Query: {query}\nContext:\n{context}" }
+        };
+        var payload = new
+        {
+            model = _options.ChatModelSmall,
+            messages,
+            max_tokens = 120,
+            temperature = 0.2
+        };
+        var request = new HttpRequestMessage(HttpMethod.Post, "/chat/completions")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+        };
+        var response = await _httpClient.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(ct);
+        var result = JsonSerializer.Deserialize<ChatCompletionResponse>(body);
+        var text = result?.Choices.First().Message.Content.Trim() ?? "";
+        var tokensUsed = result?.Usage?.TotalTokens ?? 0;
+        bool answerable = false; string? suggested = null;
+        try
+        {
+            var json = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(text);
+            if (json != null)
+            {
+                if (json.TryGetValue("answerable", out var a) && a.ValueKind == JsonValueKind.True) answerable = true;
+                if (json.TryGetValue("answerable", out a) && a.ValueKind == JsonValueKind.False) answerable = false;
+                if (json.TryGetValue("suggested_query", out var sq) && sq.ValueKind == JsonValueKind.String) suggested = sq.GetString();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to parse answerability JSON: {Text}", text);
+        }
+        return (answerable, suggested, tokensUsed);
     }
 
     #region Response Models
