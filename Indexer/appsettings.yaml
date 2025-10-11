@@ -1,0 +1,81 @@
+# DocDuck Indexer Configuration
+# Configure which document providers are enabled and their settings
+
+# OpenAI Embedding Configuration
+OpenAi:
+  ApiKey: "${OPENAI_API_KEY}"
+  BaseUrl: "https://api.openai.com/v1"
+  EmbedModel: "text-embedding-3-small"
+  BatchSize: 100
+
+# Database Configuration
+Database:
+  ConnectionString: "${DB_CONNECTION_STRING}"
+
+# Chunking Configuration
+Chunking:
+  ChunkSize: 500
+  ChunkOverlap: 50
+  MaxFiles: null  # null = process all files, or specify a number to limit
+  
+  # Orphan Cleanup: Remove deleted/moved files from database
+  # If true: keeps database in sync with current provider state
+  # If false: preserves historical data even if source files are deleted
+  CleanupOrphanedDocuments: true
+  
+  # Force Full Reindex: Delete ALL existing data before re-indexing
+  # If true: ignores ETags and re-processes everything (useful for testing or schema changes)
+  # If false: incremental indexing based on ETag change detection (recommended)
+  ForceFullReindex: false
+
+# Document Providers Configuration
+Providers:
+  # OneDrive Provider (Microsoft Graph API)
+  OneDrive:
+    Enabled: false
+    Name: "OneDrive"
+    AuthMode: "ClientSecret"  # or "UserPassword"
+    AccountType: "business"   # or "personal"
+    # Client Secret Auth (for business accounts)
+    TenantId: "${GRAPH_TENANT_ID}"
+    ClientId: "${GRAPH_CLIENT_ID}"
+    ClientSecret: "${GRAPH_CLIENT_SECRET}"
+    # OneDrive Location
+    SiteId: "${GRAPH_SITE_ID}"
+    DriveId: "${GRAPH_DRIVE_ID}"
+    FolderPath: "/Shared Documents/Docs"
+    # File Filters
+    FileExtensions:
+      - ".docx"
+
+  # Local Filesystem Provider
+  Local:
+    Enabled: true
+    Name: "LocalFiles"
+    RootPath: "/data/documents"
+    Recursive: true
+    FileExtensions:
+      - ".docx"
+      - ".pdf"
+      - ".txt"
+    ExcludePatterns:
+      - ".git"
+      - "node_modules"
+      - "__pycache__"
+
+  # AWS S3 Provider
+  S3:
+    Enabled: false
+    Name: "S3"
+    BucketName: "${S3_BUCKET_NAME}"
+    Prefix: "documents/"  # optional, empty for bucket root
+    Region: "us-east-1"
+    # Auth: either use instance profile or access keys
+    UseInstanceProfile: false
+    AccessKeyId: "${AWS_ACCESS_KEY_ID}"
+    SecretAccessKey: "${AWS_SECRET_ACCESS_KEY}"
+    SessionToken: null  # optional, for temporary credentials
+    FileExtensions:
+      - ".docx"
+      - ".pdf"
+      - ".txt"

@@ -31,9 +31,14 @@ public class TextChunker
         if (string.IsNullOrWhiteSpace(text))
         {
             _logger.LogDebug("Text is empty or whitespace, no chunks created");
-            yield break;
+            return Enumerable.Empty<Chunk>();
         }
 
+        return ChunkIterator(text);
+    }
+
+    private IEnumerable<Chunk> ChunkIterator(string text)
+    {
         var chunkSize = _options.ChunkSize;
         var overlap = _options.ChunkOverlap;
 

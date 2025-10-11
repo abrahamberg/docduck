@@ -4,11 +4,24 @@
 -- Enable pgvector extension
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- Table for tracking active document providers
+CREATE TABLE IF NOT EXISTS providers (
+    provider_type TEXT NOT NULL,
+    provider_name TEXT NOT NULL,
+    is_enabled BOOLEAN NOT NULL DEFAULT true,
+    registered_at TIMESTAMPTZ DEFAULT now(),
+    last_sync_at TIMESTAMPTZ,
+    metadata JSONB,
+    PRIMARY KEY (provider_type, provider_name)
+);
+
 -- Table for document chunks with embeddings
 CREATE TABLE IF NOT EXISTS docs_chunks (
     id BIGSERIAL PRIMARY KEY,
     doc_id TEXT NOT NULL,
     filename TEXT NOT NULL,
+    provider_type TEXT NOT NULL,
+    provider_name TEXT NOT NULL,
     chunk_num INT NOT NULL,
     text TEXT NOT NULL,
     metadata JSONB,
@@ -19,10 +32,14 @@ CREATE TABLE IF NOT EXISTS docs_chunks (
 
 -- Table for tracking file state (ETag, last modified)
 CREATE TABLE IF NOT EXISTS docs_files (
-    doc_id TEXT PRIMARY KEY,
+    doc_id TEXT NOT NULL,
+    provider_type TEXT NOT NULL,
+    provider_name TEXT NOT NULL,
     filename TEXT NOT NULL,
     etag TEXT NOT NULL,
-    last_modified TIMESTAMPTZ NOT NULL
+    last_modified TIMESTAMPTZ NOT NULL,
+    relative_path TEXT,
+    PRIMARY KEY (doc_id, provider_type, provider_name)
 );
 
 -- Create index for vector similarity search (cosine distance)
@@ -37,6 +54,10 @@ CREATE INDEX IF NOT EXISTS docs_chunks_doc_id_idx ON docs_chunks(doc_id);
 -- Create index on filename for search
 CREATE INDEX IF NOT EXISTS docs_chunks_filename_idx ON docs_chunks(filename);
 
+-- Create index on provider for filtering
+CREATE INDEX IF NOT EXISTS docs_chunks_provider_idx ON docs_chunks(provider_type, provider_name);
+
 -- Sample query to verify setup
 -- SELECT count(*) FROM docs_chunks;
 -- SELECT version(), * FROM pg_available_extensions WHERE name = 'vector';
+

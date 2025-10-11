@@ -31,7 +31,7 @@ These instructions guide suggestions and edits in this repository. Favor readabi
   - Provide types/annotations where the language supports it; favor clear, explicit interfaces.
   - Add docstrings or brief comments for non-obvious intent or invariants.
   - Include minimal, focused unit tests for public functions and bug fixes (happy path + 1–2 edge cases).
-
+- avoid backwards compatibility, this is a greenfield project.
 ## Style and conventions
 - Follow existing project conventions. If none exist, default to community standards:
   - Python: PEP 8, black formatting, pytest tests.

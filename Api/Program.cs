@@ -108,7 +108,28 @@ app.MapGet("/health", async (VectorSearchService searchService) =>
     }
 });
 
-// Query endpoint - simple question answering
+// Get active providers endpoint
+app.MapGet("/providers", async (VectorSearchService searchService, CancellationToken ct) =>
+{
+    try
+    {
+        var providers = await searchService.GetProvidersAsync(ct);
+        
+        return Results.Ok(new
+        {
+            providers,
+            count = providers.Count,
+            timestamp = DateTime.UtcNow
+        });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to retrieve providers");
+        return Results.Problem("An error occurred retrieving providers");
+    }
+});
+
+// Query endpoint - simple question answering with optional provider filtering
 app.MapPost("/query", async (
     QueryRequest request,
     OpenAiClient openAiClient,
@@ -122,13 +143,19 @@ app.MapPost("/query", async (
 
     try
     {
-        logger.LogInformation("Processing query: {Question}", request.Question);
+        logger.LogInformation("Processing query: {Question} (Provider: {Type}/{Name})", 
+            request.Question, request.ProviderType ?? "all", request.ProviderName ?? "all");
 
         // 1. Generate embedding for the question
         var questionEmbedding = await openAiClient.EmbedAsync(request.Question, ct);
 
-        // 2. Search for similar chunks
-        var sources = await searchService.SearchAsync(questionEmbedding, request.TopK, ct);
+        // 2. Search for similar chunks with optional provider filter
+        var sources = await searchService.SearchAsync(
+            questionEmbedding, 
+            request.TopK, 
+            request.ProviderType, 
+            request.ProviderName, 
+            ct);
 
         if (sources.Count == 0)
         {
@@ -164,7 +191,7 @@ app.MapPost("/query", async (
     }
 });
 
-// Chat endpoint - conversation with history
+// Chat endpoint - conversation with history and optional provider filtering
 app.MapPost("/chat", async (
     ChatRequest request,
     OpenAiClient openAiClient,
@@ -178,13 +205,19 @@ app.MapPost("/chat", async (
 
     try
     {
-        logger.LogInformation("Processing chat message: {Message}", request.Message);
+        logger.LogInformation("Processing chat message: {Message} (Provider: {Type}/{Name})", 
+            request.Message, request.ProviderType ?? "all", request.ProviderName ?? "all");
 
         // 1. Generate embedding for the current message
         var messageEmbedding = await openAiClient.EmbedAsync(request.Message, ct);
 
-        // 2. Search for similar chunks
-        var sources = await searchService.SearchAsync(messageEmbedding, request.TopK, ct);
+        // 2. Search for similar chunks with optional provider filter
+        var sources = await searchService.SearchAsync(
+            messageEmbedding, 
+            request.TopK, 
+            request.ProviderType, 
+            request.ProviderName, 
+            ct);
 
         if (sources.Count == 0)
         {
@@ -238,14 +271,14 @@ app.MapPost("/chat", async (
 app.MapGet("/", () => Results.Ok(new
 {
     name = "DocDuck Query API",
-    version = "1.0.0",
+    version = "2.0.0",
     endpoints = new[]
     {
         "GET /health - Health check",
-        "POST /query - Simple question answering",
-        "POST /chat - Conversational chat with history"
+        "GET /providers - List active document providers",
+        "POST /query - Question answering with optional provider filtering",
+        "POST /chat - Conversational chat with optional provider filtering"
     }
 }));
 
-app.Run();
-
+await app.RunAsync();

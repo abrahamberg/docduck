@@ -1,28 +1,40 @@
-# DocDuck - OneDrive Document Search with RAG
+# DocDuck - Multi-Provider Document Search with RAG
 
-A complete .NET 8 solution for indexing Microsoft OneDrive documents and providing AI-powered search with citations using PostgreSQL + pgvector and OpenAI.
+A complete .NET 8 solution for indexing documents from multiple sources (OneDrive, S3, Local Files) and providing AI-powered search with citations using PostgreSQL + pgvector and OpenAI.
 
 ## 🎯 Overview
 
 DocDuck consists of two main components:
 
-1. **Indexer** - Console application that downloads Word documents from OneDrive, extracts text, generates embeddings, and stores them in PostgreSQL
+1. **Indexer** - Console application that indexes documents from multiple providers with smart change detection and lifecycle management
 2. **Query API** - Minimal ASP.NET Core API providing RAG (Retrieval-Augmented Generation) endpoints for semantic search and chat
 
 ## ✨ Features
 
 ### Indexer
-- **Microsoft Graph Integration**: Authenticates via client credentials to enumerate and download OneDrive files
-- **Text Extraction**: Extracts plain text from `.docx` files using OpenXML SDK
+- **Multi-Provider Architecture**: Modular plugin-based system supporting multiple document sources
+  - **OneDrive**: Microsoft Graph API integration (business/personal accounts)
+  - **S3**: AWS S3 bucket indexing with IAM role support
+  - **Local**: Filesystem scanning with exclusion patterns
+  - **Extensible**: Easy to add custom providers via `IDocumentProvider` interface
+- **YAML Configuration**: Simple configuration for Docker, Kubernetes, and local development
+- **Smart Change Detection**: ETag-based tracking to skip unchanged files
+- **File Lifecycle Management**: Automatic handling of new, updated, deleted, and renamed files
+- **Orphan Cleanup**: Removes vectors for deleted files to keep database in sync
+- **Force Reindex**: Optional complete refresh for schema changes
+- **Modular Text Extraction**: Pluggable extractors for multiple file formats (DOCX, TXT, MD, PDF*, etc.) via `ITextExtractor` interface
 - **Smart Chunking**: Splits text into overlapping chunks with configurable size and overlap
 - **OpenAI Embeddings**: Generates vector embeddings using OpenAI API (default: text-embedding-3-small, 1536 dimensions)
 - **PostgreSQL Storage**: Stores chunks and embeddings in Postgres with pgvector extension
-- **Idempotency**: Tracks file ETags to skip unchanged documents
 - **K8s Ready**: Handles SIGTERM gracefully, runs as a CronJob/Job, exits with proper codes
+
+*PDF extraction requires additional NuGet package (PdfPig, Docnet.Core, etc.)
 
 ### Query API
 - **RAG Pipeline**: Embed question → kNN search → Generate answer with citations
 - **Dual Endpoints**: `/query` (simple Q&A) and `/chat` (conversation with history)
+- **Provider Filtering**: Filter search by provider type/name
+- **Active Providers API**: `/providers` endpoint exposes enabled providers to frontends
 - **Vector Search**: Fast similarity search using pgvector with cosine distance
 - **Memory Efficient**: Optimized for ≤512 MiB runtime footprint
 - **Production Ready**: Health checks, structured logging, Docker & Kubernetes deployment
@@ -355,14 +367,24 @@ spec:
 
 ## Architecture
 
-### Services
+### Core Services
 
-- **GraphClient**: Microsoft Graph API wrapper for file enumeration and download
-- **DocxExtractor**: OpenXML-based text extraction from .docx files
+**Document Providers** (implements `IDocumentProvider`):
+- **OneDriveProvider**: Microsoft Graph API integration
+- **S3Provider**: AWS S3 bucket access
+- **LocalProvider**: Filesystem scanning
+
+**Text Extraction** (implements `ITextExtractor`):
+- **DocxTextExtractor**: OpenXML-based DOCX extraction
+- **PlainTextExtractor**: Plain text, Markdown, CSV, JSON, etc.
+- **PdfTextExtractor**: PDF extraction (requires additional library)
+- **TextExtractionService**: Orchestrates format-specific extractors
+
+**Processing Pipeline**:
 - **TextChunker**: Character-based overlapping text chunking
 - **OpenAiEmbeddingsClient**: OpenAI embeddings API client with batching
 - **VectorRepository**: PostgreSQL + pgvector data access with upsert logic
-- **IndexerService**: Main orchestration service coordinating the pipeline
+- **MultiProviderIndexerService**: Main orchestration service coordinating the pipeline
 
 ### Data Flow
 

@@ -5,7 +5,9 @@ namespace Api.Models;
 /// </summary>
 public record QueryRequest(
     string Question,
-    int? TopK = null
+    int? TopK = null,
+    string? ProviderType = null,
+    string? ProviderName = null
 );
 
 /// <summary>
@@ -26,7 +28,21 @@ public record Source(
     int ChunkNum,
     string Text,
     double Distance,
-    string Citation
+    string Citation,
+    string? ProviderType = null,
+    string? ProviderName = null
+);
+
+/// <summary>
+/// Information about an active document provider.
+/// </summary>
+public record ProviderInfo(
+    string ProviderType,
+    string ProviderName,
+    bool IsEnabled,
+    DateTimeOffset RegisteredAt,
+    DateTimeOffset? LastSyncAt,
+    Dictionary<string, string>? Metadata
 );
 
 /// <summary>
@@ -35,7 +51,9 @@ public record Source(
 public record ChatRequest(
     string Message,
     List<ChatMessage>? History = null,
-    int? TopK = null
+    int? TopK = null,
+    string? ProviderType = null,
+    string? ProviderName = null
 );
 
 /// <summary>
