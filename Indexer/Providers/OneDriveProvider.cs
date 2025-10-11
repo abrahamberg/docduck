@@ -134,13 +134,7 @@ public class OneDriveProvider : IDocumentProvider
             var driveId = await GetDriveIdAsync(ct);
             var contentStream = await _client.Drives[driveId]
                 .Items[documentId].Content
-                .GetAsync(cancellationToken: ct);
-
-            if (contentStream == null)
-            {
-                throw new InvalidOperationException($"Failed to download document {documentId} from OneDrive");
-            }
-
+                .GetAsync(cancellationToken: ct) ?? throw new InvalidOperationException($"Failed to download document {documentId} from OneDrive");
             return contentStream;
         }
         catch (OperationCanceledException)

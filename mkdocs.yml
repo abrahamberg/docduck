@@ -1,0 +1,64 @@
+site_name: DocDuck
+site_description: Unified document ingestion and indexing service
+site_url: https://example.com
+repo_name: abrahamberg/docduck
+repo_url: https://github.com/abrahamberg/docduck
+edit_uri: blob/main/
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.tabs.link
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: blue
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - footnotes
+  - def_list
+  - attr_list
+  - toc:
+      permalink: true
+  - tables
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+
+nav:
+  - Home: README.md
+  - Quickstart: docs/guides/quickstart.md
+  - Architecture: docs/architecture.md
+  - Providers:
+      - Overview: docs/providers/index.md
+      - OneDrive Personal: docs/providers/onedrive-personal.md
+      - OneDrive Business: docs/providers/onedrive-business.md
+      - Local Filesystem: docs/providers/local.md
+      - AWS S3: docs/providers/s3.md
+  - Guides:
+      - Authentication: docs/guides/authentication.md
+      - Developer Guide: docs/guides/developer-guide.md
+      - Execution Modes: docs/guides/execution-modes.md
+      - File Lifecycle: docs/guides/file-lifecycle.md
+      - Text Extraction: docs/guides/text-extraction.md
+      - Docs Local Dev: docs/guides/docs-local-dev.md
+  - Reference:
+      - API Implementation: docs/reports/api-implementation.md
+      - Multi-provider Implementation: docs/reports/multi-provider-implementation.md
+      - pgvector Implementation: docs/reports/pgvector-implementation.md
+  - Changelog: docs/changelog.md
+
+# Exclude ephemeral summary files from nav (not linked)
