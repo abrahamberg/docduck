@@ -30,51 +30,25 @@ public class OneDriveProvider : IDocumentProvider
         var credential = CreateCredential();
         _client = new GraphServiceClient(credential, new[] { "https://graph.microsoft.com/.default" });
 
-        _logger.LogInformation("OneDrive provider '{Name}' initialized with {AuthMode} auth for {AccountType}",
-            _config.Name, _config.AuthMode, _config.AccountType);
+        _logger.LogInformation("OneDrive provider '{Name}' initialized for {AccountType}",
+            _config.Name, _config.AccountType);
     }
 
     private Azure.Core.TokenCredential CreateCredential()
     {
-        if (_config.AuthMode.Equals("UserPassword", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrEmpty(_config.TenantId) ||
+            string.IsNullOrEmpty(_config.ClientId) ||
+            string.IsNullOrEmpty(_config.ClientSecret))
         {
-            if (string.IsNullOrEmpty(_config.Username) || string.IsNullOrEmpty(_config.Password))
-            {
-                throw new InvalidOperationException(
-                    $"Username and Password are required for OneDrive provider '{_config.Name}' with UserPassword auth");
-            }
-
-            var tenantId = _config.AccountType.Equals("personal", StringComparison.OrdinalIgnoreCase)
-                ? "consumers"
-                : _config.TenantId;
-
-            _logger.LogWarning("Username/Password auth is deprecated and doesn't support MFA");
-
-#pragma warning disable AZIDENTITY001
-            return new UsernamePasswordCredential(
-                _config.Username,
-                _config.Password,
-                tenantId,
-                _config.ClientId
-            );
-#pragma warning restore AZIDENTITY001
+            throw new InvalidOperationException(
+                $"TenantId, ClientId, and ClientSecret are required for OneDrive provider '{_config.Name}'");
         }
-        else
-        {
-            if (string.IsNullOrEmpty(_config.TenantId) ||
-                string.IsNullOrEmpty(_config.ClientId) ||
-                string.IsNullOrEmpty(_config.ClientSecret))
-            {
-                throw new InvalidOperationException(
-                    $"TenantId, ClientId, and ClientSecret are required for OneDrive provider '{_config.Name}' with ClientSecret auth");
-            }
 
-            return new ClientSecretCredential(
-                _config.TenantId,
-                _config.ClientId,
-                _config.ClientSecret
-            );
-        }
+        return new ClientSecretCredential(
+            _config.TenantId,
+            _config.ClientId,
+            _config.ClientSecret
+        );
     }
 
     public async Task<IReadOnlyList<ProviderDocument>> ListDocumentsAsync(CancellationToken ct = default)
@@ -83,74 +57,35 @@ public class OneDriveProvider : IDocumentProvider
 
         try
         {
-            DriveItemCollectionResponse? driveItems;
+            var driveId = await GetDriveIdAsync(ct);
+            _logger.LogInformation("Listing from OneDrive - Drive: {DriveId}, Path: {Path}",
+                driveId, _config.FolderPath);
 
-            if (_config.AccountType.Equals("personal", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("Listing from personal OneDrive: {Path}", _config.FolderPath);
-                
-                var drive = await _client.Me.Drive.GetAsync(cancellationToken: ct);
-                driveItems = await _client.Drives[drive?.Id]
-                    .Root
-                    .ItemWithPath(_config.FolderPath)
-                    .Children
-                    .GetAsync(cancellationToken: ct);
-            }
-            else
-            {
-                _logger.LogInformation("Listing from business OneDrive - Site: {SiteId}, Drive: {DriveId}, Path: {Path}",
-                    _config.SiteId, _config.DriveId, _config.FolderPath);
+            var rootItem = await _client.Drives[driveId].Root.GetAsync(cancellationToken: ct);
+            
+            var childrenRequest = _client.Drives[driveId]
+                .Items[rootItem?.Id]
+                .ItemWithPath(_config.FolderPath)
+                .Children;
 
-                if (!string.IsNullOrEmpty(_config.DriveId))
-                {
-                    var root = await _client.Drives[_config.DriveId].Root.GetAsync(cancellationToken: ct);
-                    driveItems = await _client.Drives[_config.DriveId]
-                        .Items[root?.Id]
-                        .ItemWithPath(_config.FolderPath)
-                        .Children
-                        .GetAsync(cancellationToken: ct);
-                }
-                else if (!string.IsNullOrEmpty(_config.SiteId))
-                {
-                    var drive = await _client.Sites[_config.SiteId].Drive.GetAsync(cancellationToken: ct);
-                    driveItems = await _client.Drives[drive?.Id]
-                        .Root
-                        .ItemWithPath(_config.FolderPath)
-                        .Children
-                        .GetAsync(cancellationToken: ct);
-                }
-                else
-                {
-                    throw new InvalidOperationException(
-                        $"Either SiteId or DriveId must be configured for business OneDrive provider '{_config.Name}'");
-                }
-            }
-
-            if (driveItems?.Value == null)
+            var driveItems = await childrenRequest.GetAsync(cancellationToken: ct);
+            
+            if (driveItems == null)
             {
                 _logger.LogWarning("No items found in OneDrive path: {Path}", _config.FolderPath);
                 return documents;
             }
 
-            foreach (var item in driveItems.Value)
-            {
-                if (item.File == null || item.Name == null) continue;
+            // Process all pages using PageIterator
+            var pageIterator = Microsoft.Graph.PageIterator<DriveItem, DriveItemCollectionResponse>
+                .CreatePageIterator(
+                    _client,
+                    driveItems,
+                    item => ProcessDriveItem(item, documents),
+                    request => request
+                );
 
-                var ext = Path.GetExtension(item.Name).ToLowerInvariant();
-                if (!_config.FileExtensions.Contains(ext)) continue;
-
-                documents.Add(new ProviderDocument(
-                    DocumentId: item.Id!,
-                    Filename: item.Name,
-                    ProviderType: ProviderType,
-                    ProviderName: ProviderName,
-                    ETag: item.ETag,
-                    LastModified: item.LastModifiedDateTime,
-                    SizeBytes: item.Size,
-                    MimeType: item.File.MimeType,
-                    RelativePath: _config.FolderPath
-                ));
-            }
+            await pageIterator.IterateAsync(ct);
 
             _logger.LogInformation("Found {Count} documents in OneDrive provider '{Name}'",
                 documents.Count, _config.Name);
@@ -168,25 +103,38 @@ public class OneDriveProvider : IDocumentProvider
         }
     }
 
+    private bool ProcessDriveItem(DriveItem item, List<ProviderDocument> documents)
+    {
+        if (item.File == null || item.Name == null)
+            return true; // Continue iteration
+
+        var ext = Path.GetExtension(item.Name).ToLowerInvariant();
+        if (!_config.FileExtensions.Contains(ext))
+            return true; // Continue iteration
+
+        documents.Add(new ProviderDocument(
+            DocumentId: item.Id!,
+            Filename: item.Name,
+            ProviderType: ProviderType,
+            ProviderName: ProviderName,
+            ETag: item.ETag,
+            LastModified: item.LastModifiedDateTime,
+            SizeBytes: item.Size,
+            MimeType: item.File.MimeType,
+            RelativePath: _config.FolderPath
+        ));
+
+        return true; // Continue iteration
+    }
+
     public async Task<Stream> DownloadDocumentAsync(string documentId, CancellationToken ct = default)
     {
         try
         {
-            Stream? contentStream;
-
-            if (_config.AccountType.Equals("personal", StringComparison.OrdinalIgnoreCase))
-            {
-                var drive = await _client.Me.Drive.GetAsync(cancellationToken: ct);
-                contentStream = await _client.Drives[drive?.Id].Items[documentId].Content
-                    .GetAsync(cancellationToken: ct);
-            }
-            else
-            {
-                var driveId = _config.DriveId ?? await GetDriveIdFromSiteAsync(ct);
-                contentStream = await _client.Drives[driveId]
-                    .Items[documentId].Content
-                    .GetAsync(cancellationToken: ct);
-            }
+            var driveId = await GetDriveIdAsync(ct);
+            var contentStream = await _client.Drives[driveId]
+                .Items[documentId].Content
+                .GetAsync(cancellationToken: ct);
 
             if (contentStream == null)
             {
@@ -211,15 +159,30 @@ public class OneDriveProvider : IDocumentProvider
         }
     }
 
-    private async Task<string> GetDriveIdFromSiteAsync(CancellationToken ct)
+    private async Task<string> GetDriveIdAsync(CancellationToken ct)
     {
-        if (string.IsNullOrEmpty(_config.SiteId))
+        // If DriveId is explicitly configured, use it (works for both personal and business)
+        if (!string.IsNullOrEmpty(_config.DriveId))
         {
-            throw new InvalidOperationException($"SiteId must be configured for OneDrive provider '{_config.Name}'");
+            return _config.DriveId;
         }
 
-        var drive = await _client.Sites[_config.SiteId].Drive.GetAsync(cancellationToken: ct);
-        return drive?.Id ?? throw new InvalidOperationException("Failed to retrieve Drive ID from Site");
+        // For personal accounts, get drive from /me/drive
+        if (_config.AccountType.Equals("personal", StringComparison.OrdinalIgnoreCase))
+        {
+            var drive = await _client.Me.Drive.GetAsync(cancellationToken: ct);
+            return drive?.Id ?? throw new InvalidOperationException("Failed to retrieve personal OneDrive ID");
+        }
+
+        // For business accounts, require either DriveId or SiteId
+        if (!string.IsNullOrEmpty(_config.SiteId))
+        {
+            var drive = await _client.Sites[_config.SiteId].Drive.GetAsync(cancellationToken: ct);
+            return drive?.Id ?? throw new InvalidOperationException($"Failed to retrieve Drive ID from Site '{_config.SiteId}'");
+        }
+
+        throw new InvalidOperationException(
+            $"For business accounts, either DriveId or SiteId must be configured for OneDrive provider '{_config.Name}'");
     }
 
     public Task<ProviderMetadata> GetMetadataAsync(CancellationToken ct = default)
@@ -232,8 +195,7 @@ public class OneDriveProvider : IDocumentProvider
             AdditionalInfo: new Dictionary<string, string>
             {
                 ["AccountType"] = _config.AccountType,
-                ["FolderPath"] = _config.FolderPath,
-                ["AuthMode"] = _config.AuthMode
+                ["FolderPath"] = _config.FolderPath
             }
         );
 

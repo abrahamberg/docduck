@@ -16,24 +16,22 @@ public class ProvidersConfiguration
 
 /// <summary>
 /// Configuration for OneDrive provider.
+/// Supports both personal and business OneDrive accounts using App registration (ClientSecret auth).
 /// </summary>
 public class OneDriveProviderConfig
 {
     public bool Enabled { get; set; } = false;
     public string Name { get; set; } = "OneDrive";
-    public string AuthMode { get; set; } = "ClientSecret";
-    public string AccountType { get; set; } = "business";
+    public string AccountType { get; set; } = "business"; // "personal" or "business"
     
-    // Client Secret auth
-    public string? TenantId { get; set; }
+    // App registration credentials (required)
+    public string? TenantId { get; set; } // Use "consumers" for personal accounts
     public string? ClientId { get; set; }
     public string? ClientSecret { get; set; }
     
-    // Username/Password auth
-    public string? Username { get; set; }
-    public string? Password { get; set; }
-    
     // OneDrive location
+    // For personal: only DriveId is needed (or omit to use /me/drive)
+    // For business: provide DriveId OR SiteId (if SiteId, the default drive is used)
     public string? SiteId { get; set; }
     public string? DriveId { get; set; }
     public string FolderPath { get; set; } = "/Shared Documents/Docs";

@@ -31,19 +31,26 @@ Chunking:
 # Document Providers Configuration
 Providers:
   # OneDrive Provider (Microsoft Graph API)
+  # Uses App registration (ClientSecret) for both personal and business accounts
   OneDrive:
     Enabled: false
     Name: "OneDrive"
-    AuthMode: "ClientSecret"  # or "UserPassword"
-    AccountType: "business"   # or "personal"
-    # Client Secret Auth (for business accounts)
+    AccountType: "business"   # "personal" or "business"
+    
+    # App Registration Credentials
+    # For personal accounts: use TenantId "consumers"
+    # For business accounts: use your organization's tenant ID
     TenantId: "${GRAPH_TENANT_ID}"
     ClientId: "${GRAPH_CLIENT_ID}"
     ClientSecret: "${GRAPH_CLIENT_SECRET}"
+    
     # OneDrive Location
-    SiteId: "${GRAPH_SITE_ID}"
-    DriveId: "${GRAPH_DRIVE_ID}"
+    # For personal: omit SiteId and DriveId to use default drive, or specify DriveId
+    # For business: provide DriveId OR SiteId (if SiteId, uses the site's default drive)
+    SiteId: "${GRAPH_SITE_ID}"       # Optional for business
+    DriveId: "${GRAPH_DRIVE_ID}"     # Optional
     FolderPath: "/Shared Documents/Docs"
+    
     # File Filters
     FileExtensions:
       - ".docx"
