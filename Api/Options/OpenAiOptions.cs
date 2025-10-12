@@ -23,4 +23,10 @@ public class OpenAiOptions
     public string ChatModelLarge { get; set; } = "gpt-5-mini";
     public int MaxTokens { get; set; } = 1000;
     public double Temperature { get; set; } = 0.7;
+
+    /// <summary>
+    /// System prompt used when refining user queries into concise search phrases.
+    /// Can be overridden in configuration (OpenAI:RefineSystemPrompt).
+    /// </summary>
+    public string RefineSystemPrompt { get; set; } = "Produce exactly one concise search phrase (3-8 words) optimized for semantic embedding similarity. Output ONLY the phrase on a single line with no surrounding quotes, punctuation, explanation, or additional text. Use lowercased main nouns and essential modifiers (no pleasantries or stopwords unless essential). Prefer concrete, domain-specific keywords that capture the user's core intent so that when vectorized the phrase will be nearest to relevant document vectors.";
 }

@@ -132,16 +132,40 @@ public class OpenAiSdkService
     public async Task<string> RefineQueryPhraseAsync(string original, List<Api.Models.ChatMessage> history, CancellationToken ct = default)
     {
         var client = new ChatClient(_options.ChatModelSmall, Environment.GetEnvironmentVariable(OpenAiEnvVar));
-    var sdkMsg = new List<OpenAI.Chat.ChatMessage> { OpenAI.Chat.ChatMessage.CreateUserMessage(original) };
+    var sdkMsg = new List<OpenAI.Chat.ChatMessage>
+        {
+            OpenAI.Chat.ChatMessage.CreateSystemMessage(_options.RefineSystemPrompt),
+            OpenAI.Chat.ChatMessage.CreateUserMessage(original)
+        };
     var completionResult = await client.CompleteChatAsync(sdkMsg, options: null, cancellationToken: ct);
         var completion = completionResult.Value;
         return completion.Content.FirstOrDefault()?.Text?.Trim() ?? original;
     }
 
-    public async Task<string> RephraseForRetryAsync(string previous, List<Api.Models.ChatMessage> history, CancellationToken ct = default)
+    public async Task<string> RephraseForRetryAsync(string previous, List<Api.Models.ChatMessage> history, List<Api.Models.Source>? previousResults = null, CancellationToken ct = default)
     {
         var client = new ChatClient(_options.ChatModelSmall, Environment.GetEnvironmentVariable(OpenAiEnvVar));
-    var sdkMsg2 = new List<OpenAI.Chat.ChatMessage> { OpenAI.Chat.ChatMessage.CreateUserMessage(previous) };
+
+    var userSb = new StringBuilder();
+    userSb.AppendLine($"Original phrase: {previous}");
+    if (previousResults != null && previousResults.Count > 0)
+    {
+        userSb.AppendLine("Previous search results (top results with distance):");
+        foreach (var r in previousResults.Take(5))
+        {
+            userSb.AppendLine($"- {r.Text} (distance: {r.Distance:F4})");
+        }
+    }
+    else
+    {
+        userSb.AppendLine("No results were found for the previous phrase.");
+    }
+
+    var sdkMsg2 = new List<OpenAI.Chat.ChatMessage>
+        {
+            OpenAI.Chat.ChatMessage.CreateSystemMessage(_options.RefineSystemPrompt),
+            OpenAI.Chat.ChatMessage.CreateUserMessage(userSb.ToString())
+        };
     var completionResult = await client.CompleteChatAsync(sdkMsg2, options: null, cancellationToken: ct);
         var completion = completionResult.Value;
         return completion.Content.FirstOrDefault()?.Text?.Trim() ?? previous;

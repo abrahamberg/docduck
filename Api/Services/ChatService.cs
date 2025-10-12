@@ -66,7 +66,7 @@ public class ChatService
                     return BuildFailureResponse("I couldn't find anything relevant. Could you rephrase your question?", history, totalTokens);
                 }
                 // Rephrase and retry
-                currentPhrase = await _openAiClient.RephraseForRetryAsync(currentPhrase, history, ct);
+                currentPhrase = await _openAiClient.RephraseForRetryAsync(currentPhrase, history, sources, ct);
                 attempts.Add(currentPhrase);
                 continue;
             }
@@ -78,7 +78,7 @@ public class ChatService
             if (!eval.Answerable && attempt < 2)
             {
                 _logger.LogInformation("Model suggests more context or refinement before answering (attempt {Attempt})", attempt);
-                currentPhrase = eval.SuggestedQuery ?? await _openAiClient.RephraseForRetryAsync(currentPhrase, history, ct);
+                currentPhrase = eval.SuggestedQuery ?? await _openAiClient.RephraseForRetryAsync(currentPhrase, history, sources, ct);
                 attempts.Add(currentPhrase);
                 continue;
             }

@@ -180,7 +180,7 @@ public class OpenAiClient
     {
         var messages = new List<object>
         {
-            new { role = "system", content = "Refine user input into a concise search phrase (5-20 words) capturing core intent; remove pleasantries." },
+            new { role = "system", content = _options.RefineSystemPrompt },
             new { role = "user", content = original }
         };
 
@@ -210,12 +210,29 @@ public class OpenAiClient
     /// <summary>
     /// Suggest a rephrased query for second attempt.
     /// </summary>
-    public async Task<string> RephraseForRetryAsync(string previous, List<Api.Models.ChatMessage> history, CancellationToken ct = default)
+    public async Task<string> RephraseForRetryAsync(string previous, List<Api.Models.ChatMessage> history, List<Api.Models.Source>? previousResults = null, CancellationToken ct = default)
     {
+        // Build context for rephrasing: include the original phrase and any previous search results (top-k with distance)
+        var userContentBuilder = new StringBuilder();
+        userContentBuilder.AppendLine($"Original phrase: {previous}");
+        if (previousResults != null && previousResults.Count > 0)
+        {
+            userContentBuilder.AppendLine("Previous search results (top results with distance):");
+            // Include up to top 5 results to keep prompt compact
+            foreach (var r in previousResults.Take(5))
+            {
+                userContentBuilder.AppendLine($"- {r.Text} (distance: {r.Distance:F4})");
+            }
+        }
+        else
+        {
+            userContentBuilder.AppendLine("No results were found for the previous phrase.");
+        }
+
         var messages = new List<object>
         {
-            new { role = "system", content = "Provide an alternative phrasing better suited for semantic embedding search; output only the phrase." },
-            new { role = "user", content = previous }
+            new { role = "system", content = _options.RefineSystemPrompt },
+            new { role = "user", content = userContentBuilder.ToString() }
         };
 
         var rephraseModel = _options.ChatModelSmall;
