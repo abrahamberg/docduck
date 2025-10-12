@@ -29,7 +29,9 @@ public class OpenAiEmbeddingsClient
         _options = options.Value;
         _logger = logger;
 
-        _httpClient.BaseAddress = new Uri(_options.BaseUrl);
+        // Ensure BaseUrl ends with a slash for proper relative path resolution
+        var baseUrl = _options.BaseUrl.TrimEnd('/') + "/";
+        _httpClient.BaseAddress = new Uri(baseUrl);
         _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_options.ApiKey}");
         _httpClient.Timeout = TimeSpan.FromSeconds(60);
     }
@@ -55,7 +57,8 @@ public class OpenAiEmbeddingsClient
 
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/embeddings", request, ct);
+            // Use relative path (no leading slash) so it appends to BaseAddress
+            var response = await _httpClient.PostAsJsonAsync("embeddings", request, ct);
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<EmbeddingResponse>(cancellationToken: ct);

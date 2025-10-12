@@ -49,3 +49,28 @@ public class OneDriveIntegrationFixture : IDisposable
         GC.SuppressFinalize(this);
     }
 }
+
+/// <summary>
+/// Test collection definition for OpenAI integration tests.
+/// Ensures tests run sequentially to avoid rate limiting.
+/// </summary>
+[CollectionDefinition("OpenAiIntegration")]
+public class OpenAiIntegrationCollection : ICollectionFixture<OpenAiIntegrationFixture>
+{
+    // This class has no code, and is never created. Its purpose is simply
+    // to be the place to apply [CollectionDefinition] and all the
+    // ICollectionFixture<> interfaces.
+}
+
+/// <summary>
+/// Fixture for OpenAI integration tests.
+/// Could be used for shared setup/cleanup if needed.
+/// </summary>
+public class OpenAiIntegrationFixture : IDisposable
+{
+    public void Dispose()
+    {
+        // Any shared cleanup logic
+        GC.SuppressFinalize(this);
+    }
+}
