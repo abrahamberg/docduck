@@ -1,6 +1,9 @@
 using Api.Models;
 using Api.Options;
 using Api.Services;
+using System.Text;
+using System.IO;
+using Microsoft.AspNetCore.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -77,8 +80,40 @@ var app = builder.Build();
 // Enable CORS
 app.UseCors();
 
-// Log configuration status
+// Grab logger from app so middleware can use it
 var logger = app.Logger;
+
+// Global exception logging middleware: captures unhandled exceptions and logs request details
+app.Use(async (context, next) =>
+{
+    try
+    {
+        // Allow downstream to read the request body multiple times
+        context.Request.EnableBuffering();
+        await next();
+    }
+    catch (Exception ex)
+    {
+        // Try to read request body for debugging (reset position afterwards)
+        string body = string.Empty;
+        try
+        {
+            context.Request.Body.Seek(0, SeekOrigin.Begin);
+            using var reader = new StreamReader(context.Request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+            body = await reader.ReadToEndAsync();
+            context.Request.Body.Seek(0, SeekOrigin.Begin);
+        }
+        catch (Exception readEx)
+        {
+            logger.LogDebug(readEx, "Failed to read request body for error logging");
+        }
+
+        logger.LogError(ex, "Unhandled exception processing {Method} {Path}. Request body: {Body}", context.Request.Method, context.Request.Path, body);
+        throw;
+    }
+});
+
+// Log configuration status
 logger.LogInformation("DocDuck Query API starting...");
 logger.LogInformation("OpenAI API Key: {Status}", 
     string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENAI_API_KEY")) ? "Missing" : "Present");
