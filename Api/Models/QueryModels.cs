@@ -75,6 +75,19 @@ public record ChatResponse(
 );
 
 /// <summary>
+/// Simple document-level search result returned by the lightweight document search endpoint.
+/// </summary>
+public record DocumentResult(
+    string DocId,
+    string Filename,
+    string Address,
+    string Text,
+    double Distance,
+    string? ProviderType = null,
+    string? ProviderName = null
+);
+
+/// <summary>
 /// Internal model for database chunk results.
 /// </summary>
 internal record ChunkResult(

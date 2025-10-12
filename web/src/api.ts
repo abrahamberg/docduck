@@ -1,4 +1,4 @@
-import { ChatRequest, ChatResponse, ProviderInfo, QueryRequest, QueryResponse, HealthStatus } from './types';
+import { ChatRequest, ChatResponse, ProviderInfo, QueryRequest, QueryResponse, HealthStatus, DocumentResult } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:5000';
 
@@ -24,6 +24,10 @@ export async function getProviders(): Promise<ProviderInfo[]> {
 
 export async function postQuery(req: QueryRequest): Promise<QueryResponse> {
   return http<QueryResponse>(`/query`, { method: 'POST', body: JSON.stringify(req) });
+}
+
+export async function postDocSearch(req: QueryRequest): Promise<{ query: string; count: number; results: DocumentResult[] }> {
+  return http(`/docsearch`, { method: 'POST', body: JSON.stringify(req) });
 }
 
 export async function postChat(req: ChatRequest): Promise<ChatResponse> {

@@ -4,6 +4,7 @@ import { ProviderInfo, HealthStatus } from './types';
 import { ProviderFilter } from './components/ProviderFilter';
 import { Chat } from './components/Chat';
 import { Ask } from './components/Ask';
+import { DocSearchPanel } from './components/DocSearchPanel';
 import { EnvironmentBanner } from './components/EnvironmentBanner';
 import { ThemeProvider } from '@mui/material/styles';
 import { theme } from './theme';
@@ -13,7 +14,7 @@ export const App: React.FC = () => {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [loadingProviders, setLoadingProviders] = useState(false);
   const [pf, setPf] = useState<{ providerType?: string; providerName?: string }>({});
-  const [tab, setTab] = useState<'chat' | 'ask'>('chat');
+  const [tab, setTab] = useState<'chat' | 'ask' | 'docs'>('chat');
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
@@ -55,6 +56,7 @@ export const App: React.FC = () => {
             <Tabs value={tab} onChange={(_, v) => setTab(v)} textColor="primary" indicatorColor="primary">
               <Tab value="chat" label="Chat" />
               <Tab value="ask" label="Ask" />
+              <Tab value="docs" label="Docs" />
             </Tabs>
           </Toolbar>
         </AppBar>
@@ -67,8 +69,10 @@ export const App: React.FC = () => {
           <Box sx={{ flex: 1, minHeight: 0 }}>
             {tab === 'chat' ? (
               <Chat providerType={pf.providerType} providerName={pf.providerName} />
-            ) : (
+            ) : tab === 'ask' ? (
               <Ask providerType={pf.providerType} providerName={pf.providerName} />
+            ) : (
+              <DocSearchPanel providerType={pf.providerType} providerName={pf.providerName} />
             )}
           </Box>
         </Container>

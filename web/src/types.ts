@@ -22,6 +22,16 @@ export interface QueryResponse {
   tokensUsed: number;
 }
 
+export interface DocumentResult {
+  docId: string;
+  filename: string;
+  address: string;
+  distance: number;
+  text: string;
+  providerType?: string | null;
+  providerName?: string | null;
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;

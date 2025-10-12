@@ -197,6 +197,63 @@ app.MapPost("/query", async (
     }
 });
 
+// Lightweight document search endpoint: return up to 5 most relevant documents (grouped by doc_id)
+app.MapPost("/docsearch", async (
+    QueryRequest request,
+    Api.Services.OpenAiSdkService openAiClient,
+    VectorSearchService searchService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Question))
+    {
+        return Results.BadRequest(new { error = "Question/query is required" });
+    }
+
+    try
+    {
+        // Create embedding for the query
+        var qEmbedding = await openAiClient.EmbedAsync(request.Question, ct);
+
+        // Fetch chunks (limit a bit higher to allow grouping) - respect TopK if provided but cap to 100
+        var fetchTopK = Math.Min(request.TopK ?? 20, 100);
+        var chunks = await searchService.SearchAsync(qEmbedding, fetchTopK, request.ProviderType, request.ProviderName, ct);
+
+        // Group by document and pick the best (smallest) distance per document
+        var docs = chunks
+            .GroupBy(c => c.DocId)
+            .Select(g => new {
+                DocId = g.Key,
+                Filename = g.First().Filename,
+                ProviderType = g.First().ProviderType,
+                ProviderName = g.First().ProviderName,
+                BestDistance = g.Min(x => x.Distance)
+            })
+            .OrderBy(x => x.BestDistance)
+            .Take(5)
+                .Select(x => {
+                    // pick the first chunk text for the document to show as snippet
+                    var chunkText = chunks.FirstOrDefault(c => c.DocId == x.DocId)?.Text ?? string.Empty;
+                    return new Api.Models.DocumentResult(
+                        DocId: x.DocId,
+                        Filename: x.Filename,
+                        Address: $"{x.ProviderType}/{x.ProviderName}:{x.Filename}",
+                        Text: chunkText,
+                        Distance: x.BestDistance,
+                        ProviderType: x.ProviderType,
+                        ProviderName: x.ProviderName
+                    );
+                })
+            .ToList();
+
+        return Results.Ok(new { query = request.Question, count = docs.Count, results = docs });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Error processing docsearch");
+        return Results.Problem("An error occurred processing your document search");
+    }
+});
+
 // Chat endpoint - conversation with history and optional provider filtering
 app.MapPost("/chat", async (
     ChatRequest request,
