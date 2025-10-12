@@ -8,6 +8,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NetEscapades.Configuration.Yaml;
+using Npgsql;
+using Pgvector;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -63,12 +65,8 @@ if (providersConfig != null)
     }
 }
 
-// Register HttpClient for OpenAI with timeout
-builder.Services.AddHttpClient<OpenAiEmbeddingsClient>()
-    .ConfigureHttpClient(client =>
-    {
-        client.Timeout = TimeSpan.FromSeconds(30);
-    });
+// Register SDK-based OpenAI embeddings client
+builder.Services.AddSingleton<OpenAiEmbeddingsClient>();
 
 // Register text extraction services
 builder.Services.AddSingleton<ITextExtractor, DocxTextExtractor>();

@@ -14,19 +14,17 @@ namespace Api.Services;
 public class ChatService
 {
     private readonly VectorSearchService _searchService;
-    private readonly OpenAiClient _openAiClient;
-    private readonly OpenAiOptions _options;
+    private readonly OpenAiSdkService _openAiClient;
     private readonly ILogger<ChatService> _logger;
 
     public ChatService(
         VectorSearchService searchService,
-        OpenAiClient openAiClient,
+    OpenAiSdkService openAiClient,
         IOptions<OpenAiOptions> options,
         ILogger<ChatService> logger)
     {
         _searchService = searchService;
         _openAiClient = openAiClient;
-        _options = options.Value;
         _logger = logger;
     }
 

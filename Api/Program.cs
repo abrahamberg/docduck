@@ -15,8 +15,10 @@ builder.Services.Configure<OpenAiOptions>(options =>
 {
     options.ApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") 
         ?? string.Empty;
+    // Ensure BaseUrl ends with a trailing slash so relative paths like "/chat/completions"
+    // combine to https://api.openai.com/v1/chat/completions correctly.
     options.BaseUrl = Environment.GetEnvironmentVariable("OPENAI_BASE_URL") 
-        ?? "https://api.openai.com/v1";
+        ?? "https://api.openai.com/v1/";
     options.EmbedModel = Environment.GetEnvironmentVariable("OPENAI_EMBED_MODEL") 
         ?? "text-embedding-3-small";
     options.ChatModel = Environment.GetEnvironmentVariable("OPENAI_CHAT_MODEL") 
@@ -47,11 +49,8 @@ builder.Services.Configure<SearchOptions>(options =>
 });
 
 // Register HttpClient for OpenAI with timeout
-builder.Services.AddHttpClient<OpenAiClient>()
-    .ConfigureHttpClient(client =>
-    {
-        client.Timeout = TimeSpan.FromSeconds(60);
-    });
+// Register OpenAI SDK-based service. The wrapper will read OPENAI_API_KEY at runtime.
+builder.Services.AddSingleton<Api.Services.OpenAiSdkService>();
 
 // Register services
 builder.Services.AddSingleton<VectorSearchService>();
@@ -139,7 +138,7 @@ app.MapGet("/providers", async (VectorSearchService searchService, CancellationT
 // Query endpoint - simple question answering with optional provider filtering
 app.MapPost("/query", async (
     QueryRequest request,
-    OpenAiClient openAiClient,
+    Api.Services.OpenAiSdkService openAiClient,
     VectorSearchService searchService,
     CancellationToken ct) =>
 {
@@ -154,7 +153,7 @@ app.MapPost("/query", async (
             request.Question, request.ProviderType ?? "all", request.ProviderName ?? "all");
 
         // 1. Generate embedding for the question
-        var questionEmbedding = await openAiClient.EmbedAsync(request.Question, ct);
+    var questionEmbedding = await openAiClient.EmbedAsync(request.Question, ct);
 
         // 2. Search for similar chunks with optional provider filter
         var sources = await searchService.SearchAsync(

@@ -47,7 +47,7 @@ public class OpenAiClient
             input = text
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/embeddings")
+    var request = new HttpRequestMessage(HttpMethod.Post, "embeddings")
         {
             Content = new StringContent(
                 JsonSerializer.Serialize(payload),
@@ -128,17 +128,22 @@ public class OpenAiClient
                 """
         });
 
-        var payload = new
+        var modelName = useLargeModel ? _options.ChatModelLarge : _options.ChatModelSmall;
+        var payload = new Dictionary<string, object>
         {
-            model = useLargeModel ? _options.ChatModelLarge : _options.ChatModelSmall,
-            messages,
-            max_tokens = _options.MaxTokens,
-            temperature = _options.Temperature
+            ["model"] = modelName,
+            ["messages"] = messages,
+            ["max_completion_tokens"] = _options.MaxTokens
         };
+        // Some newer models (e.g. gpt-5-*) do not accept custom temperature values
+        if (!modelName.StartsWith("gpt-5-", StringComparison.OrdinalIgnoreCase))
+        {
+            payload["temperature"] = _options.Temperature;
+        }
 
         _logger.LogDebug("Generating answer for question: {Question}", question);
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/chat/completions")
+    var request = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
         {
             Content = new StringContent(
                 JsonSerializer.Serialize(payload),
@@ -179,17 +184,21 @@ public class OpenAiClient
             new { role = "user", content = original }
         };
 
-        var payload = new
+        var refineModel = _options.ChatModelSmall;
+        var payloadDict = new Dictionary<string, object>
         {
-            model = _options.ChatModelSmall,
-            messages,
-            max_tokens = 60,
-            temperature = 0.3
+            ["model"] = refineModel,
+            ["messages"] = messages,
+            ["max_completion_tokens"] = 60
         };
-
-        var request = new HttpRequestMessage(HttpMethod.Post, "/chat/completions")
+        if (!refineModel.StartsWith("gpt-5-", StringComparison.OrdinalIgnoreCase))
         {
-            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+            payloadDict["temperature"] = 0.3;
+        }
+
+    var request = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(payloadDict), Encoding.UTF8, "application/json")
         };
         var response = await _httpClient.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
@@ -209,17 +218,21 @@ public class OpenAiClient
             new { role = "user", content = previous }
         };
 
-        var payload = new
+        var rephraseModel = _options.ChatModelSmall;
+        var payloadDict2 = new Dictionary<string, object>
         {
-            model = _options.ChatModelSmall,
-            messages,
-            max_tokens = 40,
-            temperature = 0.4
+            ["model"] = rephraseModel,
+            ["messages"] = messages,
+            ["max_completion_tokens"] = 40
         };
-
-        var request = new HttpRequestMessage(HttpMethod.Post, "/chat/completions")
+        if (!rephraseModel.StartsWith("gpt-5-", StringComparison.OrdinalIgnoreCase))
         {
-            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+            payloadDict2["temperature"] = 0.4;
+        }
+
+    var request = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(payloadDict2), Encoding.UTF8, "application/json")
         };
         var response = await _httpClient.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
@@ -242,16 +255,20 @@ public class OpenAiClient
             new { role = "system", content = "Determine if answer can be produced ONLY from given context. Reply JSON with fields: answerable:boolean, suggested_query:string|null." },
             new { role = "user", content = $"Query: {query}\nContext:\n{context}" }
         };
-        var payload = new
+        var evalModel = _options.ChatModelSmall;
+        var payloadDict3 = new Dictionary<string, object>
         {
-            model = _options.ChatModelSmall,
-            messages,
-            max_tokens = 120,
-            temperature = 0.2
+            ["model"] = evalModel,
+            ["messages"] = messages,
+            ["max_completion_tokens"] = 120
         };
-        var request = new HttpRequestMessage(HttpMethod.Post, "/chat/completions")
+        if (!evalModel.StartsWith("gpt-5-", StringComparison.OrdinalIgnoreCase))
         {
-            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+            payloadDict3["temperature"] = 0.2;
+        }
+    var request = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
+        {
+            Content = new StringContent(JsonSerializer.Serialize(payloadDict3), Encoding.UTF8, "application/json")
         };
         var response = await _httpClient.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();

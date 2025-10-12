@@ -153,6 +153,13 @@ public class LocalProvider : IDocumentProvider
 
         var relativePath = Path.GetRelativePath(_config.RootPath, filePath);
         
+        // Always exclude Office temp/lock files which start with ~$
+        var fileName = Path.GetFileName(filePath);
+        if (!string.IsNullOrEmpty(fileName) && fileName.StartsWith("~$", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
         return _config.ExcludePatterns
             .Any(pattern => relativePath.Contains(pattern, StringComparison.OrdinalIgnoreCase));
     }

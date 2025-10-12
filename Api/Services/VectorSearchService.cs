@@ -63,7 +63,7 @@ public class VectorSearchService
                 chunk_num,
                 text,
                 metadata,
-                embedding <=> @embedding AS distance
+                embedding <=> @embedding::vector AS distance
             FROM docs_chunks";
 
         var whereConditions = new List<string>();
@@ -82,12 +82,15 @@ public class VectorSearchService
         }
 
         sql += @"
-            ORDER BY embedding <=> @embedding
+            ORDER BY embedding <=> (@embedding)::vector
             LIMIT @limit";
 
-        await using var cmd = new NpgsqlCommand(sql, conn);
-        cmd.Parameters.AddWithValue("embedding", new Vector(queryEmbedding));
-        cmd.Parameters.AddWithValue("limit", k);
+    await using var cmd = new NpgsqlCommand(sql, conn);
+    // Pass embedding as text and cast to vector in SQL to avoid relying on Npgsql/Pgvector
+    // type mapping which can be fragile in some runtime environments.
+    var embeddingText = "[" + string.Join(",", queryEmbedding.Select(f => f.ToString(System.Globalization.CultureInfo.InvariantCulture))) + "]";
+    cmd.Parameters.AddWithValue("embedding", embeddingText);
+    cmd.Parameters.AddWithValue("limit", k);
         
         if (!string.IsNullOrEmpty(providerType))
         {

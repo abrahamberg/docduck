@@ -99,7 +99,7 @@ public class VectorRepository
 
         const string sql = @"
             INSERT INTO docs_chunks (doc_id, filename, provider_type, provider_name, chunk_num, text, metadata, embedding)
-            VALUES (@doc_id, @filename, @provider_type, @provider_name, @chunk_num, @text, @metadata::jsonb, @embedding)
+            VALUES (@doc_id, @filename, @provider_type, @provider_name, @chunk_num, @text, @metadata::jsonb, @embedding::vector)
             ON CONFLICT (doc_id, chunk_num)
             DO UPDATE SET
                 filename = EXCLUDED.filename,
@@ -125,7 +125,10 @@ public class VectorRepository
             cmd.Parameters.AddWithValue("chunk_num", record.Chunk.ChunkNum);
             cmd.Parameters.AddWithValue("text", record.Chunk.Text);
             cmd.Parameters.AddWithValue("metadata", record.Metadata.RootElement.GetRawText());
-            cmd.Parameters.AddWithValue("embedding", new Vector(record.Embedding));
+            // Pass the embedding as a text representation and cast to ::vector in SQL to avoid
+            // reliance on Npgsql/Pgvector type mapping in the runtime image.
+            var embeddingText = "[" + string.Join(",", record.Embedding.Select(f => f.ToString(System.Globalization.CultureInfo.InvariantCulture))) + "]";
+            cmd.Parameters.AddWithValue("embedding", embeddingText);
 
             await cmd.ExecuteNonQueryAsync(ct);
             insertedCount++;

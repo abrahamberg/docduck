@@ -55,10 +55,19 @@ public class DocxExtractor
                 _logger.LogDebug("Extracted {Length} characters from document", text.Length);
                 return text;
             }
+            catch (System.IO.InvalidDataException ex)
+            {
+                // Zip/OpenXml format errors (corrupted/truncated file)
+                _logger.LogWarning(ex, "Corrupted or invalid .docx file encountered. Skipping.");
+                return string.Empty;
+            }
+            // Note: specific OpenXmlPackageException type is not available in this dependency; rely on
+            // InvalidDataException and a general catch to handle corrupted or invalid packages.
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to extract text from .docx");
-                throw;
+                // Other IO or unexpected exceptions - log and return empty so indexer can continue
+                _logger.LogWarning(ex, "Unhandled error extracting .docx. Skipping file.");
+                return string.Empty;
             }
         }, ct);
     }

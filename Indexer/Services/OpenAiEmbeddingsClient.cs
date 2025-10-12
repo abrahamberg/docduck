@@ -1,140 +1,66 @@
 using Indexer.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Net.Http.Json;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using OpenAI.Embeddings;
 
 namespace Indexer.Services;
 
 /// <summary>
-/// Client for OpenAI embeddings API with batching support.
+/// SDK-based embeddings client. Replaces the previous raw-HTTP implementation.
 /// </summary>
 public class OpenAiEmbeddingsClient
 {
-    private readonly HttpClient _httpClient;
-    private readonly OpenAiOptions _options;
+    private readonly EmbeddingClient _client;
     private readonly ILogger<OpenAiEmbeddingsClient> _logger;
 
-    public OpenAiEmbeddingsClient(
-        HttpClient httpClient,
-        IOptions<OpenAiOptions> options,
-        ILogger<OpenAiEmbeddingsClient> logger)
+    public OpenAiEmbeddingsClient(IOptions<OpenAiOptions> options, ILogger<OpenAiEmbeddingsClient> logger)
     {
-        ArgumentNullException.ThrowIfNull(httpClient);
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _httpClient = httpClient;
-        _options = options.Value;
+        var opts = options.Value;
         _logger = logger;
 
-        // Ensure BaseUrl ends with a slash for proper relative path resolution
-        var baseUrl = _options.BaseUrl.TrimEnd('/') + "/";
-        _httpClient.BaseAddress = new Uri(baseUrl);
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_options.ApiKey}");
-        _httpClient.Timeout = TimeSpan.FromSeconds(60);
-    }
+        // Prefer ApiKey from configured options (useful for tests), fallback to env var.
+        var apiKey = !string.IsNullOrWhiteSpace(opts.ApiKey)
+            ? opts.ApiKey
+            : Environment.GetEnvironmentVariable("OPENAI_API_KEY");
 
-    /// <summary>
-    /// Generates embeddings for a batch of input texts.
-    /// </summary>
-    public async Task<float[][]> EmbedAsync(IEnumerable<string> inputs, CancellationToken ct = default)
-    {
-        ArgumentNullException.ThrowIfNull(inputs);
+        if (string.IsNullOrWhiteSpace(apiKey)) throw new InvalidOperationException("OPENAI_API_KEY not set");
 
-        var inputList = inputs.ToList();
-        if (inputList.Count == 0)
+        // Normalize BaseUrl to end with '/'
+        if (!string.IsNullOrWhiteSpace(opts.BaseUrl))
         {
-            return Array.Empty<float[]>();
+            var normalized = opts.BaseUrl.EndsWith('/') ? opts.BaseUrl : opts.BaseUrl + "/";
+            Environment.SetEnvironmentVariable("OPENAI_BASE_URL", normalized);
         }
 
-        var request = new EmbeddingRequest
+        _client = new EmbeddingClient(opts.EmbedModel, apiKey);
+    }
+
+    public Task<float[][]> EmbedBatchedAsync(IEnumerable<string> inputs, CancellationToken ct = default)
+    {
+        var list = inputs.ToList();
+        if (list.Count == 0) return Task.FromResult(Array.Empty<float[]>());
+
+        return Task.Run(async () =>
         {
-            Model = _options.EmbedModel,
-            Input = inputList
-        };
-
-        try
-        {
-            // Use relative path (no leading slash) so it appends to BaseAddress
-            var response = await _httpClient.PostAsJsonAsync("embeddings", request, ct);
-            response.EnsureSuccessStatusCode();
-
-            var result = await response.Content.ReadFromJsonAsync<EmbeddingResponse>(cancellationToken: ct);
-
-            if (result?.Data == null || result.Data.Count == 0)
+            var outputs = new List<float[]>();
+            foreach (var text in list)
             {
-                throw new InvalidOperationException("OpenAI API returned no embeddings");
+                ct.ThrowIfCancellationRequested();
+                var r = await _client.GenerateEmbeddingAsync(text, options: null, cancellationToken: ct);
+                outputs.Add(r.Value.ToFloats().ToArray());
             }
-
-            var embeddings = result.Data
-                .OrderBy(d => d.Index)
-                .Select(d => d.Embedding)
-                .ToArray();
-
-            _logger.LogDebug("Generated {Count} embeddings", embeddings.Length);
-            return embeddings;
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, "HTTP request to OpenAI failed");
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to generate embeddings");
-            throw;
-        }
+            _logger.LogDebug("Generated {Count} embeddings", outputs.Count);
+            return outputs.ToArray();
+        }, ct);
     }
 
-    /// <summary>
-    /// Generates embeddings with automatic batching for large input sets.
-    /// </summary>
-    public async Task<float[][]> EmbedBatchedAsync(IEnumerable<string> inputs, CancellationToken ct = default)
+    public async Task<float[]> EmbedAsync(string input, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(inputs);
-
-        var inputList = inputs.ToList();
-        var batchSize = _options.BatchSize;
-        var allEmbeddings = new List<float[]>();
-
-        for (var i = 0; i < inputList.Count; i += batchSize)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var batch = inputList.Skip(i).Take(batchSize);
-            var embeddings = await EmbedAsync(batch, ct);
-            allEmbeddings.AddRange(embeddings);
-
-            _logger.LogDebug("Processed batch {Current}/{Total}",
-                Math.Min(i + batchSize, inputList.Count), inputList.Count);
-        }
-
-        return allEmbeddings.ToArray();
+        if (input == null) throw new ArgumentNullException(nameof(input));
+        var r = await _client.GenerateEmbeddingAsync(input, options: null, cancellationToken: ct);
+        return r.Value.ToFloats().ToArray();
     }
 
-    private record EmbeddingRequest
-    {
-        [JsonPropertyName("model")]
-        public string Model { get; init; } = string.Empty;
-
-        [JsonPropertyName("input")]
-        public List<string> Input { get; init; } = new();
-    }
-
-    private record EmbeddingResponse
-    {
-        [JsonPropertyName("data")]
-        public List<EmbeddingData> Data { get; init; } = new();
-    }
-
-    private record EmbeddingData
-    {
-        [JsonPropertyName("index")]
-        public int Index { get; init; }
-
-        [JsonPropertyName("embedding")]
-        public float[] Embedding { get; init; } = Array.Empty<float>();
-    }
+    public Task<float[][]> EmbedAsync(IEnumerable<string> inputs, CancellationToken ct = default)
+        => EmbedBatchedAsync(inputs, ct);
 }

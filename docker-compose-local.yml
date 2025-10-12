@@ -24,6 +24,8 @@ services:
       dockerfile: Dockerfile
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Map to .NET configuration key OpenAi:ApiKey so IOptions<OpenAiOptions> is populated
+      OpenAi__ApiKey: ${OPENAI_API_KEY}
       DB_CONNECTION_STRING: Host=postgres;Database=docduck;Username=docduck;Password=docduck123
     volumes:
       - ./Indexer/appsettings.local.yaml:/app/appsettings.yaml:ro
@@ -41,10 +43,11 @@ services:
       dockerfile: Dockerfile
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Map to .NET configuration key OpenAi:ApiKey so IOptions<OpenAiOptions> is populated
+      OpenAi__ApiKey: ${OPENAI_API_KEY}
       DB_CONNECTION_STRING: Host=postgres;Database=docduck;Username=docduck;Password=docduck123
       ASPNETCORE_URLS: "http://+:8080"
-    ports:
-      - "8080:8080"
+    # api is kept internal; web nginx will proxy /api -> api:8080. Do not bind api to host port 8080.
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,12 +59,12 @@ services:
       context: ./web
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE: http://api:8080
+        VITE_API_BASE: /api
     environment:
       # For clarity; not needed by build since we pass arg
-      VITE_API_BASE: http://api:8080
+      VITE_API_BASE: /api
     ports:
-      - "5173:80"
+      - "8080:5173"
     depends_on:
       - api
     networks:
