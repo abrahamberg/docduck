@@ -43,13 +43,23 @@ export interface ChatRequest {
   topK?: number;
   providerType?: string;
   providerName?: string;
+  streamSteps?: boolean;
 }
 
 export interface ChatResponse {
   answer: string;
+  steps: string[];
+  files: DocumentResult[];
   sources: Source[];
   tokensUsed: number;
   history: ChatMessage[];
+}
+
+export interface ChatStreamUpdate {
+  type: 'step' | 'final' | 'error';
+  message?: string | null;
+  files?: DocumentResult[] | null;
+  final?: ChatResponse | null;
 }
 
 export interface ProviderInfo {

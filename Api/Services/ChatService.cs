@@ -1,6 +1,7 @@
 using Api.Models;
 using Api.Options;
 using Microsoft.Extensions.Options;
+using System.Linq;
 
 namespace Api.Services;
 
@@ -26,106 +27,250 @@ public class ChatService
         _searchService = searchService;
         _openAiClient = openAiClient;
         _logger = logger;
+        _ = options.Value;
     }
 
     public async Task<ChatResponse> ProcessAsync(
         ChatRequest request,
+        Func<ChatStreamUpdate, Task>? progress = null,
         CancellationToken ct = default)
     {
-        // History list to extend
         var history = request.History ?? new List<ChatMessage>();
-        var attempts = new List<string>();
+        var steps = new List<string>();
 
+        async Task RecordStepAsync(string message)
+        {
+            steps.Add(message);
+            if (progress != null)
+            {
+                await progress(new ChatStreamUpdate(
+                    Type: "step",
+                    Message: message,
+                    Files: null,
+                    Final: null));
+            }
+        }
+
+        var latestSources = new List<Source>();
         string currentPhrase = request.Message.Trim();
-        // Step 1: Digest user input into effective search phrase (small model prompt)
         currentPhrase = await _openAiClient.RefineQueryPhraseAsync(currentPhrase, history, ct);
-        attempts.Add(currentPhrase);
+        await RecordStepAsync($"Rephrased the question for retrieval: \"{currentPhrase}\".");
 
-        var allSources = new List<Source>();
-        ChatMessage? assistantFinal = null;
+        string? finalAnswer = null;
         int totalTokens = 0;
 
         for (int attempt = 1; attempt <= 2; attempt++)
         {
             _logger.LogInformation("Chat attempt {Attempt} with phrase: {Phrase}", attempt, currentPhrase);
+            await RecordStepAsync($"Attempt {attempt}: searching the index with \"{currentPhrase}\".");
 
             var embedding = await _openAiClient.EmbedAsync(currentPhrase, ct);
-            var sources = await _searchService.SearchAsync(
+            latestSources = await _searchService.SearchAsync(
                 embedding,
                 request.TopK,
                 request.ProviderType,
                 request.ProviderName,
                 ct);
-            allSources = sources; // overwrite latest
 
-            if (sources.Count == 0)
+            if (latestSources.Count == 0)
             {
                 _logger.LogInformation("No sources found on attempt {Attempt}", attempt);
+                await RecordStepAsync("No matching passages came back.");
+
                 if (attempt == 2)
                 {
-                    return BuildFailureResponse("I couldn't find anything relevant. Could you rephrase your question?", history, totalTokens);
+                    await RecordStepAsync("Still nothing after two tries. Handing control back to the user.");
+                    var failure = BuildResponse(
+                        answer: "I couldn't find anything relevant. Could you rephrase your question?",
+                        userMessage: request.Message,
+                        history,
+                        steps,
+                        sources: new List<Source>(),
+                        tokens: totalTokens,
+                        includeStepsInHistory: progress != null,
+                        includeStepsInResponse: progress != null);
+
+                    if (progress != null)
+                    {
+                        await progress(new ChatStreamUpdate(
+                            Type: "final",
+                            Message: null,
+                            Files: failure.Files,
+                            Final: failure));
+                    }
+
+                    return failure;
                 }
-                // Rephrase and retry
-                currentPhrase = await _openAiClient.RephraseForRetryAsync(currentPhrase, history, sources, ct);
-                attempts.Add(currentPhrase);
+
+                currentPhrase = await _openAiClient.RephraseForRetryAsync(currentPhrase, history, latestSources, ct);
+                await RecordStepAsync($"Trying a new search phrase: \"{currentPhrase}\".");
                 continue;
             }
 
-            // Evaluate answerability & maybe generate answer (small model first)
-            var eval = await _openAiClient.EvaluateAnswerabilityAsync(currentPhrase, sources.Select(s => s.Text).ToList(), ct);
+            var docCount = latestSources.Select(s => s.DocId).Distinct().Count();
+            await RecordStepAsync($"Found {latestSources.Count} chunks across {docCount} documents.");
+
+            var eval = await _openAiClient.EvaluateAnswerabilityAsync(currentPhrase, latestSources.Select(s => s.Text).ToList(), ct);
             totalTokens += eval.TokensUsed;
 
             if (!eval.Answerable && attempt < 2)
             {
                 _logger.LogInformation("Model suggests more context or refinement before answering (attempt {Attempt})", attempt);
-                currentPhrase = eval.SuggestedQuery ?? await _openAiClient.RephraseForRetryAsync(currentPhrase, history, sources, ct);
-                attempts.Add(currentPhrase);
+                await RecordStepAsync("Context isn't strong enough yet; refining the search phrase.");
+                currentPhrase = eval.SuggestedQuery ?? await _openAiClient.RephraseForRetryAsync(currentPhrase, history, latestSources, ct);
+                await RecordStepAsync($"Switching to \"{currentPhrase}\" for the next search.");
                 continue;
             }
 
-            // Use large model for final answer if answerable or last attempt
+            await RecordStepAsync("Context looks solid — drafting the answer.");
             var (answer, answerTokens) = await _openAiClient.GenerateAnswerAsync(
                 currentPhrase,
-                sources.Select(s => s.Text).ToList(),
+                latestSources.Select(s => s.Text).ToList(),
                 history.Select(h => (h.Role, h.Content)).ToList(),
                 ct,
                 useLargeModel: true);
             totalTokens += answerTokens;
 
-            assistantFinal = new ChatMessage("assistant", answer);
+            finalAnswer = answer;
             break;
         }
 
-        if (assistantFinal == null)
+        if (finalAnswer == null)
         {
-            return BuildFailureResponse("I couldn't confidently answer. Please rephrase your question.", history, totalTokens);
+            await RecordStepAsync("I couldn't gather enough context to answer confidently.");
+            var fallback = BuildResponse(
+                answer: "I couldn't confidently answer. Please rephrase your question.",
+                userMessage: request.Message,
+                history,
+                steps,
+                sources: latestSources,
+                tokens: totalTokens,
+                includeStepsInHistory: progress != null,
+                includeStepsInResponse: progress != null);
+
+            if (progress != null)
+            {
+                await progress(new ChatStreamUpdate(
+                    Type: "final",
+                    Message: null,
+                    Files: fallback.Files,
+                    Final: fallback));
+            }
+
+            return fallback;
+        }
+
+        var success = BuildResponse(
+            answer: finalAnswer,
+            userMessage: request.Message,
+            history,
+            steps,
+            sources: latestSources,
+            tokens: totalTokens,
+            includeStepsInHistory: progress != null,
+            includeStepsInResponse: progress != null);
+
+        if (progress != null)
+        {
+            await progress(new ChatStreamUpdate(
+                Type: "final",
+                Message: null,
+                Files: success.Files,
+                Final: success));
+        }
+
+        return success;
+    }
+
+    private ChatResponse BuildResponse(
+        string answer,
+        string userMessage,
+        List<ChatMessage> history,
+        List<string> steps,
+        List<Source> sources,
+        int tokens,
+        bool includeStepsInHistory,
+        bool includeStepsInResponse)
+    {
+        var files = BuildDocumentResults(sources);
+        var responseSteps = includeStepsInResponse ? new List<string>(steps) : new List<string>();
+
+        if (includeStepsInResponse && files.Count > 0)
+        {
+            var previewNames = files
+                .Select(f => f.Filename)
+                .Distinct()
+                .Take(3)
+                .ToList();
+            if (previewNames.Count > 0)
+            {
+                var suffix = files.Count > previewNames.Count ? "…" : string.Empty;
+                responseSteps.Add($"Noted promising documents: {string.Join(", ", previewNames)}{suffix}.");
+            }
         }
 
         var updatedHistory = new List<ChatMessage>(history)
         {
-            new ChatMessage("user", request.Message),
-            assistantFinal
+            new ChatMessage("user", userMessage)
         };
 
+        if (includeStepsInHistory)
+        {
+            foreach (var step in responseSteps)
+            {
+                updatedHistory.Add(new ChatMessage("assistant", step));
+            }
+        }
+
+        updatedHistory.Add(new ChatMessage("assistant", $"Answer:\n{answer}"));
+
         return new ChatResponse(
-            Answer: assistantFinal.Content,
-            Sources: allSources,
-            TokensUsed: totalTokens,
+            Answer: answer,
+            Steps: responseSteps,
+            Files: files,
+            Sources: sources,
+            TokensUsed: tokens,
             History: updatedHistory
         );
     }
 
-    private ChatResponse BuildFailureResponse(string message, List<ChatMessage> history, int tokens)
+    private static List<DocumentResult> BuildDocumentResults(List<Source> sources)
     {
-        var updatedHistory = new List<ChatMessage>(history)
+        if (sources.Count == 0)
         {
-            new ChatMessage("assistant", message)
-        };
-        return new ChatResponse(
-            Answer: message,
-            Sources: new List<Source>(),
-            TokensUsed: tokens,
-            History: updatedHistory
-        );
+            return new List<DocumentResult>();
+        }
+
+        return sources
+            .GroupBy(s => s.DocId)
+            .Select(group => new
+            {
+                DocId = group.Key,
+                First = group.OrderBy(s => s.Distance).First()
+            })
+            .OrderBy(x => x.First.Distance)
+            .Take(5)
+            .Select(x =>
+            {
+                var providerType = x.First.ProviderType ?? string.Empty;
+                var providerName = x.First.ProviderName ?? string.Empty;
+                var providerPrefix = string.IsNullOrWhiteSpace(providerType) && string.IsNullOrWhiteSpace(providerName)
+                    ? string.Empty
+                    : $"{providerType}/{providerName}".Trim('/');
+                var address = string.IsNullOrWhiteSpace(providerPrefix)
+                    ? x.First.Filename
+                    : $"{providerPrefix}:{x.First.Filename}";
+
+                return new DocumentResult(
+                    DocId: x.DocId,
+                    Filename: x.First.Filename,
+                    Address: address,
+                    Text: x.First.Text,
+                    Distance: x.First.Distance,
+                    ProviderType: x.First.ProviderType,
+                    ProviderName: x.First.ProviderName
+                );
+            })
+            .ToList();
     }
 }

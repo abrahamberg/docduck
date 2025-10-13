@@ -3,6 +3,7 @@ using Api.Options;
 using Api.Services;
 using System.Text;
 using System.IO;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -290,9 +291,13 @@ app.MapPost("/docsearch", async (
 });
 
 // Chat endpoint - conversation with history and optional provider filtering
+var streamJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
 app.MapPost("/chat", async (
+    HttpContext httpContext,
     ChatRequest request,
     ChatService chatService,
+    ILogger<Program> endpointLogger,
     CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.Message))
@@ -302,14 +307,55 @@ app.MapPost("/chat", async (
 
     try
     {
-        logger.LogInformation("Processing chat message (iterative): {Message}", request.Message);
-        var response = await chatService.ProcessAsync(request, ct);
+        if (request.StreamSteps)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status200OK;
+            httpContext.Response.ContentType = "text/event-stream";
+            httpContext.Response.Headers.CacheControl = "no-cache";
+            httpContext.Response.Headers["X-Accel-Buffering"] = "no";
+
+            async Task WriteUpdateAsync(ChatStreamUpdate update)
+            {
+                var payload = JsonSerializer.Serialize(update, streamJsonOptions);
+                await httpContext.Response.WriteAsync($"data: {payload}\n\n", ct);
+                await httpContext.Response.Body.FlushAsync(ct);
+            }
+
+            logger.LogInformation("Processing chat message (streaming): {Message}", request.Message);
+            await chatService.ProcessAsync(request, WriteUpdateAsync, ct);
+            return Results.Empty;
+        }
+
+        logger.LogInformation("Processing chat message (batched): {Message}", request.Message);
+        var response = await chatService.ProcessAsync(request, null, ct);
         logger.LogInformation("Chat completed ({Tokens} tokens)", response.TokensUsed);
         return Results.Ok(response);
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Error processing chat message");
+        endpointLogger.LogError(ex, "Error processing chat message");
+
+        if (request.StreamSteps)
+        {
+            if (!httpContext.Response.HasStarted)
+            {
+                httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                httpContext.Response.ContentType = "text/event-stream";
+                httpContext.Response.Headers.CacheControl = "no-cache";
+                httpContext.Response.Headers["X-Accel-Buffering"] = "no";
+            }
+
+            var errorUpdate = new ChatStreamUpdate(
+                Type: "error",
+                Message: "An error occurred processing your message.",
+                Files: null,
+                Final: null);
+            var payload = JsonSerializer.Serialize(errorUpdate, streamJsonOptions);
+            await httpContext.Response.WriteAsync($"data: {payload}\n\n", ct);
+            await httpContext.Response.Body.FlushAsync(ct);
+            return Results.Empty;
+        }
+
         return Results.Problem("An error occurred processing your message");
     }
 });

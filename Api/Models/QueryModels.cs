@@ -53,7 +53,8 @@ public record ChatRequest(
     List<ChatMessage>? History = null,
     int? TopK = null,
     string? ProviderType = null,
-    string? ProviderName = null
+    string? ProviderName = null,
+    bool StreamSteps = false
 );
 
 /// <summary>
@@ -69,9 +70,21 @@ public record ChatMessage(
 /// </summary>
 public record ChatResponse(
     string Answer,
+    List<string> Steps,
+    List<DocumentResult> Files,
     List<Source> Sources,
     int TokensUsed,
     List<ChatMessage> History
+);
+
+/// <summary>
+/// Incremental update emitted while streaming chat processing.
+/// </summary>
+public record ChatStreamUpdate(
+    string Type,
+    string? Message,
+    List<DocumentResult>? Files,
+    ChatResponse? Final
 );
 
 /// <summary>

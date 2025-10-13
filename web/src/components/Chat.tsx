@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage, ChatResponse } from '../types';
-import { postChat } from '../api';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { ChatMessage, ChatResponse, ChatStreamUpdate } from '../types';
+import { postChat, postChatStream } from '../api';
 import { SourceList } from './SourceList';
-import { Box, TextField, IconButton, Paper, Typography, Stack, CircularProgress, Tooltip } from '@mui/material';
+import { DocSearchResults } from './DocSearchResults';
+import { Box, TextField, IconButton, Paper, Typography, Stack, CircularProgress, Tooltip, Switch, FormControlLabel } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 
@@ -17,8 +18,20 @@ export const Chat: React.FC<Props> = ({ providerType, providerName, topK }) => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [lastResponse, setLastResponse] = useState<ChatResponse | null>(null);
+  const [streamMode, setStreamMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const handleStreamUpdate = useCallback((update: ChatStreamUpdate) => {
+    if (update.type === 'step' && update.message) {
+      setHistory(prev => [...prev, { role: 'assistant', content: update.message! }]);
+    } else if (update.type === 'final' && update.final) {
+      setLastResponse(update.final);
+      setHistory([...update.final.history]);
+    } else if (update.type === 'error' && update.message) {
+      setError(update.message);
+    }
+  }, []);
 
   async function send() {
     if (!input.trim() || loading) return;
@@ -26,17 +39,25 @@ export const Chat: React.FC<Props> = ({ providerType, providerName, topK }) => {
     setError(null);
     const newHistory: ChatMessage[] = [...history, { role: 'user', content: input }];
     setHistory(newHistory);
+    setLastResponse(null);
     setInput('');
+    const request = {
+      message: newHistory[newHistory.length - 1].content,
+      history: newHistory.slice(0, -1),
+      topK,
+      providerType,
+      providerName,
+      streamSteps: streamMode,
+    };
+
     try {
-      const resp = await postChat({
-        message: newHistory[newHistory.length - 1].content,
-        history: newHistory.slice(0, -1), // send prior history excluding last user message
-        topK,
-        providerType,
-        providerName,
-      });
-      setLastResponse(resp);
-      setHistory([...resp.history]); // server returns updated history including assistant
+      if (streamMode) {
+        await postChatStream(request, handleStreamUpdate);
+      } else {
+        const resp = await postChat(request);
+        setLastResponse(resp);
+        setHistory([...resp.history]);
+      }
     } catch (e: any) {
       setError(e.message || 'Error');
     } finally {
@@ -69,7 +90,12 @@ export const Chat: React.FC<Props> = ({ providerType, providerName, topK }) => {
           ))}
           {loading && <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><CircularProgress size={20} /><Typography variant="caption">Generating…</Typography></Box>}
           {error && <Typography color="error" variant="body2">{error}</Typography>}
-          {lastResponse && !loading && <SourceList sources={lastResponse.sources} />}
+          {lastResponse && !loading && (
+            <>
+              <DocSearchResults results={lastResponse.files} />
+              <SourceList sources={lastResponse.sources} />
+            </>
+          )}
         </Stack>
       </Box>
       <Stack direction="row" spacing={1} sx={{ p: 1.5, borderTop: theme => `1px solid ${theme.palette.divider}` }}>
@@ -81,6 +107,18 @@ export const Chat: React.FC<Props> = ({ providerType, providerName, topK }) => {
           maxRows={6}
           fullWidth
           size="small"
+        />
+        <FormControlLabel
+          control={
+            <Switch
+              size="small"
+              checked={streamMode}
+              onChange={(_, checked) => setStreamMode(checked)}
+              disabled={loading}
+            />
+          }
+          label="Show thinking"
+          sx={{ mr: 1 }}
         />
         <Tooltip title="Reset conversation">
           <span>
