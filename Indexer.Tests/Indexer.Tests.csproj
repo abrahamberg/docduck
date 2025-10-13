@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Indexer\Indexer.csproj" />
+    <ProjectReference Include="..\Providers.Shared\Providers.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

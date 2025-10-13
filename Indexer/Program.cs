@@ -1,6 +1,9 @@
 ﻿using Indexer;
+using DocDuck.Providers.Ai;
+using DocDuck.Providers.Configuration;
+using DocDuck.Providers.Providers;
+using Microsoft.Extensions.Options;
 using Indexer.Options;
-using Indexer.Providers;
 using Indexer.Services;
 using Indexer.Services.TextExtraction;
 using Microsoft.Extensions.Configuration;
@@ -20,50 +23,38 @@ builder.Configuration
     .AddYamlFile("appsettings.yaml", optional: true, reloadOnChange: false)
     .AddEnvironmentVariables();
 
-// Bind configuration sections
-builder.Services.Configure<ProvidersConfiguration>(
-    builder.Configuration.GetSection(ProvidersConfiguration.SectionName));
-builder.Services.Configure<OpenAiOptions>(
-    builder.Configuration.GetSection("OpenAi"));
-builder.Services.Configure<DbOptions>(
+builder.Services.Configure<Indexer.Options.DbOptions>(
     builder.Configuration.GetSection("Database"));
 builder.Services.Configure<ChunkingOptions>(
     builder.Configuration.GetSection("Chunking"));
 
-// Register document providers based on configuration
-var providersConfig = builder.Configuration
-    .GetSection(ProvidersConfiguration.SectionName)
-    .Get<ProvidersConfiguration>();
-
-if (providersConfig != null)
+// Register provider configuration infrastructure
+builder.Services.AddSingleton(sp =>
 {
-    // OneDrive Provider
-    if (providersConfig.OneDrive?.Enabled == true)
-    {
-        builder.Services.AddSingleton<IDocumentProvider>(sp =>
-            new OneDriveProvider(
-                providersConfig.OneDrive,
-                sp.GetRequiredService<ILogger<OneDriveProvider>>()));
-    }
+    var dbOptions = sp.GetRequiredService<IOptions<Indexer.Options.DbOptions>>().Value;
+    return new ProviderSchemaInitializer(dbOptions.ConnectionString, sp.GetRequiredService<ILogger<ProviderSchemaInitializer>>());
+});
 
-    // Local Provider
-    if (providersConfig.Local?.Enabled == true)
-    {
-        builder.Services.AddSingleton<IDocumentProvider>(sp =>
-            new LocalProvider(
-                providersConfig.Local,
-                sp.GetRequiredService<ILogger<LocalProvider>>()));
-    }
+builder.Services.AddSingleton(sp =>
+{
+    var dbOptions = sp.GetRequiredService<IOptions<Indexer.Options.DbOptions>>().Value;
+    return new ProviderSettingsStore(dbOptions.ConnectionString);
+});
 
-    // S3 Provider
-    if (providersConfig.S3?.Enabled == true)
-    {
-        builder.Services.AddSingleton<IDocumentProvider>(sp =>
-            new S3Provider(
-                providersConfig.S3,
-                sp.GetRequiredService<ILogger<S3Provider>>()));
-    }
-}
+builder.Services.AddSingleton<ProviderFactory>();
+builder.Services.AddSingleton<ProviderConfigurationService>();
+builder.Services.AddSingleton<ProviderSettingsSeeder>();
+
+builder.Services.AddSingleton(sp => new ProviderCatalog(sp.GetRequiredService<ProviderConfigurationService>()));
+
+builder.Services.AddSingleton(sp =>
+{
+    var dbOptions = sp.GetRequiredService<IOptions<Indexer.Options.DbOptions>>().Value;
+    return new AiProviderSettingsStore(dbOptions.ConnectionString);
+});
+builder.Services.AddSingleton<AiConfigurationService>();
+builder.Services.AddSingleton<OpenAiSettingsSeeder>();
+builder.Services.AddSingleton<IOptions<OpenAiOptions>, OpenAiOptionsProvider>();
 
 // Register SDK-based OpenAI embeddings client
 builder.Services.AddSingleton<OpenAiEmbeddingsClient>();
@@ -86,13 +77,27 @@ builder.Logging.SetMinimumLevel(LogLevel.Information);
 
 var host = builder.Build();
 
+var schemaInitializer = host.Services.GetRequiredService<ProviderSchemaInitializer>();
+await schemaInitializer.EnsureSchemaAsync();
+
+var seeder = host.Services.GetRequiredService<ProviderSettingsSeeder>();
+await seeder.SeedFromEnvironmentAsync();
+
+var providerConfigService = host.Services.GetRequiredService<ProviderConfigurationService>();
+await providerConfigService.ReloadAsync();
+
+var openAiSeeder = host.Services.GetRequiredService<OpenAiSettingsSeeder>();
+await openAiSeeder.SeedFromEnvironmentAsync();
+
+var aiConfigService = host.Services.GetRequiredService<AiConfigurationService>();
+await aiConfigService.ReloadAsync();
+
 // Log configuration status
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
-var providers = host.Services.GetServices<IDocumentProvider>().ToList();
+var providers = await host.Services.GetRequiredService<ProviderCatalog>().GetProvidersAsync();
 
 logger.LogInformation("DocDuck Multi-Provider Indexer");
 logger.LogInformation("Providers registered: {Count}", providers.Count);
-
 foreach (var provider in providers)
 {
     logger.LogInformation("  → {Type}/{Name} (Enabled: {Enabled})",

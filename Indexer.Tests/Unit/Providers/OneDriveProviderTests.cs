@@ -1,5 +1,5 @@
-using Indexer.Options;
-using Indexer.Providers;
+using DocDuck.Providers.Providers;
+using DocDuck.Providers.Providers.Settings;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -169,7 +169,7 @@ public class OneDriveProviderTests
     // for integration test suites with proper mocking or test environments.
     // The tests above cover the critical configuration and initialization logic.
 
-    private static OneDriveProviderConfig CreateValidConfig() => new()
+    private static OneDriveProviderSettings CreateValidConfig() => new()
     {
         Enabled = true,
         Name = "TestOneDrive",

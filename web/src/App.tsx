@@ -8,7 +8,7 @@ import { DocSearchPanel } from './components/DocSearchPanel';
 import { EnvironmentBanner } from './components/EnvironmentBanner';
 import { ThemeProvider } from '@mui/material/styles';
 import { theme } from './theme';
-import { AppBar, Toolbar, Typography, Tabs, Tab, Container, Box, Paper } from '@mui/material';
+import { AppBar, Toolbar, Typography, Tabs, Tab, Container, Box, Paper, Button } from '@mui/material';
 
 export const App: React.FC = () => {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
@@ -58,6 +58,9 @@ export const App: React.FC = () => {
               <Tab value="ask" label="Ask" />
               <Tab value="docs" label="Docs" />
             </Tabs>
+            <Button color="primary" variant="outlined" sx={{ ml: 2 }} href="/admin/login">
+              Admin
+            </Button>
           </Toolbar>
         </AppBar>
         <Container maxWidth="lg" sx={{ py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>

@@ -1,13 +1,16 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy project file and restore dependencies
-COPY Api.csproj .
-RUN dotnet restore Api.csproj
+# Copy solution and project files, restore dependencies
+COPY docduck.sln ./
+COPY Api/Api.csproj Api/
+COPY Providers.Shared/Providers.Shared.csproj Providers.Shared/
+RUN dotnet restore Api/Api.csproj
 
 # Copy source and build
-COPY . .
-RUN dotnet publish Api.csproj -c Release -o /app/publish \
+COPY Api/ Api/
+COPY Providers.Shared/ Providers.Shared/
+RUN dotnet publish Api/Api.csproj -c Release -o /app/publish \
     --no-restore \
     /p:UseAppHost=false
 

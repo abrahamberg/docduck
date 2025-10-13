@@ -18,8 +18,10 @@ Add a file in the project root named `.env.local` with:
 ```
 OPENAI_API_KEY=sk-your-key
 LOCAL_DOCS_PATH=/absolute/path/to/docs
+ADMIN_AUTH_SECRET=super-secret-admin-token-key
 ```
 Replace the placeholders. The path must be absolute and point to a folder containing your `.pdf`, `.docx`, or `.txt` files.
+`ADMIN_AUTH_SECRET` is used to sign admin dashboard JWTs—treat it like any other secret and change the default `admin/admin` password immediately after first login.
 
 Load it into your shell (so `docker compose` can see the values):
 ```bash

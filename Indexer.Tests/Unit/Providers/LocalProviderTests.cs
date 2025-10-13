@@ -1,6 +1,6 @@
+using DocDuck.Providers.Providers;
+using DocDuck.Providers.Providers.Settings;
 using FluentAssertions;
-using Indexer.Options;
-using Indexer.Providers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -10,7 +10,7 @@ namespace Indexer.Tests.Unit.Providers;
 public class LocalProviderTests : IDisposable
 {
     private readonly string _testDirectory;
-    private readonly LocalProviderConfig _config;
+    private readonly LocalProviderSettings _settings;
     private readonly LocalProvider _provider;
 
     public LocalProviderTests()
@@ -19,7 +19,7 @@ public class LocalProviderTests : IDisposable
         _testDirectory = Path.Combine(Path.GetTempPath(), $"docduck-test-{Guid.NewGuid()}");
         Directory.CreateDirectory(_testDirectory);
 
-        _config = new LocalProviderConfig
+        _settings = new LocalProviderSettings
         {
             Name = "TestLocal",
             Enabled = true,
@@ -27,7 +27,7 @@ public class LocalProviderTests : IDisposable
             FileExtensions = new List<string> { ".txt", ".md", ".docx", ".pdf" }
         };
 
-        _provider = new LocalProvider(_config, NullLogger<LocalProvider>.Instance);
+        _provider = new LocalProvider(_settings, NullLogger<LocalProvider>.Instance);
     }
 
     public void Dispose()
@@ -53,7 +53,7 @@ public class LocalProviderTests : IDisposable
     {
         // Arrange
         var testPath = Path.Combine(Path.GetTempPath(), $"docduck-nonexistent-{Guid.NewGuid()}");
-        var config = new LocalProviderConfig
+        var config = new LocalProviderSettings
         {
             Name = "Test",
             Enabled = true,

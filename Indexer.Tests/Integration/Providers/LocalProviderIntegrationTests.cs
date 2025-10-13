@@ -1,5 +1,5 @@
-using Indexer.Options;
-using Indexer.Providers;
+using DocDuck.Providers.Providers;
+using DocDuck.Providers.Providers.Settings;
 using Microsoft.Extensions.Logging;
 
 namespace Indexer.Tests.Integration.Providers;
@@ -22,7 +22,7 @@ public class LocalProviderIntegrationTests : BaseProviderIntegrationTest
         // Create test files
         CreateTestFiles();
 
-        var config = new LocalProviderConfig
+        var config = new LocalProviderSettings
         {
             Enabled = true,
             Name = "TestLocal",

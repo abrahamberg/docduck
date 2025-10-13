@@ -29,6 +29,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Providers.Shared\Providers.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="appsettings.yaml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

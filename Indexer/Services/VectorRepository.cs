@@ -1,9 +1,10 @@
+using DocDuck.Providers.Providers;
 using Indexer.Options;
-using Indexer.Providers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using Pgvector;
+using System.Linq;
 
 namespace Indexer.Services;
 

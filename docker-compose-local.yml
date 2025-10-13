@@ -41,14 +41,15 @@ services:
 
   api:
     build:
-      context: ./Api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Api/Dockerfile
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       # Map to .NET configuration key OpenAi:ApiKey so IOptions<OpenAiOptions> is populated
       OpenAi__ApiKey: ${OPENAI_API_KEY}
       DB_CONNECTION_STRING: Host=postgres;Database=docduck;Username=docduck;Password=docduck123
       ASPNETCORE_URLS: "http://+:8080"
+      ADMIN_AUTH_SECRET: ${ADMIN_AUTH_SECRET:-change-me-local-admin-secret}
     # api is kept internal; web nginx will proxy /api -> api:8080. Do not bind api to host port 8080.
     depends_on:
       postgres:

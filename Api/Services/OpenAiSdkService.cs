@@ -1,46 +1,126 @@
+using System.Linq;
 using System.Text;
-using Microsoft.Extensions.Options;
+using DocDuck.Providers.Ai;
+using System.ClientModel;
 using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
 
 namespace Api.Services;
 
-/// <summary>
-/// Thin wrapper around the official OpenAI .NET SDK exposing the methods used
-/// by the rest of the application. Keeps the public surface minimal so callers
-/// don't depend on SDK types directly.
-/// </summary>
-public class OpenAiSdkService
+public sealed class OpenAiSdkService
 {
-    private readonly EmbeddingClient _embeddingClient;
-    private readonly Api.Options.OpenAiOptions _options;
+    private readonly AiConfigurationService _aiConfig;
     private readonly ILogger<OpenAiSdkService> _logger;
-    private const string OpenAiEnvVar = "OPENAI_API_KEY";
+    private readonly SemaphoreSlim _initializationLock = new(1, 1);
 
-    public OpenAiSdkService(IOptions<Api.Options.OpenAiOptions> options, ILogger<OpenAiSdkService> logger)
+    private EmbeddingClient? _embeddingClient;
+    private OpenAiProviderSettings? _settings;
+    private DateTimeOffset _settingsVersion;
+
+    public OpenAiSdkService(AiConfigurationService aiConfig, ILogger<OpenAiSdkService> logger)
     {
-        _options = options.Value;
+        _aiConfig = aiConfig;
         _logger = logger;
+    }
 
-        // Use the OpenAIClient convenience type which can produce feature clients.
-        // Read API key from OPENAI_API_KEY environment variable as required.
-        var apiKey = Environment.GetEnvironmentVariable(OpenAiEnvVar);
-        if (string.IsNullOrWhiteSpace(apiKey))
+    private async Task<(OpenAiProviderSettings Settings, EmbeddingClient Embedding)> EnsureClientsAsync(CancellationToken ct)
+    {
+        var currentVersion = _aiConfig.LoadedAt;
+
+        if (_embeddingClient != null && _settings != null && currentVersion <= _settingsVersion)
         {
-            throw new InvalidOperationException("OPENAI_API_KEY environment variable is not set");
+            return (_settings, _embeddingClient);
         }
 
-        // Create per-feature clients using model name + API key as documented in the SDK README.
-        // The SDK supports specifying a custom base URL via environment or options; to keep this
-        // simple we rely on the client's defaults unless BaseUrl is provided.
-        if (!string.IsNullOrWhiteSpace(_options.BaseUrl))
+        await _initializationLock.WaitAsync(ct);
+        try
         {
-            // If a custom base URL is provided, set the OpenAI_API_BASE env var for the SDK.
-            Environment.SetEnvironmentVariable("OPENAI_BASE_URL", _options.BaseUrl);
+            currentVersion = _aiConfig.LoadedAt;
+            if (_embeddingClient != null && _settings != null && currentVersion <= _settingsVersion)
+            {
+                return (_settings, _embeddingClient);
+            }
+
+            var settings = await _aiConfig.GetOpenAiAsync(ct);
+            if (settings is null || !settings.Enabled)
+            {
+                throw new InvalidOperationException("OpenAI provider is not configured or enabled.");
+            }
+
+            settings.Validate();
+
+            var options = CreateClientOptions(settings.BaseUrl);
+            var credential = new ApiKeyCredential(settings.ApiKey);
+            var embeddingClient = options is null
+                ? new EmbeddingClient(settings.EmbedModel, credential)
+                : new EmbeddingClient(settings.EmbedModel, credential, options);
+
+            _settings = settings;
+            _embeddingClient = embeddingClient;
+            _settingsVersion = currentVersion;
+
+            return (settings, embeddingClient);
+        }
+        finally
+        {
+            _initializationLock.Release();
+        }
+    }
+
+    private async Task<OpenAiProviderSettings> GetSettingsAsync(CancellationToken ct)
+    {
+        var (settings, _) = await EnsureClientsAsync(ct);
+        return settings;
+    }
+
+    private static OpenAIClientOptions? CreateClientOptions(string baseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return null;
         }
 
-        _embeddingClient = new EmbeddingClient(_options.EmbedModel, apiKey);
+        var normalized = baseUrl.EndsWith("/", StringComparison.Ordinal)
+            ? baseUrl
+            : baseUrl + "/";
+        return new OpenAIClientOptions { Endpoint = new Uri(normalized, UriKind.Absolute) };
+    }
+
+    private static ChatClient CreateChatClient(OpenAiProviderSettings settings, string model)
+    {
+        var options = CreateClientOptions(settings.BaseUrl);
+        var credential = new ApiKeyCredential(settings.ApiKey);
+        return options is null
+            ? new ChatClient(model, credential)
+            : new ChatClient(model, credential, options);
+    }
+
+    public async Task<float[]> EmbedAsync(string text, CancellationToken ct = default)
+    {
+        var (_, embeddingClient) = await EnsureClientsAsync(ct);
+        var result = await embeddingClient.GenerateEmbeddingAsync(text, options: null, cancellationToken: ct);
+        return result.Value.ToFloats().ToArray();
+    }
+
+    public async Task<float[][]> EmbedBatchedAsync(IEnumerable<string> inputs, CancellationToken ct = default)
+    {
+        var (_, embeddingClient) = await EnsureClientsAsync(ct);
+        var items = inputs.ToList();
+        if (items.Count == 0)
+        {
+            return Array.Empty<float[]>();
+        }
+
+        var outputs = new List<float[]>(items.Count);
+        foreach (var item in items)
+        {
+            ct.ThrowIfCancellationRequested();
+            var result = await embeddingClient.GenerateEmbeddingAsync(item, options: null, cancellationToken: ct);
+            outputs.Add(result.Value.ToFloats().ToArray());
+        }
+
+        return outputs.ToArray();
     }
 
     private static int GetTotalTokensFromUsage(object? usage)
@@ -49,7 +129,6 @@ public class OpenAiSdkService
 
         var type = usage.GetType();
 
-        // Try common property names
         var totalProp = type.GetProperty("TotalTokens");
         if (totalProp != null && totalProp.PropertyType == typeof(int))
         {
@@ -60,36 +139,12 @@ public class OpenAiSdkService
         var completionProp = type.GetProperty("CompletionTokens");
         if (promptProp != null && completionProp != null)
         {
-            var p = promptProp.GetValue(usage) is int pi ? pi : 0;
-            var c = completionProp.GetValue(usage) is int ci ? ci : 0;
-            return p + c;
+            var promptTokens = promptProp.GetValue(usage) is int p ? p : 0;
+            var completionTokens = completionProp.GetValue(usage) is int c ? c : 0;
+            return promptTokens + completionTokens;
         }
 
         return 0;
-    }
-
-    public async Task<float[]> EmbedAsync(string text, CancellationToken ct = default)
-    {
-        // Use the SDK's async API directly to avoid blocking threads.
-    var result = await _embeddingClient.GenerateEmbeddingAsync(text, options: null, cancellationToken: ct);
-        var embedding = result.Value;
-        return embedding.ToFloats().ToArray();
-    }
-
-    public async Task<float[][]> EmbedBatchedAsync(IEnumerable<string> inputs, CancellationToken ct = default)
-    {
-        var list = inputs.ToList();
-        if (list.Count == 0) return Array.Empty<float[]>();
-
-        // Call the SDK async API sequentially to respect rate limits and cancellation.
-        var outputs = new List<float[]>();
-        foreach (var item in list)
-        {
-            ct.ThrowIfCancellationRequested();
-            var embResult = await _embeddingClient.GenerateEmbeddingAsync(item, options: null, cancellationToken: ct);
-            outputs.Add(embResult.Value.ToFloats().ToArray());
-        }
-        return outputs.ToArray();
     }
 
     public async Task<(string Answer, int TokensUsed)> GenerateAnswerAsync(
@@ -99,94 +154,116 @@ public class OpenAiSdkService
         CancellationToken ct = default,
         bool useLargeModel = false)
     {
-        var model = useLargeModel ? _options.ChatModelLarge : _options.ChatModelSmall;
-    var chatClient = new ChatClient(model, Environment.GetEnvironmentVariable(OpenAiEnvVar));
+        var settings = await GetSettingsAsync(ct);
+        var model = useLargeModel ? settings.ChatModelLarge : settings.ChatModelSmall;
+        var chatClient = CreateChatClient(settings, model);
 
-    var messageList = new List<string>();
+        var promptBuilder = new StringBuilder();
         if (history != null)
         {
-            foreach (var h in history)
+            foreach (var (_, content) in history)
             {
-                messageList.Add(h.Content);
+                promptBuilder.AppendLine(content);
             }
         }
 
-        var contextText = string.Join("\n\n", contextChunks.Select((c, i) => $"[{i+1}] {c}"));
-        messageList.Add($"Context:\n{contextText}\n\nQuestion: {question}");
+        var context = string.Join("\n\n", contextChunks.Select((chunk, index) => $"[{index + 1}] {chunk}"));
+        promptBuilder.AppendLine($"Context:\n{context}\n\nQuestion: {question}");
 
-        var prompt = string.Join("\n\n", messageList);
-        // Build SDK ChatMessage list
-        var sdkMessages = new List<OpenAI.Chat.ChatMessage>
+        var sdkMessages = new List<ChatMessage>
         {
-            OpenAI.Chat.ChatMessage.CreateSystemMessage("You are a helpful assistant that answers questions based on the provided document excerpts."),
-            OpenAI.Chat.ChatMessage.CreateUserMessage(prompt)
+            ChatMessage.CreateSystemMessage("You are a helpful assistant that answers questions based on the provided document excerpts."),
+            ChatMessage.CreateUserMessage(promptBuilder.ToString())
         };
 
         var completionResult = await chatClient.CompleteChatAsync(sdkMessages, options: null, cancellationToken: ct);
         var completion = completionResult.Value;
         var text = completion.Content.FirstOrDefault()?.Text ?? string.Empty;
         var tokens = GetTotalTokensFromUsage(completion.Usage);
+
         return (text, tokens);
     }
 
     public async Task<string> RefineQueryPhraseAsync(string original, List<Api.Models.ChatMessage> history, CancellationToken ct = default)
     {
-        var client = new ChatClient(_options.ChatModelSmall, Environment.GetEnvironmentVariable(OpenAiEnvVar));
-    var sdkMsg = new List<OpenAI.Chat.ChatMessage>
+        var settings = await GetSettingsAsync(ct);
+        var chatClient = CreateChatClient(settings, settings.ChatModelSmall);
+
+        var sdkMessages = new List<ChatMessage>
         {
-            OpenAI.Chat.ChatMessage.CreateSystemMessage(_options.RefineSystemPrompt),
-            OpenAI.Chat.ChatMessage.CreateUserMessage(original)
+            ChatMessage.CreateSystemMessage(settings.RefineSystemPrompt),
+            ChatMessage.CreateUserMessage(original)
         };
-    var completionResult = await client.CompleteChatAsync(sdkMsg, options: null, cancellationToken: ct);
+
+        var completionResult = await chatClient.CompleteChatAsync(sdkMessages, options: null, cancellationToken: ct);
         var completion = completionResult.Value;
         return completion.Content.FirstOrDefault()?.Text?.Trim() ?? original;
     }
 
     public async Task<string> RephraseForRetryAsync(string previous, List<Api.Models.ChatMessage> history, List<Api.Models.Source>? previousResults = null, CancellationToken ct = default)
     {
-        var client = new ChatClient(_options.ChatModelSmall, Environment.GetEnvironmentVariable(OpenAiEnvVar));
+        var settings = await GetSettingsAsync(ct);
+        var chatClient = CreateChatClient(settings, settings.ChatModelSmall);
 
-    var userSb = new StringBuilder();
-    userSb.AppendLine($"Original phrase: {previous}");
-    if (previousResults != null && previousResults.Count > 0)
-    {
-        userSb.AppendLine("Previous search results (top results with distance):");
-        foreach (var r in previousResults.Take(5))
+        var builder = new StringBuilder();
+        builder.AppendLine($"Original phrase: {previous}");
+        if (previousResults != null && previousResults.Count > 0)
         {
-            userSb.AppendLine($"- {r.Text} (distance: {r.Distance:F4})");
+            builder.AppendLine("Previous search results (top results with distance):");
+            foreach (var result in previousResults.Take(5))
+            {
+                builder.AppendLine($"- {result.Text} (distance: {result.Distance:F4})");
+            }
         }
-    }
-    else
-    {
-        userSb.AppendLine("No results were found for the previous phrase.");
-    }
-
-    var sdkMsg2 = new List<OpenAI.Chat.ChatMessage>
+        else
         {
-            OpenAI.Chat.ChatMessage.CreateSystemMessage(_options.RefineSystemPrompt),
-            OpenAI.Chat.ChatMessage.CreateUserMessage(userSb.ToString())
+            builder.AppendLine("No results were found for the previous phrase.");
+        }
+
+        var sdkMessages = new List<ChatMessage>
+        {
+            ChatMessage.CreateSystemMessage(settings.RefineSystemPrompt),
+            ChatMessage.CreateUserMessage(builder.ToString())
         };
-    var completionResult = await client.CompleteChatAsync(sdkMsg2, options: null, cancellationToken: ct);
+
+        var completionResult = await chatClient.CompleteChatAsync(sdkMessages, options: null, cancellationToken: ct);
         var completion = completionResult.Value;
         return completion.Content.FirstOrDefault()?.Text?.Trim() ?? previous;
     }
 
     public async Task<(bool Answerable, string? SuggestedQuery, int TokensUsed)> EvaluateAnswerabilityAsync(string query, List<string> chunks, CancellationToken ct = default)
     {
-        var client = new ChatClient(_options.ChatModelSmall, Environment.GetEnvironmentVariable(OpenAiEnvVar));
-        var context = string.Join("\n\n", chunks.Select((c, i) => $"[{i+1}] {c}"));
-    var sdkEval = new List<OpenAI.Chat.ChatMessage> { OpenAI.Chat.ChatMessage.CreateUserMessage($"Query: {query}\nContext:\n{context}") };
-    var completionResult = await client.CompleteChatAsync(sdkEval, options: null, cancellationToken: ct);
+        var settings = await GetSettingsAsync(ct);
+        var chatClient = CreateChatClient(settings, settings.ChatModelSmall);
+
+        var context = string.Join("\n\n", chunks.Select((chunk, index) => $"[{index + 1}] {chunk}"));
+        var sdkMessages = new List<ChatMessage>
+        {
+            ChatMessage.CreateSystemMessage("Determine if answer can be produced ONLY from given context. Reply JSON with fields: answerable:boolean, suggested_query:string|null."),
+            ChatMessage.CreateUserMessage($"Query: {query}\nContext:\n{context}")
+        };
+
+        var completionResult = await chatClient.CompleteChatAsync(sdkMessages, options: null, cancellationToken: ct);
         var completion = completionResult.Value;
         var text = completion.Content.FirstOrDefault()?.Text?.Trim() ?? string.Empty;
         var tokens = GetTotalTokensFromUsage(completion.Usage);
 
-        bool answerable = false; string? suggested = null;
+        bool answerable = false;
+        string? suggested = null;
+
         try
         {
             var doc = System.Text.Json.JsonDocument.Parse(text);
-            if (doc.RootElement.TryGetProperty("answerable", out var a) && a.ValueKind == System.Text.Json.JsonValueKind.True) answerable = true;
-            if (doc.RootElement.TryGetProperty("suggested_query", out var sq) && sq.ValueKind == System.Text.Json.JsonValueKind.String) suggested = sq.GetString();
+            var root = doc.RootElement;
+            if (root.TryGetProperty("answerable", out var answerableProp) && answerableProp.ValueKind == System.Text.Json.JsonValueKind.True)
+            {
+                answerable = true;
+            }
+
+            if (root.TryGetProperty("suggested_query", out var suggestedProp) && suggestedProp.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                suggested = suggestedProp.GetString();
+            }
         }
         catch (Exception ex)
         {

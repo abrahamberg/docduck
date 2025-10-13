@@ -1,5 +1,5 @@
 using FluentAssertions;
-using Indexer.Providers;
+using DocDuck.Providers.Providers;
 using Xunit;
 
 namespace Indexer.Tests.Unit.Providers;

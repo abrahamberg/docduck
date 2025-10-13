@@ -1,4 +1,4 @@
-using Indexer.Providers;
+using DocDuck.Providers.Providers;
 using Microsoft.Extensions.Logging;
 using Moq;
 

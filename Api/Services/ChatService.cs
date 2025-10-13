@@ -1,6 +1,4 @@
 using Api.Models;
-using Api.Options;
-using Microsoft.Extensions.Options;
 using System.Linq;
 
 namespace Api.Services;
@@ -20,14 +18,12 @@ public class ChatService
 
     public ChatService(
         VectorSearchService searchService,
-    OpenAiSdkService openAiClient,
-        IOptions<OpenAiOptions> options,
+        OpenAiSdkService openAiClient,
         ILogger<ChatService> logger)
     {
         _searchService = searchService;
         _openAiClient = openAiClient;
         _logger = logger;
-        _ = options.Value;
     }
 
     public async Task<ChatResponse> ProcessAsync(

@@ -1,8 +1,8 @@
 using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
-using Indexer.Options;
-using Indexer.Providers;
+using DocDuck.Providers.Providers;
+using DocDuck.Providers.Providers.Settings;
 using Microsoft.Extensions.Logging;
 
 namespace Indexer.Tests.Integration.Providers;
@@ -37,7 +37,7 @@ public class S3ProviderIntegrationTests : BaseProviderIntegrationTest
             return;
         }
 
-        var config = new S3ProviderConfig
+    var config = new S3ProviderSettings
         {
             Enabled = true,
             Name = "TestS3",

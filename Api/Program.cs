@@ -1,41 +1,48 @@
+using Api.Admin;
 using Api.Models;
 using Api.Options;
 using Api.Services;
+using DocDuck.Providers.Ai;
+using DocDuck.Providers.Configuration;
 using System.Text;
 using System.IO;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure options from environment variables
+var envConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+var configuredConnectionString = builder.Configuration["Database:ConnectionString"];
+var dbConnectionString = !string.IsNullOrWhiteSpace(envConnectionString)
+    ? envConnectionString
+    : configuredConnectionString ?? string.Empty;
+
+if (string.IsNullOrWhiteSpace(dbConnectionString))
+{
+    throw new InvalidOperationException("Database connection string is required. Set DB_CONNECTION_STRING or configure Database:ConnectionString in appsettings.");
+}
+
 builder.Services.Configure<DbOptions>(options =>
 {
-    options.ConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING") 
-        ?? string.Empty;
+    options.ConnectionString = dbConnectionString;
 });
 
-builder.Services.Configure<OpenAiOptions>(options =>
+var adminSecret = Environment.GetEnvironmentVariable("ADMIN_AUTH_SECRET") ?? builder.Configuration["Admin:Secret"];
+if (string.IsNullOrWhiteSpace(adminSecret))
 {
-    options.ApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") 
-        ?? string.Empty;
-    // Ensure BaseUrl ends with a trailing slash so relative paths like "/chat/completions"
-    // combine to https://api.openai.com/v1/chat/completions correctly.
-    options.BaseUrl = Environment.GetEnvironmentVariable("OPENAI_BASE_URL") 
-        ?? "https://api.openai.com/v1/";
-    options.EmbedModel = Environment.GetEnvironmentVariable("OPENAI_EMBED_MODEL") 
-        ?? "text-embedding-3-small";
-    options.ChatModel = Environment.GetEnvironmentVariable("OPENAI_CHAT_MODEL") 
-        ?? "gpt-4o-mini";
-    
-    if (int.TryParse(Environment.GetEnvironmentVariable("OPENAI_MAX_TOKENS"), out var maxTokens))
+    throw new InvalidOperationException("Admin authentication secret is required. Set ADMIN_AUTH_SECRET or Admin:Secret in configuration.");
+}
+
+builder.Services.Configure<AdminAuthOptions>(options =>
+{
+    options.Secret = adminSecret;
+
+    if (int.TryParse(Environment.GetEnvironmentVariable("ADMIN_TOKEN_LIFETIME_MINUTES"), out var envLifetime) && envLifetime > 0)
     {
-        options.MaxTokens = maxTokens;
+        options.TokenLifetimeMinutes = envLifetime;
     }
-    
-    if (double.TryParse(Environment.GetEnvironmentVariable("OPENAI_TEMPERATURE"), out var temp))
+    else if (int.TryParse(builder.Configuration["Admin:TokenLifetimeMinutes"], out var configLifetime) && configLifetime > 0)
     {
-        options.Temperature = temp;
+        options.TokenLifetimeMinutes = configLifetime;
     }
 });
 
@@ -45,18 +52,29 @@ builder.Services.Configure<SearchOptions>(options =>
     {
         options.DefaultTopK = topK;
     }
-    
+
     if (int.TryParse(Environment.GetEnvironmentVariable("MAX_TOP_K"), out var maxTopK))
     {
         options.MaxTopK = maxTopK;
     }
 });
 
-// Register HttpClient for OpenAI with timeout
-// Register OpenAI SDK-based service. The wrapper will read OPENAI_API_KEY at runtime.
-builder.Services.AddSingleton<Api.Services.OpenAiSdkService>();
+builder.Services.AddSingleton(sp => new ProviderSchemaInitializer(dbConnectionString, sp.GetRequiredService<ILogger<ProviderSchemaInitializer>>()));
+builder.Services.AddSingleton(new ProviderSettingsStore(dbConnectionString));
+builder.Services.AddSingleton<ProviderFactory>();
+builder.Services.AddSingleton<ProviderConfigurationService>();
+builder.Services.AddSingleton<ProviderSettingsSeeder>();
 
-// Register services
+builder.Services.AddSingleton(new AiProviderSettingsStore(dbConnectionString));
+builder.Services.AddSingleton<AiConfigurationService>();
+builder.Services.AddSingleton<OpenAiSettingsSeeder>();
+
+builder.Services.AddSingleton(sp => new AdminUserStore(dbConnectionString, sp.GetRequiredService<ILogger<AdminUserStore>>()));
+builder.Services.AddSingleton<AdminAuthService>();
+builder.Services.AddScoped<AdminAuthFilter>();
+
+builder.Services.AddSingleton<OpenAiSdkService>();
+
 builder.Services.AddSingleton<VectorSearchService>();
 builder.Services.AddSingleton<ChatService>();
 
@@ -78,11 +96,45 @@ builder.Logging.SetMinimumLevel(LogLevel.Information);
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+
+    var schemaInitializer = services.GetRequiredService<ProviderSchemaInitializer>();
+    await schemaInitializer.EnsureSchemaAsync();
+
+    var providerSeeder = services.GetRequiredService<ProviderSettingsSeeder>();
+    await providerSeeder.SeedFromEnvironmentAsync();
+
+    var providerConfig = services.GetRequiredService<ProviderConfigurationService>();
+    await providerConfig.ReloadAsync();
+    var snapshot = await providerConfig.GetSnapshotAsync();
+
+    var openAiSeeder = services.GetRequiredService<OpenAiSettingsSeeder>();
+    await openAiSeeder.SeedFromEnvironmentAsync();
+
+    var aiConfig = services.GetRequiredService<AiConfigurationService>();
+    await aiConfig.ReloadAsync();
+    var openAiSettings = await aiConfig.GetOpenAiAsync();
+
+    var adminUserStore = services.GetRequiredService<AdminUserStore>();
+    await adminUserStore.EnsureDefaultAdminAsync(CancellationToken.None);
+
+    var bootstrapLogger = services.GetRequiredService<ILogger<Program>>();
+    bootstrapLogger.LogInformation("Provider configurations loaded: {Count}", snapshot.Settings.Count);
+    bootstrapLogger.LogInformation("OpenAI settings present: {Configured}", openAiSettings is not null);
+    bootstrapLogger.LogInformation("Admin default user ensured.");
+}
+
 // Enable CORS
 app.UseCors();
 
+app.MapAdminEndpoints();
+
 // Grab logger from app so middleware can use it
 var logger = app.Logger;
+var aiConfiguration = app.Services.GetRequiredService<AiConfigurationService>();
+var openAiConfigured = (await aiConfiguration.GetOpenAiAsync())?.Enabled == true;
 
 // Global exception logging middleware: captures unhandled exceptions and logs request details
 app.Use(async (context, next) =>
@@ -116,21 +168,20 @@ app.Use(async (context, next) =>
 
 // Log configuration status
 logger.LogInformation("DocDuck Query API starting...");
-logger.LogInformation("OpenAI API Key: {Status}", 
-    string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OPENAI_API_KEY")) ? "Missing" : "Present");
-logger.LogInformation("DB Connection: {Status}", 
-    string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")) ? "Missing" : "Present");
+logger.LogInformation("OpenAI provider configured: {Status}", openAiConfigured ? "Enabled" : "Disabled/Missing");
+logger.LogInformation("DB Connection configured: {Configured}", !string.IsNullOrWhiteSpace(dbConnectionString));
 
 // Health check endpoint
-app.MapGet("/health", async (VectorSearchService searchService) =>
+app.MapGet("/health", async (VectorSearchService searchService, AiConfigurationService aiService, CancellationToken ct) =>
 {
     try
     {
-        var chunkCount = await searchService.GetChunkCountAsync();
-        var docCount = await searchService.GetDocumentCountAsync();
+        var chunkCount = await searchService.GetChunkCountAsync(ct);
+        var docCount = await searchService.GetDocumentCountAsync(ct);
 
-        var openAiKeyPresent = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENAI_API_KEY"));
-        var dbConnectionPresent = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DB_CONNECTION_STRING"));
+        var aiSettings = await aiService.GetOpenAiAsync(ct);
+        var openAiKeyPresent = aiSettings is { Enabled: true } && !string.IsNullOrWhiteSpace(aiSettings.ApiKey);
+        var dbConnectionPresent = !string.IsNullOrWhiteSpace(dbConnectionString);
 
         return Results.Ok(new
         {
@@ -144,7 +195,6 @@ app.MapGet("/health", async (VectorSearchService searchService) =>
     }
     catch (Exception ex)
     {
-        
         logger.LogError(ex, "Health check failed");
         return Results.Problem("Service unhealthy");
     }
@@ -174,7 +224,7 @@ app.MapGet("/providers", async (VectorSearchService searchService, CancellationT
 // Query endpoint - simple question answering with optional provider filtering
 app.MapPost("/query", async (
     QueryRequest request,
-    Api.Services.OpenAiSdkService openAiClient,
+    OpenAiSdkService openAiClient,
     VectorSearchService searchService,
     CancellationToken ct) =>
 {
@@ -236,7 +286,7 @@ app.MapPost("/query", async (
 // Lightweight document search endpoint: return up to 5 most relevant documents (grouped by doc_id)
 app.MapPost("/docsearch", async (
     QueryRequest request,
-    Api.Services.OpenAiSdkService openAiClient,
+    OpenAiSdkService openAiClient,
     VectorSearchService searchService,
     CancellationToken ct) =>
 {

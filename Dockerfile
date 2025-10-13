@@ -2,12 +2,15 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy project files and restore dependencies
+# Copy solution and project files and restore dependencies
+COPY docduck.sln ./
 COPY Indexer/Indexer.csproj Indexer/
+COPY Providers.Shared/Providers.Shared.csproj Providers.Shared/
 RUN dotnet restore Indexer/Indexer.csproj
 
 # Copy source and build
 COPY Indexer/ Indexer/
+COPY Providers.Shared/ Providers.Shared/
 WORKDIR /src/Indexer
 RUN dotnet publish -c Release -o /app/publish --no-restore
 

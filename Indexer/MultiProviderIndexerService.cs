@@ -1,11 +1,13 @@
+using DocDuck.Providers.Configuration;
+using DocDuck.Providers.Providers;
 using Indexer.Options;
-using Indexer.Providers;
 using Indexer.Services;
 using Indexer.Services.TextExtraction;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Linq;
 
 namespace Indexer;
 
@@ -15,7 +17,7 @@ namespace Indexer;
 /// </summary>
 public class MultiProviderIndexerService
 {
-    private readonly IEnumerable<IDocumentProvider> _providers;
+    private readonly ProviderCatalog _providerCatalog;
     private readonly TextExtractionService _textExtractor;
     private readonly TextChunker _textChunker;
     private readonly OpenAiEmbeddingsClient _embeddingsClient;
@@ -24,7 +26,7 @@ public class MultiProviderIndexerService
     private readonly ILogger<MultiProviderIndexerService> _logger;
 
     public MultiProviderIndexerService(
-        IEnumerable<IDocumentProvider> providers,
+    ProviderCatalog providerCatalog,
         TextExtractionService textExtractor,
         TextChunker textChunker,
         OpenAiEmbeddingsClient embeddingsClient,
@@ -32,7 +34,7 @@ public class MultiProviderIndexerService
         IOptions<ChunkingOptions> chunkingOptions,
         ILogger<MultiProviderIndexerService> logger)
     {
-        ArgumentNullException.ThrowIfNull(providers);
+    ArgumentNullException.ThrowIfNull(providerCatalog);
         ArgumentNullException.ThrowIfNull(textExtractor);
         ArgumentNullException.ThrowIfNull(textChunker);
         ArgumentNullException.ThrowIfNull(embeddingsClient);
@@ -40,7 +42,7 @@ public class MultiProviderIndexerService
         ArgumentNullException.ThrowIfNull(chunkingOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _providers = providers;
+    _providerCatalog = providerCatalog;
         _textExtractor = textExtractor;
         _textChunker = textChunker;
         _embeddingsClient = embeddingsClient;
@@ -59,7 +61,8 @@ public class MultiProviderIndexerService
 
         try
         {
-            var enabledProviders = _providers.Where(p => p.IsEnabled).ToList();
+            var providers = await _providerCatalog.GetProvidersAsync(ct);
+            var enabledProviders = providers.Where(p => p.IsEnabled).ToList();
 
             if (enabledProviders.Count == 0)
             {

@@ -1,5 +1,5 @@
-using Indexer.Options;
-using Indexer.Providers;
+using DocDuck.Providers.Providers;
+using DocDuck.Providers.Providers.Settings;
 using Microsoft.Extensions.Logging;
 
 namespace Indexer.Tests.Integration.Providers;
@@ -36,7 +36,7 @@ public class OneDriveProviderIntegrationTests : BaseProviderIntegrationTest
             return;
         }
 
-        var config = new OneDriveProviderConfig
+        var config = new OneDriveProviderSettings
         {
             Enabled = true,
             Name = "TestOneDrive",
