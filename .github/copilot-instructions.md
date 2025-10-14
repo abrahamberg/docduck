@@ -101,10 +101,11 @@ By default, generate code that is clean, small, and obvious; apply SOLID where i
 
 ## How to run services for manual testing
 
-When you need to run the stack locally for manual testing, follow the Quickstart in `docs/guides/quickstart.md`. The minimal commands are:
+When you need to run the stack locally for manual testing commands are:
 
 ```bash
-set -a; source .env.local; set +a
+set -a; source .env.local; set +a  # load required envinonments 
+
 docker compose -f docker-compose-local.yml up --build
 ```
 

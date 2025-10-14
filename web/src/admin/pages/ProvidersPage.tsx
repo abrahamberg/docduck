@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  ButtonGroup,
   Chip,
   CircularProgress,
   Dialog,
@@ -15,7 +16,13 @@ import {
   Switch,
   TextField,
   Typography,
+  IconButton,
+  Popover,
+  Divider,
+  Tooltip,
 } from '@mui/material';
+import SettingsIcon from '@mui/icons-material/Settings';
+import TuneIcon from '@mui/icons-material/Tune';
 import { createProvider, deleteProvider, listProviders, probeProvider, updateProvider } from '../api';
 import type { ProviderProbeResult, ProviderSettings } from '../types';
 
@@ -132,6 +139,8 @@ export const ProvidersPage: React.FC = () => {
   const [probeResult, setProbeResult] = useState<ProviderProbeResult | null>(null);
   const [probeMaxDocs, setProbeMaxDocs] = useState('');
   const [probeMaxBytes, setProbeMaxBytes] = useState('');
+  const [anchorProbeOptions, setAnchorProbeOptions] = useState<HTMLElement | null>(null);
+  const [autoProbeRequested, setAutoProbeRequested] = useState(false);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createType, setCreateType] = useState(defaultTemplate.type);
@@ -171,6 +180,12 @@ export const ProvidersPage: React.FC = () => {
     setProbeResult(null);
     setProbeMaxDocs('');
     setProbeMaxBytes('');
+    setAnchorProbeOptions(null);
+  };
+
+  const openDialogAndProbe = (provider: ProviderSettings) => {
+    openDialog(provider);
+    setAutoProbeRequested(true);
   };
 
   const closeDialog = () => {
@@ -287,6 +302,17 @@ export const ProvidersPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (dialogOpen && autoProbeRequested && selectedProvider) {
+      // clear the flag and trigger probe once when dialog opens via card-level action
+      setAutoProbeRequested(false);
+      // run probe after a tick to ensure dialog state is settled
+      setTimeout(() => {
+        void handleProbe();
+      }, 0);
+    }
+  }, [dialogOpen, autoProbeRequested, selectedProvider]);
+
   const handleSettingsChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setSettingsJson(event.target.value);
     setFormError(null);
@@ -338,7 +364,7 @@ export const ProvidersPage: React.FC = () => {
       if (!parsed) {
         return current;
       }
-
+      
       return stringifySettings({ ...parsed, name: nextName });
     });
   };
@@ -438,9 +464,14 @@ export const ProvidersPage: React.FC = () => {
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                 {provider.providerName} ({provider.providerType})
               </Typography>
-              <Button variant="outlined" size="small" onClick={() => openDialog(provider)}>
-                Edit
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button variant="outlined" size="small" onClick={() => openDialog(provider)}>
+                  Edit
+                </Button>
+                <Button variant="text" size="small" onClick={() => openDialogAndProbe(provider)}>
+                  Check connectivity
+                </Button>
+              </Box>
             </Box>
             <Chip
               label={provider.enabled ? 'Enabled' : 'Disabled'}
@@ -519,24 +550,7 @@ export const ProvidersPage: React.FC = () => {
             control={<Switch checked={providerEnabled} onChange={handleEnabledToggle} />}
             label="Enabled"
           />
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
-              label="Max Documents"
-              type="number"
-              value={probeMaxDocs}
-              onChange={handleProbeMaxDocsChange}
-              helperText="Optional limit when probing connectivity."
-              inputProps={{ min: 1 }}
-            />
-            <TextField
-              label="Max Preview Bytes"
-              type="number"
-              value={probeMaxBytes}
-              onChange={handleProbeMaxBytesChange}
-              helperText="Optional byte budget per sampled document."
-              inputProps={{ min: 1 }}
-            />
-          </Stack>
+          {/* Probe options are hidden by default and shown near the Check connectivity button below */}
           <TextField
             label="Settings JSON"
             value={settingsJson}
@@ -555,7 +569,7 @@ export const ProvidersPage: React.FC = () => {
           {probeResult?.documents.length ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <Typography variant="subtitle2">Sample documents</Typography>
-              {probeResult.documents.map(doc => (
+              {probeResult.documents.map((doc: any) => (
                 <Paper key={doc.documentId} variant="outlined" sx={{ p: 1.5 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 500 }}>
                     {doc.filename}
@@ -568,15 +582,65 @@ export const ProvidersPage: React.FC = () => {
             </Box>
           ) : null}
         </DialogContent>
-        <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
-          <Button color="error" onClick={handleDelete} disabled={deleting || saving || probing}>
-            {deleting ? 'Deleting…' : 'Delete'}
-          </Button>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button onClick={closeDialog} disabled={saving || deleting}>Cancel</Button>
-            <Button onClick={handleProbe} disabled={saving || deleting || probing}>
-              {probing ? 'Probing…' : 'Probe'}
+          <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Button color="error" onClick={handleDelete} disabled={deleting || saving || probing}>
+              {deleting ? 'Deleting…' : 'Delete'}
             </Button>
+          </Box>
+          <Button onClick={closeDialog} disabled={saving || deleting}>Cancel</Button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ButtonGroup variant="outlined" size="small" aria-label="check connectivity group" sx={{ ml: 0.5 }}>
+              <Button onClick={handleProbe} disabled={saving || deleting || probing}>
+                {probing ? 'Checking…' : 'Check connectivity'}
+              </Button>
+              <IconButton
+                aria-label="check-opts"
+                size="small"
+                onClick={(e: React.MouseEvent<HTMLElement>) => setAnchorProbeOptions(e.currentTarget)}
+                disabled={saving || deleting}
+                title="Check connectivity options"
+                sx={{ borderLeft: '1px solid rgba(0,0,0,0.12)' }}
+              >
+                <SettingsIcon fontSize="small" />
+              </IconButton>
+            </ButtonGroup>
+            <Popover
+              open={Boolean(anchorProbeOptions)}
+              anchorEl={anchorProbeOptions}
+              onClose={() => setAnchorProbeOptions(null)}
+              anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+              transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+              sx={{ p: 1 }}
+            >
+              <Box sx={{ p: 2, width: 320, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Check connectivity options</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.7 }}>These options apply only to the connectivity check.</Typography>
+                <Stack direction="row" spacing={1} sx={{ pt: 1 }}>
+                  <TextField
+                    label="Max Documents"
+                    type="number"
+                    size="small"
+                    value={probeMaxDocs}
+                    onChange={handleProbeMaxDocsChange}
+                    helperText="Optional limit"
+                    inputProps={{ min: 1 }}
+                  />
+                  <TextField
+                    label="Max Preview Bytes"
+                    type="number"
+                    size="small"
+                    value={probeMaxBytes}
+                    onChange={handleProbeMaxBytesChange}
+                    helperText="Optional"
+                    inputProps={{ min: 1 }}
+                  />
+                </Stack>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1 }}>
+                  <Button size="small" onClick={() => setAnchorProbeOptions(null)}>Done</Button>
+                </Box>
+              </Box>
+            </Popover>
             <Button variant="contained" onClick={handleSave} disabled={saving || deleting}>
               {saving ? 'Saving…' : 'Save'}
             </Button>
