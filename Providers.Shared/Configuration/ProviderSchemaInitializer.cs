@@ -40,6 +40,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS admin_users_username_lower_idx ON admin_users 
 
     public ProviderSchemaInitializer(string connectionString, ILogger<ProviderSchemaInitializer> logger)
     {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new ArgumentException("Database connection string is null or empty. Ensure the 'Database:ConnectionString' configuration key or 'Database__ConnectionString' environment variable is set and correctly formatted.", nameof(connectionString));
+        }
+
+        // Detect unresolved placeholders commonly left in YAML files like "${DB_CONNECTION_STRING}" which
+        // indicate the environment variable wasn't provided or the environment variables did not override the YAML.
+        var trimmed = connectionString.Trim();
+        if (trimmed.StartsWith("${") || trimmed.Contains("${"))
+        {
+            throw new ArgumentException("Database connection string looks like an unresolved placeholder (e.g. '${DB_CONNECTION_STRING}').\n" +
+                                        "Make sure the environment variable 'DB_CONNECTION_STRING' or 'Database__ConnectionString' is set,\n" +
+                                        "and that the configuration provider order allows environment variables to override appsettings.yaml.",
+                                        nameof(connectionString));
+        }
+
         _connectionString = connectionString;
         _logger = logger;
     }

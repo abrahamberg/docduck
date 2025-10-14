@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Text.RegularExpressions;
 using NetEscapades.Configuration.Yaml;
 using Npgsql;
 using Pgvector;
@@ -22,6 +23,24 @@ builder.Configuration
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddYamlFile("appsettings.yaml", optional: true, reloadOnChange: false)
     .AddEnvironmentVariables();
+
+// Expand simple ${VAR} placeholders in the Database:ConnectionString value so
+// appsettings.yaml can use the ${ENV_VAR} style without Npgsql receiving
+// unresolved placeholders (which causes a cryptic parse error).
+static string ExpandEnvPlaceholders(string? input)
+{
+    if (string.IsNullOrEmpty(input)) return string.Empty;
+
+    return Regex.Replace(input, @"\$\{([^}]+)\}", m => Environment.GetEnvironmentVariable(m.Groups[1].Value) ?? string.Empty);
+}
+
+var rawConn = builder.Configuration["Database:ConnectionString"];
+if (!string.IsNullOrEmpty(rawConn) && rawConn.Contains("${"))
+{
+    var expanded = ExpandEnvPlaceholders(rawConn);
+    // overwrite the configuration value with the expanded string so bindings get the real value
+    builder.Configuration["Database:ConnectionString"] = expanded;
+}
 
 builder.Services.Configure<Indexer.Options.DbOptions>(
     builder.Configuration.GetSection("Database"));
@@ -77,8 +96,26 @@ builder.Logging.SetMinimumLevel(LogLevel.Information);
 
 var host = builder.Build();
 
+// Validate connection string early to provide a helpful error instead of Npgsql's cryptic parser error.
+var dbOptions = host.Services.GetRequiredService<IOptions<Indexer.Options.DbOptions>>().Value;
+if (string.IsNullOrWhiteSpace(dbOptions.ConnectionString))
+{
+    var tempLogger = host.Services.GetRequiredService<ILogger<Program>>();
+    tempLogger.LogCritical("Database connection string is empty. Set the environment variable referenced by appsettings.yaml (DB_CONNECTION_STRING) or configure Database:ConnectionString in appsettings.yaml.");
+    Environment.Exit(2);
+}
+
 var schemaInitializer = host.Services.GetRequiredService<ProviderSchemaInitializer>();
-await schemaInitializer.EnsureSchemaAsync();
+try
+{
+    await schemaInitializer.EnsureSchemaAsync();
+}
+catch (Exception ex)
+{
+    var tempLogger = host.Services.GetRequiredService<ILogger<Program>>();
+    tempLogger.LogCritical(ex, "Failed to ensure provider schema. Connection string: {ConnPreview}", dbOptions.ConnectionString?.Length > 64 ? dbOptions.ConnectionString[..64] + "..." : dbOptions.ConnectionString);
+    throw;
+}
 
 var seeder = host.Services.GetRequiredService<ProviderSettingsSeeder>();
 await seeder.SeedFromEnvironmentAsync();

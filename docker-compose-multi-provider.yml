@@ -25,8 +25,8 @@ services:
   # Multi-provider indexer
   indexer:
     build:
-      context: ./Indexer
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Indexer/Dockerfile
     container_name: docduck-indexer
     environment:
       # Sensitive values - override with .env file
@@ -43,11 +43,13 @@ services:
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-}
       # Database connection
       DB_CONNECTION_STRING: "Host=postgres;Database=docduck;Username=docduck;Password=docduck123"
+      # Enable the built-in local provider when mounting local docs
+      LOCAL_PROVIDER_ENABLED: "true"
     volumes:
       # Mount YAML config
       - ./Indexer/appsettings.yaml:/app/appsettings.yaml:ro
       # Mount local documents directory (for local provider)
-      - ${LOCAL_DOCS_PATH:-./docs-sample}:/data/documents:ro
+      - ${LOCAL_DOCS_PATH:-/data/documents}:/data/documents:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,6 +77,9 @@ services:
     networks:
       - docduck
     restart: unless-stopped
+    volumes:
+      # Mount local documents directory (for local provider) into api as well
+      - ${LOCAL_DOCS_PATH:-/data/documents}:/data/documents:ro
 
   # Static web UI (React) served via nginx
   web:

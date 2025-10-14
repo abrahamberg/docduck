@@ -150,6 +150,39 @@ public sealed class ProviderSettingsSeeder
 
     private static bool GetBool(string envVar)
     {
-        return bool.TryParse(Environment.GetEnvironmentVariable(envVar), out var value) && value;
+        var raw = Environment.GetEnvironmentVariable(envVar);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        var v = raw.Trim().ToLowerInvariant();
+
+        // common truthy values
+        if (v == "1" || v == "true" || v == "t" || v == "yes" || v == "y" || v == "on")
+        {
+            return true;
+        }
+
+        // common falsy values
+        if (v == "0" || v == "false" || v == "f" || v == "no" || v == "n" || v == "off")
+        {
+            return false;
+        }
+
+        // numeric fallback: non-zero => true
+        if (int.TryParse(v, out var i))
+        {
+            return i != 0;
+        }
+
+        // last resort: try bool parse
+        if (bool.TryParse(v, out var b))
+        {
+            return b;
+        }
+
+        // unknown value => default to false
+        return false;
     }
 }
