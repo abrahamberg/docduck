@@ -1,0 +1,7 @@
+Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
+
+Astronomy is the scientific study of celestial objects and phenomena beyond Earth’s atmosphere. It spans scales from planets and moons to stars, galaxies, and the large-scale structure of the universe. Observational astronomy uses telescopes across the electromagnetic spectrum — radio, infrared, optical, ultraviolet, X-ray, and gamma-ray — to gather data.
+
+Key topics include planetary science, stellar evolution, galaxy formation, cosmology, and the search for exoplanets. Observational advances, like space-based telescopes and sensitive detectors, along with theoretical models and simulations, have deepened our understanding of cosmic origins and dynamics.
+
+Astronomy is interdisciplinary, connecting physics, chemistry, geology, and computational science. It informs fundamental questions about the origin of the universe, the formation of planetary systems, and the conditions for life beyond Earth.

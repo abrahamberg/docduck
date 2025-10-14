@@ -1,0 +1,7 @@
+Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
+
+Public health focuses on protecting and improving community health through organized efforts and informed choices of society, organizations, and individuals. Core activities include disease surveillance, health promotion, epidemiology, policy development, and ensuring access to healthcare services. It encompasses preventive measures such as vaccination, sanitation, health education, and screening programs.
+
+Social determinants — income, education, housing, and environment — deeply affect population health outcomes. Public health interventions aim to reduce health disparities and promote equity. During emergencies like pandemics or natural disasters, public health coordinates responses to limit disease spread and maintain essential services.
+
+Public health integrates data-driven decision-making, interdisciplinary collaboration, and community engagement. It bridges clinical medicine with population-level strategies, emphasizing prevention and well-being across the lifespan.

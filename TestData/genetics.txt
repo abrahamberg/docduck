@@ -1,0 +1,7 @@
+Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
+
+Genetics is the branch of biology that studies genes, genetic variation, and heredity in organisms. DNA encodes genetic information as sequences of nucleotides; genes are functional units within DNA that direct the synthesis of proteins or RNA molecules. Inheritance patterns follow rules first formalized by Gregor Mendel but expanded by molecular genetics and population genetics.
+
+Modern genetics explores gene expression, regulation, mutation, recombination, and epigenetic modifications that influence phenotype without changing DNA sequence. Techniques such as DNA sequencing, CRISPR gene editing, and genome-wide association studies have revolutionized research and applications in medicine, agriculture, and ecology.
+
+Understanding genetic variation informs diagnoses, personalized medicine, and breeding programs. Ethical, legal, and social implications arise in areas like genetic privacy, gene editing, and access to genomic technologies. Interdisciplinary work with bioinformatics and systems biology supports large-scale data analysis and interpretation.

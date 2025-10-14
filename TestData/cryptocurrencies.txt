@@ -1,0 +1,7 @@
+Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
+
+Cryptocurrencies are digital or virtual currencies that use cryptography for security and operate on distributed ledger systems like blockchains. Bitcoin, introduced in 2008, was the first decentralized cryptocurrency and established concepts like peer-to-peer transactions and proof-of-work consensus.
+
+Cryptocurrencies offer potential benefits: censorship-resistant transfers, programmable money through smart contracts, and new forms of financial infrastructure. However, they face volatility, regulatory scrutiny, risks of fraud and theft, and environmental debates tied to mining energy use.
+
+Use cases range from payments and store-of-value narratives to decentralized finance platforms offering lending, derivatives, and automated market making. The ecosystem also includes stablecoins (pegged to assets), tokenization of assets, and experiments in central bank digital currencies. Security, legal compliance, and user education remain key to wider adoption.
