@@ -43,6 +43,11 @@ TestResults/
 README.md
 *.md
 
+# Ensure source shared libraries remain (explicit keep comments for clarity)
+# (Not strictly needed since not excluded, but documents intent)
+!Providers.Shared/
+!Indexer/
+
 # CI/CD
 .github/
 .gitlab-ci.yml

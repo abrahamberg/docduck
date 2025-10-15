@@ -8,9 +8,9 @@ COPY Indexer/Indexer.csproj Indexer/
 COPY Providers.Shared/Providers.Shared.csproj Providers.Shared/
 RUN dotnet restore Indexer/Indexer.csproj
 
-# Copy source and build
-COPY Indexer/ Indexer/
-COPY Providers.Shared/ Providers.Shared/
+# Copy remaining source in a single layer to avoid path resolution issues in multi-arch builds
+COPY Indexer/ ./Indexer/
+COPY Providers.Shared/ ./Providers.Shared/
 WORKDIR /src/Indexer
 RUN dotnet publish -c Release -o /app/publish --no-restore
 
