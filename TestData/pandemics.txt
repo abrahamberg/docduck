@@ -1,7 +1,0 @@
-Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
-
-A pandemic is an epidemic that spreads across multiple countries or continents, affecting a large number of people. Pandemics arise when novel pathogens to which populations have low immunity spread efficiently between humans. Historical pandemics such as the 1918 influenza had profound health, economic, and social impacts.
-
-Public health responses include surveillance, case isolation, vaccination campaigns when vaccines are available, non-pharmaceutical interventions (masking, distancing), and risk communication. Preparedness involves health system capacity, supply chains for medical equipment, testing infrastructure, and international coordination.
-
-Pandemics intersect with global travel, urbanization, environmental change, and animal-human interfaces (zoonoses). Lessons from past outbreaks emphasize the importance of early detection, transparent reporting, and resilient public health infrastructure. Research on therapeutics, vaccines, and rapid diagnostics continues to be a priority for reducing the burden of future pandemics.

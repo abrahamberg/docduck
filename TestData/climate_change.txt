@@ -1,9 +1,0 @@
-Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
-
-Climate change refers to long-term shifts in temperatures and weather patterns. While Earth's climate has varied throughout geological history, the term today most often denotes the rapid warming observed since the late 19th century, largely attributed to human activities. The burning of fossil fuels — coal, oil, and natural gas — releases carbon dioxide and other greenhouse gases into the atmosphere. These gases trap heat and raise the planet’s average surface temperature, a phenomenon known as the greenhouse effect.
-
-Consequences of climate change are wide-ranging and interlinked. They include more frequent and intense heat waves, changes in precipitation patterns that lead to both more severe droughts and heavier rainfall events, rising sea levels from melting ice sheets and glaciers, and ocean warming and acidification that harm marine ecosystems. The impacts extend to food security, human health, economic stability, and biodiversity loss.
-
-Mitigation strategies focus on reducing greenhouse gas emissions by transitioning to low-carbon energy systems, improving energy efficiency, and protecting and restoring natural carbon sinks like forests and wetlands. Adaptation involves adjusting infrastructure, agricultural practices, and planning to cope with changes that are already occurring.
-
-The international community addresses climate change through cooperation, data-driven science, and policy frameworks. Agreements such as the United Nations Framework Convention on Climate Change (UNFCCC) and the Paris Agreement aim to limit global temperature rise and coordinate national efforts. The subject spans disciplines — atmospheric science, economics, engineering, policy, and social sciences — and requires collective action across sectors and societies.

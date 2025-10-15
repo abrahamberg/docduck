@@ -1,7 +1,0 @@
-Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
-
-Artificial intelligence (AI) is the study and engineering of systems that can perform tasks that would typically require human intelligence. Broad areas include symbolic reasoning, machine learning, perception, planning, and robotics. Modern AI often emphasizes statistical learning and deep neural networks for complex perception and decision-making tasks.
-
-AI systems find application in healthcare, transportation, finance, language technologies, and scientific discovery. Ethical considerations — transparency, explainability, bias mitigation, and safety — are central as AI becomes integrated into critical domains. Governance frameworks and interdisciplinary research aim to maximize benefits while managing risks.
-
-Research continues on generalization, human-AI collaboration, interpretable models, and robust learning under uncertainty. Advances in AI increasingly combine data-driven methods with domain knowledge and causal reasoning to build capable and trustworthy systems.

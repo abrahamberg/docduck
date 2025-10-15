@@ -1,7 +1,0 @@
-Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
-
-Evolution is the process by which populations of organisms change over successive generations through mechanisms like natural selection, genetic drift, mutation, and gene flow. Natural selection favors traits that increase an organism’s reproductive success in a given environment, shaping adaptations and the emergence of new species over long timescales.
-
-The modern synthesis integrates Darwinian natural selection with Mendelian genetics, explaining how variation and heredity combine to drive evolutionary change. Molecular evidence from DNA and comparative genomics has strengthened evolutionary theory, revealing patterns of common ancestry and divergence across life’s tree.
-
-Evolutionary biology informs many fields: ecology, medicine (e.g., pathogen evolution and antibiotic resistance), agriculture (selective breeding), and conservation (genetic diversity and population viability). Studying evolutionary processes involves experiments, comparative data, mathematical models, and increasingly, genomic analysis to understand the mechanisms and historical trajectories that produce biodiversity.

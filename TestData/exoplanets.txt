@@ -1,7 +1,0 @@
-Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
-
-Exoplanets are planets orbiting stars other than the Sun. Since the first confirmed detections in the 1990s, thousands of exoplanets have been discovered using methods like radial velocity, transit photometry, direct imaging, and gravitational microlensing. Discoveries reveal a wide diversity in planet sizes, compositions, and orbital architectures compared to our solar system.
-
-Transit surveys, notably the Kepler mission and subsequent observatories, have been instrumental in identifying small, Earth-sized candidates and constraining occurrence rates. Characterizing exoplanet atmospheres using transit and eclipse spectroscopy provides insights into composition, clouds, and potential biosignatures, though such measurements can be challenging.
-
-Exoplanet science explores planet formation theories, migration, and habitability criteria. The search for potentially habitable worlds focuses on planets in the habitable zone where liquid water could exist. Ongoing and future missions aim to better detect and characterize terrestrial planets and their atmospheres.

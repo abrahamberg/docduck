@@ -1,7 +1,0 @@
-Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
-
-A blockchain is a distributed ledger technology that records transactions across a network of computers in a way that is intended to be tamper-evident and transparent. Blocks contain batches of transactions, a timestamp, and cryptographic links to previous blocks, forming a chain. Decentralized consensus mechanisms (proof-of-work, proof-of-stake, and others) allow network participants to agree on the ledger state without a central authority.
-
-Blockchains enable digital asset transfers, smart contracts (programmable agreements), and decentralized applications. They raise trade-offs between scalability, decentralization, and security. Design choices influence throughput, latency, and energy consumption.
-
-Applications include cryptocurrencies, supply chain provenance, digital identity systems, and decentralized finance. Challenges include regulatory uncertainty, privacy, interoperability, and environmental concerns linked to energy usage. Ongoing research addresses scalability (layer-2 solutions, sharding), governance, and privacy-preserving techniques.

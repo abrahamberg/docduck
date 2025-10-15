@@ -1,7 +1,0 @@
-Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
-
-CRISPR refers to a family of DNA sequences found in prokaryotes and a technology (CRISPR-Cas) that uses programmable nucleases for targeted genome editing. The system originally evolved in bacteria and archaea as an adaptive immune mechanism against viruses and plasmids. Scientists repurposed CRISPR-Cas systems to make precise alterations in genes across many organisms.
-
-CRISPR-based editing enables targeted gene knockouts, sequence insertions, base editing, and transcriptional regulation. Applications include basic research, agricultural improvement, and potential therapies for genetic diseases. Delivery methods and off-target effects remain technical challenges, and ethical concerns are significant when considering germline editing.
-
-Regulation, governance, and public engagement are critical as CRISPR applications become more feasible. Research continues to improve specificity, efficiency, and safer delivery mechanisms, expanding the potential for clinical and environmental use while emphasizing caution and responsible stewardship.

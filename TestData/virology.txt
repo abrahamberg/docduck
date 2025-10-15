@@ -1,7 +1,0 @@
-Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
-
-Virology is the study of viruses and virus-like agents, their structure, replication, evolution, and interactions with host organisms. Viruses range from simple RNA or DNA genomes enclosed in protein capsids to more complex enveloped forms. They require host cellular machinery to replicate and often evolve rapidly.
-
-Research in virology covers virus discovery, molecular mechanisms of infection, host immune responses, viral pathogenesis, and antiviral strategies. Techniques include sequencing, cell culture, molecular cloning, microscopy, and bioinformatics. Virology underpins vaccine development, antiviral drug discovery, diagnostic tests, and public health strategies to control viral diseases.
-
-Understanding virus-host interactions, zoonotic spillover, and environmental reservoirs is key to outbreak prevention. The field also explores beneficial viruses, phage therapy (using bacteriophages to target bacteria), and viral vectors for gene therapy. Ethical and biosafety considerations are essential in virology research.

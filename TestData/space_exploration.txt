@@ -1,7 +1,0 @@
-Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
-
-Space exploration encompasses human and robotic missions to study space, other planets, moons, asteroids, and the broader cosmos. Milestones include crewed Moon landings, robotic probes to planets and comets, and the development of space stations. Scientific objectives range from understanding planetary environments to testing technologies for sustained human presence beyond Earth.
-
-Key challenges include propulsion, life support, radiation protection, and logistics for long-duration missions. International collaboration, commercial participation, and technological innovation have expanded capabilities. Missions to Mars, robotic sample returns, and plans for lunar infrastructure exemplify current priorities.
-
-Space exploration also drives technological advances (materials, remote sensing, communications) and raises governance questions about resource utilization, planetary protection, and the sustainability of activities in space. The field blends science, engineering, policy, and commercial interests.

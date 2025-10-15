@@ -1,9 +1,0 @@
-Inspired by public sources (Wikipedia) — this is an original summary intended for testing purposes.
-
-The carbon cycle describes the movement and transformation of carbon among the atmosphere, hydrosphere (oceans), biosphere (living organisms and soils), and geosphere (rocks and sediments). Carbon exists in many forms, including gaseous CO2, organic carbon in plants and soils, dissolved inorganic carbon in seawater, and geological carbonates and fossil fuels.
-
-Photosynthesis by plants and algae captures atmospheric carbon dioxide and stores it as organic matter. Respiration by organisms and decomposition returns carbon to the atmosphere as CO2. Oceans absorb CO2 from the atmosphere and convert it to dissolved forms; biological processes in the oceans also move carbon into marine sediments. Over geological timescales, carbon can be sequestered in rock formations and fossil fuels.
-
-Human activities — especially fossil fuel combustion and land-use change (deforestation, soil disturbance) — have altered the carbon cycle by rapidly increasing atmospheric CO2 concentrations. This shift enhances the greenhouse effect and drives global warming. Understanding carbon fluxes is fundamental to climate science, informing mitigation strategies like reforestation, soil carbon management, and engineered carbon capture and storage.
-
-Accurate measurement and modeling of the carbon cycle rely on observations, such as atmospheric CO2 monitoring, satellite remote sensing, and ecosystem studies, combined with carbon-cycle models that help project future changes and evaluate interventions.
