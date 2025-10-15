@@ -1,0 +1,123 @@
+{{- if .Values.indexer.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "docduck.fullname" . }}-indexer
+  labels:
+    {{- include "docduck.labels" . | nindent 4 }}
+    app.kubernetes.io/component: indexer
+spec:
+  schedule: {{ .Values.indexer.schedule | quote }}
+  concurrencyPolicy: {{ .Values.indexer.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.indexer.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.indexer.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.indexer.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "docduck.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: indexer
+            {{- with .Values.indexer.podLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.indexer.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        spec:
+          {{- with .Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- range . }}
+            - name: {{ . }}
+            {{- end }}
+          {{- end }}
+          serviceAccountName: {{ if .Values.indexer.serviceAccount.create }}{{ default (printf "%s-indexer" (include "docduck.fullname" .)) .Values.indexer.serviceAccount.name }}{{ else }}{{ .Values.indexer.serviceAccount.name }}{{ end }}
+          restartPolicy: {{ .Values.indexer.restartPolicy }}
+          containers:
+            - name: indexer
+              image: {{ include "docduck.componentImage" (dict "Values" .Values "component" .Values.indexer "Chart" .Chart "Release" .Release ) }}
+              imagePullPolicy: {{ .Values.indexer.image.pullPolicy }}
+              env:
+                {{- include "docduck.commonEnv" . | nindent 16 }}
+                {{- range $k, $v := .Values.indexer.env }}
+                - name: {{ $k }}
+                  value: {{ $v | quote }}
+                {{- end }}
+                {{- with .Values.indexer.extraEnv }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+                {{- range .Values.indexer.secretEnvs }}
+                - name: {{ .name }}
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .secretName }}
+                      key: {{ .key }}
+                {{- end }}
+              {{- with .Values.indexer.envFrom }}
+              envFrom:
+                {{- toYaml . | nindent 16 }}
+                {{- range .Values.indexer.envFromSecrets }}
+                - secretRef:
+                    name: {{ . }}
+                {{- end }}
+              {{- end }}
+              {{- if and .Values.indexer.config.enabled }}
+              volumeMounts:
+                - name: appsettings
+                  mountPath: /app/appsettings.yaml
+                  subPath: appsettings.yaml
+                {{- if .Values.persistence.enabled }}
+                - name: documents
+                  mountPath: {{ .Values.persistence.mountPath }}
+                  readOnly: true
+                {{- end }}
+                {{- with .Values.indexer.volumeMounts }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              {{- else if or .Values.persistence.enabled (gt (len .Values.indexer.volumeMounts) 0) }}
+              volumeMounts:
+                {{- if .Values.persistence.enabled }}
+                - name: documents
+                  mountPath: {{ .Values.persistence.mountPath }}
+                  readOnly: true
+                {{- end }}
+                {{- with .Values.indexer.volumeMounts }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+              {{- end }}
+              resources:
+                {{- toYaml .Values.indexer.resources | nindent 16 }}
+          volumes:
+            {{- if and .Values.indexer.config.enabled }}
+            - name: appsettings
+              configMap:
+                name: {{ include "docduck.fullname" . }}-indexer-config
+            {{- end }}
+            {{- if .Values.persistence.enabled }}
+            - name: documents
+              {{- if .Values.persistence.existingClaim }}
+              persistentVolumeClaim:
+                claimName: {{ .Values.persistence.existingClaim }}
+              {{- else }}
+              persistentVolumeClaim:
+                claimName: {{ include "docduck.fullname" . }}-documents
+              {{- end }}
+            {{- end }}
+            {{- with .Values.indexer.volumes }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.indexer.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.indexer.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.indexer.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

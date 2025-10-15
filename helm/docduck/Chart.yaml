@@ -1,0 +1,28 @@
+apiVersion: v2
+name: docduck
+description: Production-ready Helm chart for DocDuck API, Web UI, and Indexer (scheduled ingestion)
+
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - docduck
+  - vector
+  - ai
+  - rag
+  - openai
+  - indexing
+
+home: https://example.com/docduck
+sources:
+  - https://github.com/abrahamberg/docduck
+maintainers:
+  - name: DocDuck Maintainers
+    email: maintainers@example.com
+
+annotations:
+  category: ai
+  artifacthub.io/containsSecurityUpdates: "false"
+  artifacthub.io/license: MIT
+  artifacthub.io/prerelease: "false"

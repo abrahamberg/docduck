@@ -1,0 +1,331 @@
+# Default values for DocDuck Helm chart.
+# This file is intentionally verbose and fully documented to act as a reference.
+# Minimal overrides usually include: images.registry, ingress.hosts, secrets (API keys, DB), and storage persistence.
+
+# -- Global settings applied across components
+global:
+  nameOverride: ""
+  fullnameOverride: ""
+  # -- Global image registry (can be overridden per image)
+  imageRegistry: ""
+  # -- Extra labels applied to all resources
+  extraLabels: {}
+  # -- Kubernetes cluster domain
+  clusterDomain: cluster.local
+  # -- Default image pull secrets (list of secret names)
+  imagePullSecrets: []
+
+# -- Common image settings for all components unless individually overridden
+image:
+  registry: ghcr.io
+  repository: abrahamberg/docduck/api
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+# -- API service configuration
+api:
+  enabled: true
+  image:
+    registry: ""
+    repository: abrahamberg/docduck/api
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  revisionHistoryLimit: 3
+  podAnnotations: {}
+  podLabels: {}
+  priorityClassName: ""
+  topologySpreadConstraints: []
+  podSecurityContext: {}
+  securityContext: {}
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  env:
+    # Static (non-secret) environment variables
+    OPENAI_BASE_URL: "https://api.openai.com/v1"
+    OPENAI_EMBED_MODEL: "text-embedding-3-small"
+    OPENAI_CHAT_MODEL: "gpt-4o-mini"
+    DEFAULT_TOP_K: 8
+    MAX_TOP_K: 20
+  envFrom: []  # Additional raw envFrom entries (configMapRef/secretRef blocks)
+  # List of secret names to project wholesale via envFrom (each becomes - secretRef: name: <secret>)
+  envFromSecrets: []
+  # Fine-grained secret key to env var mapping without exposing values in values.yaml
+  # Example:
+  # secretEnvs:
+  #   - name: EXTRA_API_KEY
+  #     secretName: other-secret
+  #     key: api-key
+  secretEnvs: []
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    # targetMemoryUtilizationPercentage: 80
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+    annotations: {}
+    labels: {}
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+    annotations: {}
+    metricRelabelings: []
+    relabelings: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -- Web UI service configuration (serves static frontend)
+web:
+  enabled: true
+  image:
+    registry: ""
+    repository: abrahamberg/docduck/web
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  revisionHistoryLimit: 3
+  podAnnotations: {}
+  podLabels: {}
+  serviceAccount:
+    create: false
+    name: ""
+    annotations: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+    annotations: {}
+    labels: {}
+  env: {}
+  envFrom: []
+  envFromSecrets: []
+  secretEnvs: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -- Indexer CronJob configuration
+indexer:
+  enabled: true
+  image:
+    registry: ""
+    repository: abrahamberg/docduck/indexer
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  schedule: "0 */6 * * *"  # Every 6 hours
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  backoffLimit: 2
+  restartPolicy: OnFailure
+  ttlSecondsAfterFinished: null
+  podAnnotations: {}
+  podLabels: {}
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  env:
+    OPENAI_BASE_URL: "https://api.openai.com/v1"
+    OPENAI_EMBED_MODEL: "text-embedding-3-small"
+    CHUNK_SIZE: 500
+    CHUNK_OVERLAP: 50
+    BATCH_SIZE: 16
+  extraEnv: []
+  envFrom: []
+  envFromSecrets: []
+  secretEnvs: []
+  # Structured configuration instead of raw appsettings content.
+  config:
+    enabled: true
+    openAi:
+      enabled: true
+      baseUrl: "https://api.openai.com/v1"
+      embedModel: "text-embedding-3-small"
+      batchSize: 100
+    database:
+      # Connection string is always injected via env & referenced in config as ${DB_CONNECTION_STRING}
+      enabled: true
+    chunking:
+      enabled: true
+      chunkSize: 500
+      chunkOverlap: 50
+      maxFiles: null
+    providers:
+      oneDrive:
+        enabled: false
+        name: CompanyOneDrive
+        authMode: ClientSecret
+        accountType: business
+        tenantIdRef: GRAPH_TENANT_ID       # environment variable names; these are optional
+        clientIdRef: GRAPH_CLIENT_ID
+        clientSecretRef: GRAPH_CLIENT_SECRET
+        siteIdRef: GRAPH_SITE_ID
+        driveIdRef: GRAPH_DRIVE_ID
+        folderPath: "/Shared Documents/Docs"
+        fileExtensions: [".docx"]
+      local:
+        enabled: true
+        name: LocalFiles
+        rootPath: /data/documents
+        recursive: true
+        fileExtensions: [".docx", ".pdf", ".txt"]
+        excludePatterns: [".git", "node_modules", "__pycache__"]
+      s3:
+        enabled: true
+        name: S3Documents
+        bucketNameRef: S3_BUCKET_NAME   # expects in env or ConfigMap
+        prefix: documents/
+        region: us-east-1
+        useInstanceProfile: true
+        fileExtensions: [".docx", ".pdf", ".txt"]
+    extraYaml: | # appended verbatim under root (optional)
+      # extra: {}
+  volumeMounts: []
+  volumes: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# -- Ingress configuration (can cover api and/or web)
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: docduck.local
+      paths:
+        # API root path
+        - path: /
+          pathType: Prefix
+          service: api
+          port: http
+    - host: web.docduck.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+          port: http
+  tls:
+    enabled: false
+    secretName: docduck-tls
+    # If true, per-host certificates required; else single secretName assumed for first host
+    hosts: []  # override when tls.enabled
+
+# -- Secret management
+secrets:
+  # If false, no secrets defined here are created (assume they exist already)
+  create: true
+  name: docduck-secrets  # Primary secret name (for DB_CONNECTION_STRING / OPENAI_API_KEY)
+  annotations: {}
+  labels: {}
+  type: Opaque
+  stringData:
+    # Provide real values via --set or external secret management
+    db-connection-string: "Host=postgres:5432;Database=docduck;Username=docduck;Password=CHANGE_ME"
+    openai-api-key: "sk-CHANGE_ME"
+    graph-tenant-id: ""
+    graph-client-id: ""
+    graph-client-secret: ""
+    graph-site-id: ""
+    graph-drive-id: ""
+  # Optional list of additional secrets to create. Example:
+  # extra:
+  #   - name: other-secret
+  #     type: Opaque
+  #     stringData:
+  #       api-key: "REDACT_ME"
+  extra: []
+
+# -- Additional non-sensitive config
+config:
+  enabled: true
+  name: docduck-config
+  data:
+    s3-bucket-name: "my-company-documents"
+
+# -- Persistence for local documents (optional)
+persistence:
+  enabled: true
+  existingClaim: ""  # If provided, PVC won't be created
+  mountPath: /data/documents
+  accessModes:
+    - ReadOnlyMany
+  size: 50Gi
+  storageClass: ""  # If empty, default storage class is used
+  annotations: {}
+  labels: {}
+  selector: {}
+
+# -- Network policy (optional)
+networkPolicy:
+  enabled: false
+  ingress: []  # Custom ingress rules
+  egress: []   # Custom egress rules
+
+# -- PodDisruptionBudget settings
+pdb:
+  api:
+    enabled: false
+    minAvailable: 1
+  web:
+    enabled: false
+    minAvailable: 1
+
+# -- Service account annotations for cloud IAM roles
+serviceAccountAnnotations: {}
+
+# -- Extra manifests (raw YAML strings list) appended as-is
+extraManifests: []
+
+# -- Global tolerations/affinity (merged with component-specific)
+commonScheduling: {}

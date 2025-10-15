@@ -1,0 +1,32 @@
+Thank you for deploying DocDuck 🚀
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Components:
+  API:      {{ if .Values.api.enabled }}{{ include "docduck.fullname" . }}-api{{ else }}disabled{{ end }}
+  Web:      {{ if .Values.web.enabled }}{{ include "docduck.fullname" . }}-web{{ else }}disabled{{ end }}
+  Indexer:  {{ if .Values.indexer.enabled }}scheduled (CronJob){{ else }}disabled{{ end }}
+
+{{- if and .Values.ingress.enabled .Values.ingress.hosts }}
+Ingress URLs:
+{{- range .Values.ingress.hosts }}
+  {{- $host := .host }}
+  {{- range .paths }}
+  - http{{ if $.Values.ingress.tls.enabled }}s{{ end }}://{{ $host }}{{ .path }} (service: {{ .service }})
+  {{- end }}
+{{- end }}
+{{- else }}
+Services (ClusterIP):
+  API: kubectl get svc {{ include "docduck.fullname" . }}-api -n {{ .Release.Namespace }}
+  Web: kubectl get svc {{ include "docduck.fullname" . }}-web -n {{ .Release.Namespace }}
+{{- end }}
+
+To view logs:
+  kubectl logs -l app.kubernetes.io/component=api -n {{ .Release.Namespace }} --tail=100
+  kubectl logs -l app.kubernetes.io/component=indexer -n {{ .Release.Namespace }} --tail=100
+
+To trigger an index run now:
+  kubectl create job --from=cronjob/{{ include "docduck.fullname" . }}-indexer manual-index-$(date +%s)
+
+Happy querying!
