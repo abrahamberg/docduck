@@ -2,15 +2,20 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy solution and project files and restore dependencies
+# Copy only solution and project files first for layer caching
 COPY docduck.sln ./
 COPY Indexer/Indexer.csproj Indexer/
 COPY Providers.Shared/Providers.Shared.csproj Providers.Shared/
+
+# Restore dependencies (no source yet to maximize cache reuse)
 RUN dotnet restore Indexer/Indexer.csproj
 
-# Copy remaining source in a single layer to avoid path resolution issues in multi-arch builds
-COPY Indexer/ ./Indexer/
-COPY Providers.Shared/ ./Providers.Shared/
+# Now copy the full source (relying on .dockerignore to keep context lean)
+COPY . .
+
+# Ensure the expected directories exist (defensive; will fail early if missing)
+RUN test -d Providers.Shared && test -d Indexer
+
 WORKDIR /src/Indexer
 RUN dotnet publish -c Release -o /app/publish --no-restore
 

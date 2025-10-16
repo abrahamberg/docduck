@@ -39,18 +39,11 @@ TestResults/
 *.pfx
 *.p12
 
-# Documentation
-README.md
-*.md
+# Documentation: we keep markdown in context for OCI labels/readme extraction; comment these if you want smaller contexts
+# (Leaving markdown unignored.)
 
-# Ensure source shared libraries remain (explicit keep comments for clarity)
-# (Not strictly needed since not excluded, but documents intent)
-!Providers.Shared/
-!Indexer/
-
-# CI/CD
-.github/
-.gitlab-ci.yml
+## CI/CD configuration (keep for reproducible builds/version metadata)
+# .github/ retained intentionally
 
 # Misc
 *.log

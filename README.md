@@ -304,18 +304,32 @@ See [Api/README.md](Api/README.md) and [docs/reports/api-implementation.md](docs
 
 ### Indexer Dockerfile
 
-```dockerfile
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
-COPY Indexer/Indexer.csproj Indexer/
-RUN dotnet restore Indexer/Indexer.csproj
-COPY Indexer/ Indexer/
-RUN dotnet publish Indexer/Indexer.csproj -c Release -o /app/publish
+The Indexer now has its own optimized multi-stage Dockerfile at `Indexer/Dockerfile` that builds only the required projects (Indexer + shared library) and publishes a self-contained deployment layer for faster, cache-friendly multi-arch builds.
 
-FROM mcr.microsoft.com/dotnet/runtime:8.0
+```dockerfile
+# syntax=docker/dockerfile:1.6
+ARG DOTNET_VERSION=8.0
+
+FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION} AS restore
+WORKDIR /src
+COPY docduck.sln ./
+COPY Indexer/Indexer.csproj Indexer/
+COPY Providers.Shared/Providers.Shared.csproj Providers.Shared/
+RUN dotnet restore Indexer/Indexer.csproj
+
+FROM restore AS build
+COPY . .
+RUN dotnet publish Indexer/Indexer.csproj -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/runtime:${DOTNET_VERSION} AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "Indexer.dll"]
+```
+
+Build (locally):
+```
+docker build -f Indexer/Dockerfile -t docduck-indexer:dev .
 ```
 
 ### Example Kubernetes CronJob
