@@ -1,47 +1,42 @@
-# Provider Overview
+# Providers Overview
 
-DocDuck supports multiple document sources ("providers") that surface raw documents for indexing and embedding.
-Each provider implements a small contract so the Indexer can:
+Providers supply documents for indexing. Each provider implementation yields a list of documents with IDs, filenames, ETags, and optional last-modified timestamps.
 
-1. Enumerate available documents (List)
-2. Fetch binary content (Download)
-3. Supply metadata (ETag, size, modified time, MIME type) for change detection
+## Supported Providers
 
-Current providers:
+| Type | Description | Notes |
+|------|-------------|-------|
+| `local` | Local filesystem directory tree | Fast iteration, path based IDs |
+| `onedrive` | Microsoft OneDrive / SharePoint (Graph API) | App-only or delegated auth |
+| `s3` | AWS S3 bucket/prefix | Minimal permissions recommended |
 
-| Provider | Type Key | Typical Use | Auth Mode |
-|----------|----------|-------------|-----------|
-| Local Filesystem | `local` | Development & on-prem ingestion | Path access (host filesystem) |
-| AWS S3 | `s3` | Cloud object storage | Access keys / IAM role |
-| Microsoft OneDrive Personal | `onedrive` | Individual user's files | Microsoft consumer tenant "consumers" + app registration |
-| Microsoft OneDrive Business | `onedrive` | Organizational SharePoint/OneDrive | Azure AD tenant + app registration |
+## Provider Concepts
+- **Provider Type**: Logical category (`onedrive`, `s3`, `local`).
+- **Provider Name**: Instance label (e.g. `finance-drive`). Helps segregate multiple drives/buckets.
+- **Document ID**: Stable identifier (path, drive item ID, S3 key).
+- **ETag**: Change detector; drives incremental indexing.
 
-## Configuration Loading
-Provider settings are loaded from `appsettings.yaml` (section `Providers`) with environment variable expansion (e.g. `${GRAPH_CLIENT_ID}`).
+## Lifecycle
+1. Enumerate documents
+2. Filter unchanged (ETag match)
+3. Download new/updated
+4. Extract → Chunk → Embed → Upsert
+5. Cleanup orphaned docs (optional)
 
-Minimal snippet:
+## Index Registration
+On each run, enabled providers are registered in the database with last sync time. The API exposes active providers at `/providers`.
 
-```yaml
-Providers:
-  OneDrive:
-    Enabled: true
-    AccountType: "business"
-    TenantId: "${GRAPH_TENANT_ID}"
-    ClientId: "${GRAPH_CLIENT_ID}"
-    ClientSecret: "${GRAPH_CLIENT_SECRET}"
-    DriveId: "${GRAPH_DRIVE_ID}"
-    FolderPath: "/Shared Documents/Docs"
-```
+## Adding Providers
+High-level steps (see developer guide for full detail):
+1. Implement `IDocumentProvider`
+2. Expose enabling env vars (e.g. `PROVIDER_MYTYPE_ENABLED`)
+3. Register with provider catalog
+4. Provide metadata (display name, description)
+5. Optionally add configuration seeding
 
-## Document Filtering
-Each provider declares `FileExtensions` to restrict indexing scope. ETags (cloud) or computed values (local) are used for incremental updates.
+See: [Provider Framework](../developer/provider-framework.md)
 
-## Adding a New Provider
-To add a provider:
-
-1. Create a class implementing `IDocumentProvider` under `Indexer/Providers/`
-2. Add a config POCO to `ProvidersConfiguration`
-3. Extend YAML & bind options in `Program.cs`
-4. Provide a page under this `providers/` docs folder with setup steps
-
-See existing provider pages for patterns.
+## Next
+- OneDrive specifics: [OneDrive](onedrive.md)
+- S3 specifics: [S3](s3.md)
+- Local specifics: [Local Files](local.md)

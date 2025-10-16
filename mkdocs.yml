@@ -1,64 +1,83 @@
 site_name: DocDuck
-site_description: Unified document ingestion and indexing service
-site_url: https://example.com
+site_description: Multi-provider document indexing and AI-powered retrieval (RAG) with .NET 8, PostgreSQL + pgvector, and OpenAI.
+site_url: https://abrahamberg.github.io/docduck/
 repo_name: abrahamberg/docduck
 repo_url: https://github.com/abrahamberg/docduck
-edit_uri: blob/main/
+edit_uri: edit/main/
+copyright: "© 2025 DocDuck Contributors"
+
+nav:
+  - Home: index.md
+  - Quick Start: guides/quickstart.md
+  - Installation: guides/installation.md
+  - Configuration: guides/configuration.md
+  - Providers:
+      - Overview: providers/index.md
+      - OneDrive: providers/onedrive.md
+      - S3: providers/s3.md
+      - Local Files: providers/local.md
+      - Adding a Provider: developer/adding-provider.md
+  - Using the API: guides/api-usage.md
+  - Indexer Operation: guides/indexer.md
+  - Data & Storage: database/schema.md
+  - Security & Privacy: guides/security.md
+  - Performance & Scaling: guides/performance.md
+  - Troubleshooting: guides/troubleshooting.md
+  - FAQ: guides/faq.md
+  - Roadmap: guides/roadmap.md
+  - Developer:
+      - Architecture: developer/architecture.md
+      - Pipeline: developer/pipeline.md
+      - Provider Framework: developer/provider-framework.md
+      - Text Extraction: developer/text-extraction.md
+      - Embeddings & AI: developer/ai-layer.md
+      - Search & RAG: developer/search-rag.md
+      - Configuration System: developer/config-system.md
+      - Data Model: database/schema.md
+      - Local Development: developer/local-dev.md
+      - Testing: developer/testing.md
+      - Release & Versioning: developer/release.md
+      - Coding Standards: developer/coding-standards.md
+      - Performance Internals: developer/performance-internals.md
+      - Observability: developer/observability.md
+      - AI Agent Context: context/ai-context.md
+  - License: guides/license.md
 
 theme:
   name: material
-  language: en
+  logo: assets/logo.png
+  favicon: assets/favicon.png
   features:
     - navigation.instant
-    - navigation.sections
     - navigation.top
+    - navigation.tracking
+    - search.highlight
     - content.code.copy
-    - content.tabs.link
+    - toc.integrate
   palette:
     - scheme: default
       primary: indigo
-      accent: blue
-
+      accent: deep orange
+    - scheme: slate
+      primary: indigo
+      accent: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/abrahamberg/docduck
 markdown_extensions:
   - admonition
   - codehilite
   - footnotes
-  - def_list
-  - attr_list
+  - tables
   - toc:
       permalink: true
-  - tables
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.tabbed:
-      alternate_style: true
-  - pymdownx.highlight
-  - pymdownx.inlinehilite
-  - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
-
-nav:
-  - Home: README.md
-  - Quickstart: docs/guides/quickstart.md
-  - Architecture: docs/architecture.md
-  - Providers:
-      - Overview: docs/providers/index.md
-      - OneDrive Personal: docs/providers/onedrive-personal.md
-      - OneDrive Business: docs/providers/onedrive-business.md
-      - Local Filesystem: docs/providers/local.md
-      - AWS S3: docs/providers/s3.md
-  - Guides:
-      - Authentication: docs/guides/authentication.md
-      - Developer Guide: docs/guides/developer-guide.md
-      - Execution Modes: docs/guides/execution-modes.md
-      - File Lifecycle: docs/guides/file-lifecycle.md
-      - Text Extraction: docs/guides/text-extraction.md
-      - Docs Local Dev: docs/guides/docs-local-dev.md
-  - Reference:
-      - API Implementation: docs/reports/api-implementation.md
-      - Multi-provider Implementation: docs/reports/multi-provider-implementation.md
-      - pgvector Implementation: docs/reports/pgvector-implementation.md
-  - Changelog: docs/changelog.md
-
-# Exclude ephemeral summary files from nav (not linked)
+  - def_list
+  - attr_list
+  - md_in_html
+  - abbr
+plugins:
+  - search

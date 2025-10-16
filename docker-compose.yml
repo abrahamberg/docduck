@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: docduck
+      POSTGRES_USER: docduck
+      POSTGRES_PASSWORD: docduck123
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql/01-init-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docduck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docduck
+
+  indexer:
+    build:
+      context: .
+      dockerfile: Indexer/Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OpenAi__ApiKey: ${OPENAI_API_KEY}
+      DB_CONNECTION_STRING: Host=postgres;Database=docduck;Username=docduck;Password=docduck123
+      Database__ConnectionString: Host=postgres;Database=docduck;Username=docduck;Password=docduck123
+      LOCAL_PROVIDER_ENABLED: "true"
+    volumes:
+      - ${LOCAL_DOCS_PATH}:/data/documents:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - docduck
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Api/Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OpenAi__ApiKey: ${OPENAI_API_KEY}
+      DB_CONNECTION_STRING: Host=postgres;Database=docduck;Username=docduck;Password=docduck123
+      Database__ConnectionString: Host=postgres;Database=docduck;Username=docduck;Password=docduck123
+      ASPNETCORE_URLS: "http://+:8080"
+      ADMIN_AUTH_SECRET: ${ADMIN_AUTH_SECRET:-change-me-local-admin-secret}
+      LOCAL_PROVIDER_ENABLED: "true"
+    volumes:
+      - ${LOCAL_DOCS_PATH}:/data/documents:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - docduck
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: /api
+    environment:
+      VITE_API_BASE: /api
+    ports:
+      - "8080:5173"
+    depends_on:
+      - api
+    networks:
+      - docduck
+
+networks:
+  docduck:
+    driver: bridge
+
+volumes:
+  pgdata:

@@ -1,106 +1,134 @@
-# Quickstart (2-Minute Run)
+# Quick Start
 
-This page is intentionally minimal. You will get the app running locally, open the UI, ask a question, and see source documents. For advanced provider setup (OneDrive, S3, multi-provider, Kubernetes, troubleshooting) go to: **[Advanced Install & Setup](install.md)**.
+Goal: Run DocDuck locally, index a few files, ask a question — in under 10 minutes.
 
-## What You Get
-- Automatic one-shot indexing of a local folder (docx / pdf / txt)
-- Vector search + Chat and Ask endpoints (`/query`, `/chat`)
-- React UI (Material UI) with sources in answers
-- No external cloud storage configuration required
+## 🚀 Fastest Path: Docker Compose (Recommended)
+
+If you have Docker installed, you can be querying your docs in a few commands.
+
+1. Create a folder with some test documents (local provider mounts them):
+  ```bash
+  mkdir -p sample-docs
+  echo "DocDuck is a multi-provider RAG system" > sample-docs/intro.txt
+  ```
+2. Create an `.env` file in the repo root (used by compose):
+  ```bash
+  cat > .env <<'EOF'
+  OPENAI_API_KEY=sk-yourkey
+  LOCAL_DOCS_PATH=./sample-docs
+  # Optional: change admin secret
+  ADMIN_AUTH_SECRET=change-me-local-admin-secret
+  EOF
+  ```
+3. Launch the stack:
+  ```bash
+  docker compose up --build -d postgres
+  # wait for healthy DB (healthcheck), then bring up remaining services
+  docker compose up --build -d indexer api web
+  ```
+4. Re-run the indexer whenever documents change:
+  ```bash
+  docker compose run --rm indexer
+  ```
+5. Query the API:
+  ```bash
+  curl -s -X POST http://localhost:8080/api/query \
+    -H 'Content-Type: application/json' \
+    -d '{"question":"What is DocDuck?"}' | jq
+  ```
+6. Open the (optional) web frontend at: http://localhost:8080
+
+Skip to [Next Steps](#next) or continue for the manual (.NET SDK) path below.
 
 ## Prerequisites
-- Docker + Docker Compose
-- OpenAI API key (standard account) exported as `OPENAI_API_KEY`
-- A folder of documents on your machine (absolute path)
 
-## 1. Create `.env.local`
-Add a file in the project root named `.env.local` with:
-```
-OPENAI_API_KEY=sk-your-key
-LOCAL_DOCS_PATH=/absolute/path/to/docs
-ADMIN_AUTH_SECRET=super-secret-admin-token-key
-```
-Replace the placeholders. The path must be absolute and point to a folder containing your `.pdf`, `.docx`, or `.txt` files.
-`ADMIN_AUTH_SECRET` is used to sign admin dashboard JWTs—treat it like any other secret and change the default `admin/admin` password immediately after first login.
+- Docker (recommended) OR .NET 8 SDK if building locally
+- PostgreSQL 15+ with `pgvector` extension (1536-dim embeddings)
+- OpenAI API key (or Azure OpenAI compatible endpoint)
 
-Load it into your shell (so `docker compose` can see the values):
+## 1. Prepare PostgreSQL
+
+Create database & enable pgvector (inside psql):
+
+```sql
+CREATE DATABASE docduck;
+\c docduck;
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+Load schema:
 ```bash
-set -a; source .env.local; set +a
-```
-Quick sanity check:
-```bash
-ls -1 "$LOCAL_DOCS_PATH" | head
+psql -h localhost -U postgres -d docduck -f sql/01-init-schema.sql
 ```
 
-## 2. Launch Everything
-Use the modern syntax (`docker compose`).
-```bash
-docker compose -f docker-compose-local.yml up --build
+## 2. Create a minimal .env file
+
+Create `.env.local` (never commit secrets):
 ```
-Run this from the project root (the directory that contains `docker-compose-local.yml`, `Api/`, `Indexer/`, and `web/`). Running from another directory can cause `failed to read dockerfile: open Dockerfile: no such file or directory` errors.
-Containers:
-- `postgres` – stores chunks (pgvector enabled)
-- `indexer` – runs once, ingests files from `LOCAL_DOCS_PATH`, then exits
-- `api` – serves `/health`, `/query`, `/chat`, `/providers` on `http://localhost:8080`
-- `web` – UI served at `http://localhost:5173`
-
-## 3. Watch Indexing (Optional)
-```bash
-docker logs -f docduck-indexer
+OPENAI_API_KEY=sk-yourkey
+DB_CONNECTION_STRING=Host=localhost;Database=docduck;Username=postgres;Password=postgres;MinPoolSize=1;MaxPoolSize=5
+# Optional chunking tweaks
+CHUNK_SIZE=1000
+CHUNK_OVERLAP=200
 ```
-You should see file processing and chunk counts. When it exits with code 0 indexing is done.
 
-## 4. Open the App
-Navigate to: `http://localhost:5173`
+## 3. Add some local test documents
 
-In the top bar you can switch between:
-- Chat (multi-turn with memory)
-- Ask (single stateless question)
+Put a few `.md` or `.txt` files in a folder, e.g. `./sample-docs/`.
 
-Start with a question like:
-> "Give me a concise overview of the documents."
+## 4. Run Indexer (local folder provider)
 
-Responses include expandable source chunks (click to inspect text + metadata).
-
-## 5. Health & Verification
-Check raw status:
-```bash
-curl http://localhost:8080/health | jq
+Set provider env (simplest local provider — assumes directory mount or direct path):
 ```
-Fields:
-- `openAiKeyPresent` should be true
-- `dbConnectionPresent` should be true
-- `chunks` > 0 after indexing
-- `documents` count of processed files
-
-## 6. Re-Index After Adding Files
-Add or modify files in `LOCAL_DOCS_PATH`, then rerun:
-```bash
-docker compose -f docker-compose-local.yml run --rm indexer
+PROVIDER_LOCAL_ENABLED=true
+PROVIDER_LOCAL_NAME=localdocs
+PROVIDER_LOCAL_ROOT_PATH=./sample-docs
 ```
-This performs a fresh ingestion (upserts modified chunks).
 
-## 7. API Curl Example
-Query endpoint returns an answer plus source chunks.
+Run:
 ```bash
-curl -X POST http://localhost:8080/query \
+cd Indexer
+dotnet run
+```
+
+If successful you'll see logs like:
+```
+Processed README.md from localdocs: 5 chunks
+```
+
+## 5. Start Query API
+
+```bash
+cd Api
+DB_CONNECTION_STRING=Host=localhost;Database=docduck;Username=postgres;Password=postgres OPENAI_API_KEY=$OPENAI_API_KEY dotnet run
+```
+
+## 6. Ask a Question
+
+```bash
+curl -s -X POST http://localhost:5000/query \
   -H 'Content-Type: application/json' \
-  -d '{"question":"List the main themes across all documents"}' | jq
+  -d '{"question":"What is DocDuck?"}' | jq
 ```
 
-## 8. Clean Up
+## 7. Explore Providers
+
 ```bash
-docker compose -f docker-compose-local.yml down -v
+curl http://localhost:5000/providers
 ```
-Removes containers + volumes (you keep your local docs).
 
-## 9. Where to Go Next
-Head to **[Advanced Install & Setup](install.md)** for:
-- OneDrive Business & Personal configuration
-- S3 and other providers
-- Multi-provider compose file
-- Detailed troubleshooting & performance tips
-- Kubernetes deployment notes
+## 8. Chat (streaming disabled example)
+```bash
+curl -s -X POST http://localhost:5000/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Summarize the indexed docs"}' | jq
+```
 
----
-Need to customize file types or chunking? Edit `Indexer/appsettings.local.yaml` then rerun the indexer container.
+## Clean Up / Re-run
+- Re-run the indexer any time after modifying documents
+- Use force reindex (set `FORCE_FULL_REINDEX=true`) if you alter chunking parameters
+
+## Next
+- Configure OneDrive or S3: see [Providers Overview](../providers/index.md)
+- Tuning performance: see [Performance & Scaling](performance.md)
+- Troubleshooting: see [Troubleshooting](troubleshooting.md)
