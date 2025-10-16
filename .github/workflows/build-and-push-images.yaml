@@ -137,7 +137,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: web
-          file: Dockerfile
+          file: web/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           build-args: |
             VITE_API_BASE=${{ env.VITE_API_BASE }}
