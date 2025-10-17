@@ -1,0 +1,25 @@
+# Node artifacts
+node_modules
+npm-debug.log*
+.yarn*
+
+# Build output (will be produced in container)
+dist
+
+# VCS
+.git
+.gitignore
+
+# Editor / OS
+.vscode
+.DS_Store
+*.swp
+
+# Tests / coverage
+coverage
+__tests__
+*.spec.ts
+*.test.ts
+
+# Misc
+.env*
