@@ -30,7 +30,7 @@ DocDuck comprises two primary runtime components plus shared libraries:
 - `VectorRepository` handles persistence & idempotency
 
 ## Query API Internals
-- Minimal ASP.NET Core host (`Api/Program.cs`)
+- Minimal ASP.NET Core host (`src/Api/Program.cs`)
 - `VectorSearchService` performs vector similarity queries
 - `OpenAiSdkService` produces embeddings & answers
 - `ChatService` manages conversation state/streaming updates

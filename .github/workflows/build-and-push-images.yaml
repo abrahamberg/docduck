@@ -6,13 +6,13 @@ on:
     tags:
       - 'v*'
     paths:
-      - 'Api/**'
-      - 'Indexer/**'
-      - 'Providers.Shared/**'
-      - 'web/**'
+      - 'src/Api/**'
+      - 'src/Indexer/**'
+      - 'src/Providers.Shared/**'
+      - 'src/web/**'
       - 'Dockerfile'
-      - 'Api/Dockerfile'
-      - 'web/Dockerfile'
+      - 'src/Api/Dockerfile'
+      - 'src/web/Dockerfile'
       - 'helm/docduck/**'
   pull_request:
     branches: [ main ]
@@ -75,7 +75,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Api/Dockerfile
+          file: src/Api/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           platforms: ${{ env.PLATFORMS }}
           tags: |
@@ -105,7 +105,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Indexer/Dockerfile
+          file: src/Indexer/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           platforms: ${{ env.PLATFORMS }}
           tags: |
@@ -136,8 +136,8 @@ jobs:
       - name: Build & Push Web
         uses: docker/build-push-action@v5
         with:
-          context: web
-          file: web/Dockerfile
+          context: src/web
+          file: src/web/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           build-args: |
             VITE_API_BASE=${{ env.VITE_API_BASE }}

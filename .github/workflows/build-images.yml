@@ -5,16 +5,16 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'Api/**'
-      - 'Indexer/**'
-      - 'web/**'
+      - 'src/Api/**'
+      - 'src/Indexer/**'
+      - 'src/web/**'
       - 'sql/**'
       - '.github/workflows/build-images.yml'
   pull_request:
     paths:
-      - 'Api/**'
-      - 'Indexer/**'
-      - 'web/**'
+      - 'src/Api/**'
+      - 'src/Indexer/**'
+      - 'src/web/**'
       - 'sql/**'
   workflow_dispatch:
 
@@ -65,7 +65,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ${{ matrix.service == 'web' && 'web/Dockerfile' || matrix.service == 'api' && 'Api/Dockerfile' || 'Indexer/Dockerfile' }}
+          file: ${{ matrix.service == 'web' && 'src/web/Dockerfile' || matrix.service == 'api' && 'src/Api/Dockerfile' || 'src/Indexer/Dockerfile' }}
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64
           build-args: |

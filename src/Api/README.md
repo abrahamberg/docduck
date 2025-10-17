@@ -224,9 +224,9 @@ SET ivfflat.probes = 10;  -- Default, good balance
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY Api/Api.csproj Api/
+COPY src/Api/Api.csproj Api/
 RUN dotnet restore Api/Api.csproj
-COPY Api/ Api/
+COPY src/Api/ Api/
 RUN dotnet publish Api/Api.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine
@@ -240,7 +240,7 @@ ENTRYPOINT ["dotnet", "Api.dll"]
 
 ```bash
 # Build
-docker build -t docduck-api -f Api/Dockerfile .
+docker build -t docduck-api -f src/Api/Dockerfile .
 
 # Run
 docker run -p 8080:8080 \
@@ -363,7 +363,7 @@ export DB_CONNECTION_STRING="Host=localhost;..."
 ### Project Structure
 
 ```
-Api/
+src/Api/
 ├── Program.cs              # Main API endpoints and DI setup
 ├── Models/
 │   └── QueryModels.cs      # Request/response models
@@ -372,8 +372,8 @@ Api/
 │   ├── OpenAiOptions.cs    # OpenAI configuration
 │   └── SearchOptions.cs    # Search configuration
 └── Services/
-    ├── OpenAiClient.cs     # OpenAI API client
-    └── VectorSearchService.cs  # pgvector search
+  ├── OpenAiClient.cs     # OpenAI API client
+  └── VectorSearchService.cs  # pgvector search
 ```
 
 ### Adding New Endpoints

@@ -3,13 +3,13 @@ WORKDIR /src
 
 # Copy solution and project files, restore dependencies
 COPY docduck.sln ./
-COPY Api/Api.csproj Api/
-COPY Providers.Shared/Providers.Shared.csproj Providers.Shared/
+COPY src/Api/Api.csproj Api/
+COPY src/Providers.Shared/Providers.Shared.csproj Providers.Shared/
 RUN dotnet restore Api/Api.csproj
 
 # Copy source and build
-COPY Api/ Api/
-COPY Providers.Shared/ Providers.Shared/
+COPY src/Api/ Api/
+COPY src/Providers.Shared/ Providers.Shared/
 RUN dotnet publish Api/Api.csproj -c Release -o /app/publish \
     --no-restore \
     /p:UseAppHost=false

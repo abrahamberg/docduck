@@ -2,11 +2,11 @@
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Indexer", "Indexer\Indexer.csproj", "{0D34F528-5F09-AD5B-9804-C4EE38FACD1C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Indexer", "src/Indexer/Indexer.csproj", "{0D34F528-5F09-AD5B-9804-C4EE38FACD1C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Api", "Api\Api.csproj", "{74069C39-EFBF-4D69-A3FA-6F1667B7BE25}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Api", "src/Api/Api.csproj", "{74069C39-EFBF-4D69-A3FA-6F1667B7BE25}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Providers.Shared", "Providers.Shared\Providers.Shared.csproj", "{6B12C5E2-7456-4FFD-9680-22C664AF0967}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Providers.Shared", "src/Providers.Shared/Providers.Shared.csproj", "{6B12C5E2-7456-4FFD-9680-22C664AF0967}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -5,15 +5,15 @@ This document is a concise reference for LLM-based automation or code-assist too
 ## Core Components
 | Concern | Location | Key Types |
 |---------|----------|-----------|
-| Index Orchestration | `Indexer/MultiProviderIndexerService.cs` | `MultiProviderIndexerService` |
-| Provider Abstraction | `Indexer/Providers/IDocumentProvider.cs` | `IDocumentProvider`, `ProviderDocument` |
-| Text Extraction | `Indexer/Services/TextExtraction` | `TextExtractionService`, `ITextExtractor` |
-| Embeddings | `Indexer/Services/OpenAiEmbeddingsClient.cs` | `OpenAiEmbeddingsClient` |
-| Storage | `Indexer/Services/VectorRepository.cs` | `VectorRepository` |
-| Query API | `Api/Program.cs` | Minimal API endpoints |
-| Search Logic | `Api/Services/VectorSearchService.cs` | `VectorSearchService` |
-| Answer Generation | `Api/Services/OpenAiSdkService.cs` | `OpenAiSdkService` |
-| Chat Orchestration | `Api/Services/ChatService.cs` | `ChatService` |
+| Index Orchestration | `src/Indexer/MultiProviderIndexerService.cs` | `MultiProviderIndexerService` |
+| Provider Abstraction | `src/Indexer/Providers/IDocumentProvider.cs` | `IDocumentProvider`, `ProviderDocument` |
+| Text Extraction | `src/Indexer/Services/TextExtraction` | `TextExtractionService`, `ITextExtractor` |
+| Embeddings | `src/Indexer/Services/OpenAiEmbeddingsClient.cs` | `OpenAiEmbeddingsClient` |
+| Storage | `src/Indexer/Services/VectorRepository.cs` | `VectorRepository` |
+| Query API | `src/Api/Program.cs` | Minimal API endpoints |
+| Search Logic | `src/Api/Services/VectorSearchService.cs` | `VectorSearchService` |
+| Answer Generation | `src/Api/Services/OpenAiSdkService.cs` | `OpenAiSdkService` |
+| Chat Orchestration | `src/Api/Services/ChatService.cs` | `ChatService` |
 
 ## Endpoint Contract Summary
 | Endpoint | Method | Purpose |
@@ -43,7 +43,7 @@ This document is a concise reference for LLM-based automation or code-assist too
 6. Upsert with metadata JSON (includes provider, etag)
 
 ## Configuration Hotspots
-- Environment variable ingestion in `Api/Program.cs` and Indexer `Program.cs`
+- Environment variable ingestion in `src/Api/Program.cs` and `src/Indexer/Program.cs`
 - Provider enabling: `PROVIDER_<TYPE>_ENABLED`
 - Chunk tuning: `CHUNK_SIZE`, `CHUNK_OVERLAP`
 - Force reindex: `FORCE_FULL_REINDEX`

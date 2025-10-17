@@ -28,8 +28,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Indexer\Indexer.csproj" />
-    <ProjectReference Include="..\Providers.Shared\Providers.Shared.csproj" />
+  <ProjectReference Include="..\..\src\Indexer\Indexer.csproj" />
+  <ProjectReference Include="..\..\src\Providers.Shared\Providers.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

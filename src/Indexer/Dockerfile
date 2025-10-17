@@ -8,14 +8,15 @@ WORKDIR /src
 
 # Copy solution and project files only (cache-friendly)
 COPY docduck.sln ./
-COPY Indexer/Indexer.csproj Indexer/
-COPY Providers.Shared/Providers.Shared.csproj Providers.Shared/
+COPY src/Indexer/Indexer.csproj Indexer/
+COPY src/Providers.Shared/Providers.Shared.csproj Providers.Shared/
 
 RUN dotnet restore Indexer/Indexer.csproj --nologo
 
 FROM restore AS build
 # Copy the remaining source
-COPY . .
+COPY src/Indexer/ Indexer/
+COPY src/Providers.Shared/ Providers.Shared/
 WORKDIR /src/Indexer
 RUN dotnet publish -c Release -o /app/publish --no-restore --nologo /p:UseAppHost=false
 

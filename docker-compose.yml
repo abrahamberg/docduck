@@ -23,7 +23,7 @@ services:
   indexer:
     build:
       context: .
-      dockerfile: Indexer/Dockerfile
+      dockerfile: src/Indexer/Dockerfile
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OpenAi__ApiKey: ${OPENAI_API_KEY}
@@ -42,7 +42,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Api/Dockerfile
+      dockerfile: src/Api/Dockerfile
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OpenAi__ApiKey: ${OPENAI_API_KEY}
@@ -61,7 +61,7 @@ services:
 
   web:
     build:
-      context: ./web
+      context: ./src/web
       dockerfile: Dockerfile
       args:
         VITE_API_BASE: /api

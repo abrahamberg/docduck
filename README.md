@@ -84,7 +84,7 @@ The full site is structured for both operators and developers (MkDocs config inc
 
 ## Extending
 
-Add a provider: implement `IDocumentProvider` (see `Indexer/Providers/IDocumentProvider.cs`), register in DI, define env flags, supply ETag strategy.
+Add a provider: implement `IDocumentProvider` (see `src/Indexer/Providers/IDocumentProvider.cs`), register in DI, define env flags, supply ETag strategy.
 
 Add a text extractor: implement `ITextExtractor`, list supported extensions, and let `TextExtractionService` auto-register it.
 
