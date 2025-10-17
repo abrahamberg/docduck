@@ -2,20 +2,27 @@
 ###############################
 # Dependencies stage (cachable)
 ###############################
-FROM node:20-alpine AS deps
+FROM node:20-bullseye-slim AS deps
 WORKDIR /app
-# Install build tooling dependencies early (git for some packages, libc if needed)
-RUN apk add --no-cache --virtual .build-deps python3 make g++
+# Install build tooling dependencies used by some native npm modules
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends build-essential ca-certificates python3 \
+	&& rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 ENV CI=true
 # Use npm ci when lockfile present for reproducible builds; leverage BuildKit cache (persisted by id)
 RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
-	if [ -f package-lock.json ]; then npm ci --no-audit --no-fund --prefer-offline; else npm install --no-audit --no-fund --prefer-offline; fi
+		sh -c '\
+			if [ -f package-lock.json ]; then \
+				npm ci --no-audit --no-fund --prefer-offline; \
+			else \
+				npm install --no-audit --no-fund --prefer-offline; \
+			fi'
 
 ###############################
 # Build stage
 ###############################
-FROM node:20-alpine AS build
+FROM node:20-bullseye-slim AS build
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
