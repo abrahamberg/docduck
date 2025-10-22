@@ -4,19 +4,24 @@ Describes how DocDuck performs similarity search and constructs answers.
 
 ## Steps (/query)
 1. Embed question text
-2. Retrieve top-K chunks by cosine distance (`embedding <=> query_vector`)
-3. Concatenate chunk texts (ordered by ascending distance)
+2. Run hybrid retrieval:
+	- Vector search over embeddings (cosine distance)
+	- Optional lexical search (`tsvector` + `websearch_to_tsquery`) when enabled
+	- Blend and rerank chunk candidates based on configured search depth
+3. Concatenate chunk texts (ordered by blended score)
 4. Prompt model to synthesize answer
-5. Return answer + mapped sources (filename + snippet + distance)
+5. Return answer + mapped sources (filename + snippet + blended score)
 
 ## /docsearch Variation
 - Retrieves more chunks (capped) then groups by `doc_id`
 - Selects top documents by best (lowest) chunk distance
 - Returns representative snippet from each doc
 
-## Distance Metric
-- Cosine distance via pgvector ops: `embedding <=> $query`
-- Lower distance ⇒ higher similarity
+## Scoring
+- Vector similarity: cosine distance via pgvector (`embedding <=> $query`)
+- Lexical similarity: `ts_rank_cd` over `search_lexeme` generated column
+- Blended score = `(1 - distance/2) * vector_weight + lexical_score * lexical_weight`
+- Lower blended distance (1 - score) ⇒ higher relevance
 
 ## Filters
 - Optional `providerType` and `providerName` narrow search
@@ -28,13 +33,18 @@ Describes how DocDuck performs similarity search and constructs answers.
 | Overlap | Prevents context boundary loss |
 | Top-K | Higher recall vs prompt cost tradeoff |
 
-## Potential Enhancements
-| Idea | Description |
-|------|-------------|
-| Reranking | Cross-encoder reorder after initial vector search |
-| Hybrid | Combine BM25 + vector union/intersection |
-| Metadata Filters | Restrict by path, date, tag |
-| Feedback Loop | Reinforce chunk weighting based on user acceptance |
+## Search Depth Levels
+The API exposes a `searchDepth` knob (1-5) to control retrieval effort:
+
+| Depth | Behavior |
+|-------|----------|
+| 1 | Lexical-only search, minimal orchestration |
+| 2 | Lexical + vector blend, single retrieval pass |
+| 3 | Default; blended retrieval with retry heuristics |
+| 4 | Same as 3, but allows an extra refinement pass |
+| 5 | Max effort; expanded retries and aggressive reranking |
+
+Higher depths cost more tokens but improve recall.
 
 ## Failure Modes
 | Mode | Symptom | Mitigation |

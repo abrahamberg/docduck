@@ -7,7 +7,8 @@ public record QueryRequest(
     string Question,
     int? TopK = null,
     string? ProviderType = null,
-    string? ProviderName = null
+    string? ProviderName = null,
+    int? SearchDepth = null
 );
 
 /// <summary>
@@ -54,7 +55,8 @@ public record ChatRequest(
     int? TopK = null,
     string? ProviderType = null,
     string? ProviderName = null,
-    bool StreamSteps = false
+    bool StreamSteps = false,
+    int? SearchDepth = null
 );
 
 /// <summary>

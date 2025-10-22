@@ -7,7 +7,9 @@ using DocDuck.Providers.Configuration;
 using System.Text;
 using System.IO;
 using System.Text.Json;
+using System.Globalization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 var builder = WebApplication.CreateBuilder(args);
 
 var envConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
@@ -56,6 +58,37 @@ builder.Services.Configure<SearchOptions>(options =>
     if (int.TryParse(Environment.GetEnvironmentVariable("MAX_TOP_K"), out var maxTopK))
     {
         options.MaxTopK = maxTopK;
+    }
+
+    if (int.TryParse(Environment.GetEnvironmentVariable("MAX_SEARCH_DEPTH"), out var maxDepth))
+    {
+        options.MaxSearchDepth = Math.Max(1, maxDepth);
+    }
+
+    if (int.TryParse(Environment.GetEnvironmentVariable("DEFAULT_SEARCH_DEPTH"), out var defaultDepth))
+    {
+        options.DefaultSearchDepth = Math.Clamp(defaultDepth, 1, options.MaxSearchDepth);
+    }
+
+    if (bool.TryParse(Environment.GetEnvironmentVariable("ENABLE_LEXICAL_SEARCH"), out var enableLexical))
+    {
+        options.EnableLexicalSearch = enableLexical;
+    }
+
+    if (double.TryParse(Environment.GetEnvironmentVariable("LEXICAL_SCORE_WEIGHT"), NumberStyles.Float, CultureInfo.InvariantCulture, out var lexicalWeight))
+    {
+        options.LexicalScoreWeight = Math.Clamp(lexicalWeight, 0d, 1d);
+    }
+
+    if (int.TryParse(Environment.GetEnvironmentVariable("MAX_LEXICAL_RESULTS"), out var maxLexical))
+    {
+        options.MaxLexicalResults = Math.Max(1, maxLexical);
+    }
+
+    var lexicalConfig = Environment.GetEnvironmentVariable("LEXICAL_CONFIGURATION");
+    if (!string.IsNullOrWhiteSpace(lexicalConfig))
+    {
+        options.LexicalConfiguration = lexicalConfig;
     }
 });
 
@@ -226,6 +259,7 @@ app.MapPost("/query", async (
     QueryRequest request,
     OpenAiSdkService openAiClient,
     VectorSearchService searchService,
+    IOptions<SearchOptions> searchOptions,
     CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.Question))
@@ -235,18 +269,22 @@ app.MapPost("/query", async (
 
     try
     {
+        var depth = Math.Clamp(request.SearchDepth ?? searchOptions.Value.DefaultSearchDepth, 1, searchOptions.Value.MaxSearchDepth);
         logger.LogInformation("Processing query: {Question} (Provider: {Type}/{Name})", 
             request.Question, request.ProviderType ?? "all", request.ProviderName ?? "all");
+        logger.LogInformation("Query search depth {Depth}", depth);
 
         // 1. Generate embedding for the question
-    var questionEmbedding = await openAiClient.EmbedAsync(request.Question, ct);
+        var questionEmbedding = await openAiClient.EmbedAsync(request.Question, ct);
 
         // 2. Search for similar chunks with optional provider filter
         var sources = await searchService.SearchAsync(
             questionEmbedding, 
+            request.Question,
             request.TopK, 
             request.ProviderType, 
             request.ProviderName, 
+            depth,
             ct);
 
         if (sources.Count == 0)
@@ -288,6 +326,7 @@ app.MapPost("/docsearch", async (
     QueryRequest request,
     OpenAiSdkService openAiClient,
     VectorSearchService searchService,
+    IOptions<SearchOptions> searchOptions,
     CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.Question))
@@ -297,12 +336,13 @@ app.MapPost("/docsearch", async (
 
     try
     {
+        var depth = Math.Clamp(request.SearchDepth ?? searchOptions.Value.DefaultSearchDepth, 1, searchOptions.Value.MaxSearchDepth);
         // Create embedding for the query
         var qEmbedding = await openAiClient.EmbedAsync(request.Question, ct);
 
         // Fetch chunks (limit a bit higher to allow grouping) - respect TopK if provided but cap to 100
         var fetchTopK = Math.Min(request.TopK ?? 20, 100);
-        var chunks = await searchService.SearchAsync(qEmbedding, fetchTopK, request.ProviderType, request.ProviderName, ct);
+        var chunks = await searchService.SearchAsync(qEmbedding, request.Question, fetchTopK, request.ProviderType, request.ProviderName, depth, ct);
 
         // Group by document and pick the best (smallest) distance per document
         var docs = chunks

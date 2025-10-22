@@ -2,19 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { getProviders, getHealth } from './api';
 import { ProviderInfo, HealthStatus } from './types';
 import { ProviderFilter } from './components/ProviderFilter';
-import { Chat } from './components/Chat';
-import { Ask } from './components/Ask';
-import { DocSearchPanel } from './components/DocSearchPanel';
 import { EnvironmentBanner } from './components/EnvironmentBanner';
 import { ThemeProvider } from '@mui/material/styles';
 import { theme } from './theme';
-import { AppBar, Toolbar, Typography, Tabs, Tab, Container, Box, Paper, Button } from '@mui/material';
+import { AppBar, Toolbar, Typography, Container, Box, Paper, Button, Slider } from '@mui/material';
+import { Ask } from './components/Ask';
 
 export const App: React.FC = () => {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [loadingProviders, setLoadingProviders] = useState(false);
   const [pf, setPf] = useState<{ providerType?: string; providerName?: string }>({});
-  const [tab, setTab] = useState<'chat' | 'ask' | 'docs'>('chat');
+  const [searchDepth, setSearchDepth] = useState<number>(3);
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
@@ -53,11 +51,19 @@ export const App: React.FC = () => {
         <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: theme => `1px solid ${theme.palette.divider}` }}>
           <Toolbar>
             <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>DocDuck</Typography>
-            <Tabs value={tab} onChange={(_, v) => setTab(v)} textColor="primary" indicatorColor="primary">
-              <Tab value="chat" label="Chat" />
-              <Tab value="ask" label="Ask" />
-              <Tab value="docs" label="Docs" />
-            </Tabs>
+            <Box sx={{ display: 'flex', alignItems: 'center', width: 360, gap: 2 }}>
+              <Typography variant="caption" sx={{ mr: 1 }}>Depth: {searchDepth}</Typography>
+              <Slider
+                size="small"
+                min={1}
+                max={5}
+                step={1}
+                marks
+                value={searchDepth}
+                onChange={(_e, v) => { if (Array.isArray(v)) return; setSearchDepth(v); }}
+                sx={{ width: 220 }}
+              />
+            </Box>
             <Button color="primary" variant="outlined" sx={{ ml: 2 }} href="/admin/login">
               Admin
             </Button>
@@ -70,13 +76,15 @@ export const App: React.FC = () => {
             {error && <Typography color="error" variant="caption">{error}</Typography>}
           </Paper>
           <Box sx={{ flex: 1, minHeight: 0 }}>
-            {tab === 'chat' ? (
-              <Chat providerType={pf.providerType} providerName={pf.providerName} />
-            ) : tab === 'ask' ? (
-              <Ask providerType={pf.providerType} providerName={pf.providerName} />
-            ) : (
-              <DocSearchPanel providerType={pf.providerType} providerName={pf.providerName} />
-            )}
+            {/* Unified search/interaction area. We keep the Ask/Chat components in the codebase, but the UI now exposes a single searchDepth control.
+                Components that need the searchDepth should read it from local state via props. For now, render the Ask panel as the primary interaction surface
+                and pass searchDepth through provider props in the child components that still accept it. */}
+            <Paper variant="outlined" sx={{ height: '100%', p: 2 }}>
+              <Typography variant="body2" sx={{ mb: 1 }}>Use the slider in the header to adjust search depth (1-5) for queries.</Typography>
+              <Box sx={{ height: 'calc(100% - 40px)' }}>
+                <Ask providerType={pf.providerType} providerName={pf.providerName} searchDepth={searchDepth} />
+              </Box>
+            </Paper>
           </Box>
         </Container>
       </Box>

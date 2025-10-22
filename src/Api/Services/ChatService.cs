@@ -1,5 +1,7 @@
 using Api.Models;
+using Api.Options;
 using System.Linq;
+using Microsoft.Extensions.Options;
 
 namespace Api.Services;
 
@@ -7,7 +9,7 @@ namespace Api.Services;
 /// Orchestrates multi-step chat interaction:
 /// 1. Digest user input -> refine phrase for embedding (small model)
 /// 2. Vector search for candidate chunks
-/// 3. Evaluate if answerable; may request more context or rephrase and retry (max 2 attempts)
+/// 3. Evaluate if answerable; may request more context or rephrase and retry (attempts scale with search depth)
 /// 4. Produce final answer or ask user to rephrase.
 /// </summary>
 public class ChatService
@@ -15,14 +17,17 @@ public class ChatService
     private readonly VectorSearchService _searchService;
     private readonly OpenAiSdkService _openAiClient;
     private readonly ILogger<ChatService> _logger;
+    private readonly SearchOptions _searchOptions;
 
     public ChatService(
         VectorSearchService searchService,
         OpenAiSdkService openAiClient,
+        IOptions<SearchOptions> searchOptions,
         ILogger<ChatService> logger)
     {
         _searchService = searchService;
         _openAiClient = openAiClient;
+        _searchOptions = searchOptions.Value;
         _logger = logger;
     }
 
@@ -32,7 +37,11 @@ public class ChatService
         CancellationToken ct = default)
     {
         var history = request.History ?? new List<ChatMessage>();
+        var depth = Math.Clamp(request.SearchDepth ?? _searchOptions.DefaultSearchDepth, 1, _searchOptions.MaxSearchDepth);
+        var maxAttempts = depth >= 5 ? 4 : depth >= 4 ? 3 : 2;
         var steps = new List<string>();
+
+        _logger.LogInformation("Chat search depth {Depth} configured for {Attempts} attempt(s)", depth, maxAttempts);
 
         async Task RecordStepAsync(string message)
         {
@@ -51,11 +60,12 @@ public class ChatService
         string currentPhrase = request.Message.Trim();
         currentPhrase = await _openAiClient.RefineQueryPhraseAsync(currentPhrase, history, ct);
         await RecordStepAsync($"Rephrased the question for retrieval: \"{currentPhrase}\".");
+        await RecordStepAsync($"Search depth level {depth} → {maxAttempts} retrieval attempt(s).");
 
         string? finalAnswer = null;
         int totalTokens = 0;
 
-        for (int attempt = 1; attempt <= 2; attempt++)
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
             _logger.LogInformation("Chat attempt {Attempt} with phrase: {Phrase}", attempt, currentPhrase);
             await RecordStepAsync($"Attempt {attempt}: searching the index with \"{currentPhrase}\".");
@@ -63,9 +73,11 @@ public class ChatService
             var embedding = await _openAiClient.EmbedAsync(currentPhrase, ct);
             latestSources = await _searchService.SearchAsync(
                 embedding,
+                currentPhrase,
                 request.TopK,
                 request.ProviderType,
                 request.ProviderName,
+                depth,
                 ct);
 
             if (latestSources.Count == 0)
@@ -73,9 +85,9 @@ public class ChatService
                 _logger.LogInformation("No sources found on attempt {Attempt}", attempt);
                 await RecordStepAsync("No matching passages came back.");
 
-                if (attempt == 2)
+                if (attempt == maxAttempts)
                 {
-                    await RecordStepAsync("Still nothing after two tries. Handing control back to the user.");
+                    await RecordStepAsync($"Still nothing after {maxAttempts} attempt(s). Handing control back to the user.");
                     var failure = BuildResponse(
                         answer: "I couldn't find anything relevant. Could you rephrase your question?",
                         userMessage: request.Message,
@@ -109,7 +121,7 @@ public class ChatService
             var eval = await _openAiClient.EvaluateAnswerabilityAsync(currentPhrase, latestSources.Select(s => s.Text).ToList(), ct);
             totalTokens += eval.TokensUsed;
 
-            if (!eval.Answerable && attempt < 2)
+            if (!eval.Answerable && attempt < maxAttempts)
             {
                 _logger.LogInformation("Model suggests more context or refinement before answering (attempt {Attempt})", attempt);
                 await RecordStepAsync("Context isn't strong enough yet; refining the search phrase.");

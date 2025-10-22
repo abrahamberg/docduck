@@ -13,7 +13,7 @@ Detailed look at the indexing pipeline driven by `MultiProviderIndexerService`.
 | Extract | Produce plain text | `TextExtractionService.ExtractTextAsync` |
 | Chunk | Segment into overlapping units | `TextChunker.Chunk` |
 | Embed | Generate vector | `OpenAiEmbeddingsClient.EmbedBatchedAsync` |
-| Upsert | Persist chunk & metadata | `VectorRepository.InsertOrUpsertChunksAsync` |
+| Upsert | Persist chunk & metadata | `VectorRepository.InsertChunksAsync` |
 | Track File | Store ETag & timestamps | `VectorRepository.UpdateFileTrackingAsync` |
 | Cleanup Orphans | Remove missing docs | `VectorRepository.CleanupOrphanedDocumentsAsync` |
 

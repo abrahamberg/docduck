@@ -11,15 +11,18 @@ interface Props {
   providerType?: string;
   providerName?: string;
   topK?: number;
+  searchDepth?: number;
 }
 
-export const Chat: React.FC<Props> = ({ providerType, providerName, topK }) => {
+export const Chat: React.FC<Props> = ({ providerType, providerName, topK, searchDepth }) => {
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [lastResponse, setLastResponse] = useState<ChatResponse | null>(null);
   const [streamMode, setStreamMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // searchDepth is provided by the global UI via props
+  const depth = searchDepth ?? 3;
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const handleStreamUpdate = useCallback((update: ChatStreamUpdate) => {
@@ -48,6 +51,7 @@ export const Chat: React.FC<Props> = ({ providerType, providerName, topK }) => {
       providerType,
       providerName,
       streamSteps: streamMode,
+  searchDepth: depth,
     };
 
     try {
@@ -98,6 +102,9 @@ export const Chat: React.FC<Props> = ({ providerType, providerName, topK }) => {
           )}
         </Stack>
       </Box>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ px: 2, pb: 1 }}>
+        {/* Search depth controlled globally in the App header */}
+      </Stack>
       <Stack direction="row" spacing={1} sx={{ p: 1.5, borderTop: theme => `1px solid ${theme.palette.divider}` }}>
         <TextField
           value={input}

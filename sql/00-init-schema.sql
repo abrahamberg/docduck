@@ -1,0 +1,185 @@
+-- =============================================================================
+-- DocDuck Database Schema Initialization
+-- =============================================================================
+-- This script creates all required tables, indexes, and extensions for DocDuck.
+-- It is designed to be idempotent and can be run multiple times safely.
+-- 
+-- Required PostgreSQL extensions: pgvector, pg_trgm
+-- 
+-- Tables created:
+--   - docs_chunks: Document chunks with vector embeddings
+--   - docs_files: File metadata and tracking (etag, last_modified)
+--   - providers: Document provider registration and status
+--   - provider_settings: Provider configuration (JSONB)
+--   - ai_provider_settings: AI provider configuration (JSONB)
+--   - admin_users: Admin users for API access
+-- =============================================================================
+
+-- Enable required extensions
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- =============================================================================
+-- Provider Management Tables
+-- =============================================================================
+
+-- Provider registration and metadata
+CREATE TABLE IF NOT EXISTS providers (
+    provider_type TEXT NOT NULL,
+    provider_name TEXT NOT NULL,
+    is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    registered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_sync_at TIMESTAMPTZ,
+    metadata JSONB,
+    PRIMARY KEY (provider_type, provider_name)
+);
+
+-- Provider settings (configuration)
+CREATE TABLE IF NOT EXISTS provider_settings (
+    provider_type TEXT NOT NULL,
+    provider_name TEXT NOT NULL,
+    settings JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (provider_type, provider_name)
+);
+
+-- AI provider settings (OpenAI, etc.)
+CREATE TABLE IF NOT EXISTS ai_provider_settings (
+    provider_type TEXT PRIMARY KEY,
+    settings JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- =============================================================================
+-- Document Storage Tables
+-- =============================================================================
+
+-- Document chunks with embeddings for vector search
+CREATE TABLE IF NOT EXISTS docs_chunks (
+    id BIGSERIAL PRIMARY KEY,
+    doc_id TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    provider_type TEXT NOT NULL,
+    provider_name TEXT NOT NULL,
+    chunk_num INT NOT NULL,
+    text TEXT NOT NULL,
+    metadata JSONB,
+    embedding vector(1536),
+    search_lexeme tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce(text, ''))) STORED,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    
+    -- Unique constraint: same doc_id+chunk_num can exist across different providers
+    CONSTRAINT unique_doc_chunk_provider UNIQUE (doc_id, chunk_num, provider_type, provider_name)
+);
+
+-- File tracking for deduplication and change detection
+CREATE TABLE IF NOT EXISTS docs_files (
+    doc_id TEXT NOT NULL,
+    provider_type TEXT NOT NULL,
+    provider_name TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    etag TEXT NOT NULL,
+    last_modified TIMESTAMPTZ NOT NULL,
+    relative_path TEXT,
+    PRIMARY KEY (doc_id, provider_type, provider_name)
+);
+
+-- =============================================================================
+-- Admin and Authentication Tables
+-- =============================================================================
+
+-- Admin users for API access
+CREATE TABLE IF NOT EXISTS admin_users (
+    id UUID PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- =============================================================================
+-- Indexes for Performance
+-- =============================================================================
+
+-- Vector similarity search index (cosine distance)
+-- Lists parameter should be ~rows/1000 for optimal performance
+CREATE INDEX IF NOT EXISTS docs_chunks_embedding_idx 
+    ON docs_chunks USING ivfflat (embedding vector_cosine_ops) 
+    WITH (lists = 100);
+
+-- Lexical search index on generated tsvector column
+CREATE INDEX IF NOT EXISTS docs_chunks_search_lexeme_idx 
+    ON docs_chunks USING GIN (search_lexeme);
+
+-- Common query indexes
+CREATE INDEX IF NOT EXISTS docs_chunks_doc_id_idx 
+    ON docs_chunks(doc_id);
+
+CREATE INDEX IF NOT EXISTS docs_chunks_filename_idx 
+    ON docs_chunks(filename);
+
+CREATE INDEX IF NOT EXISTS docs_chunks_provider_idx 
+    ON docs_chunks(provider_type, provider_name);
+
+CREATE INDEX IF NOT EXISTS docs_chunks_created_at_idx 
+    ON docs_chunks(created_at);
+
+-- JSONB metadata index for flexible queries
+CREATE INDEX IF NOT EXISTS docs_chunks_metadata_idx 
+    ON docs_chunks USING GIN (metadata);
+
+-- File tracking indexes
+CREATE INDEX IF NOT EXISTS docs_files_provider_idx 
+    ON docs_files(provider_type, provider_name);
+
+CREATE INDEX IF NOT EXISTS docs_files_filename_idx 
+    ON docs_files(filename);
+
+-- Admin user indexes
+CREATE UNIQUE INDEX IF NOT EXISTS admin_users_username_lower_idx 
+    ON admin_users ((LOWER(username)));
+
+-- =============================================================================
+-- Verification and Statistics
+-- =============================================================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '=============================================================================';
+    RAISE NOTICE 'DocDuck database schema initialized successfully!';
+    RAISE NOTICE '=============================================================================';
+    RAISE NOTICE 'Extensions: vector, pg_trgm';
+    RAISE NOTICE 'Tables: docs_chunks, docs_files, providers, provider_settings, ai_provider_settings, admin_users';
+    RAISE NOTICE 'Indexes: embedding (ivfflat), search_lexeme (GIN), metadata (GIN), and supporting indexes';
+    RAISE NOTICE '=============================================================================';
+END $$;
+
+-- Display current table sizes and row counts
+SELECT 
+    'docs_chunks' AS table_name,
+    COUNT(*) AS row_count,
+    COUNT(DISTINCT doc_id) AS unique_docs,
+    pg_size_pretty(pg_total_relation_size('docs_chunks')) AS total_size
+FROM docs_chunks
+UNION ALL
+SELECT 
+    'docs_files' AS table_name,
+    COUNT(*) AS row_count,
+    NULL as unique_docs,
+    pg_size_pretty(pg_total_relation_size('docs_files')) AS total_size
+FROM docs_files
+UNION ALL
+SELECT 
+    'providers' AS table_name,
+    COUNT(*) AS row_count,
+    NULL as unique_docs,
+    pg_size_pretty(pg_total_relation_size('providers')) AS total_size
+FROM providers
+UNION ALL
+SELECT 
+    'admin_users' AS table_name,
+    COUNT(*) AS row_count,
+    NULL as unique_docs,
+    pg_size_pretty(pg_total_relation_size('admin_users')) AS total_size
+FROM admin_users;

@@ -1,9 +1,10 @@
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using Api.Models;
 using Api.Options;
 using Microsoft.Extensions.Options;
 using Npgsql;
-using Pgvector;
 
 namespace Api.Services;
 
@@ -15,6 +16,7 @@ public class VectorSearchService
     private readonly DbOptions _dbOptions;
     private readonly SearchOptions _searchOptions;
     private readonly ILogger<VectorSearchService> _logger;
+    private bool _lexicalSearchUnavailable;
 
     public VectorSearchService(
         IOptions<DbOptions> dbOptions,
@@ -36,24 +38,62 @@ public class VectorSearchService
     /// </summary>
     public async Task<List<Source>> SearchAsync(
         float[] queryEmbedding,
+        string queryText,
         int? topK = null,
         string? providerType = null,
         string? providerName = null,
+        int searchDepth = 1,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(queryEmbedding);
+        queryText ??= string.Empty;
 
-        var k = Math.Min(
-            topK ?? _searchOptions.DefaultTopK,
-            _searchOptions.MaxTopK);
+        var depth = Math.Clamp(searchDepth, 1, _searchOptions.MaxSearchDepth);
+        var k = Math.Min(topK ?? _searchOptions.DefaultTopK, _searchOptions.MaxTopK);
+        var normalizedQuery = queryText.Trim();
+        var lexicalEnabled = _searchOptions.EnableLexicalSearch && !string.IsNullOrWhiteSpace(normalizedQuery);
+        var lexicalOnly = lexicalEnabled && depth == 1;
+    var lexicalLimit = Math.Max(1, Math.Min(_searchOptions.MaxLexicalResults, Math.Max(k * 3, k)));
 
-        _logger.LogDebug("Searching for top {K} similar chunks (Provider: {Type}/{Name})", 
-            k, providerType ?? "all", providerName ?? "all");
+        _logger.LogDebug(
+            "Searching depth {Depth} for top {K} chunks (Provider: {Type}/{Name}, Lexical:{LexicalEnabled}, Vector:{VectorEnabled})",
+            depth,
+            k,
+            providerType ?? "all",
+            providerName ?? "all",
+            lexicalEnabled,
+            !lexicalOnly);
 
         await using var conn = new NpgsqlConnection(_dbOptions.ConnectionString);
         await conn.OpenAsync(ct);
 
-        // Build SQL with optional provider filter
+        var vectorResults = lexicalOnly
+            ? new List<Source>()
+            : await ExecuteVectorSearchAsync(conn, queryEmbedding, k, providerType, providerName, ct);
+
+        var lexicalResults = lexicalEnabled
+            ? await ExecuteLexicalSearchAsync(conn, normalizedQuery, providerType, providerName, lexicalLimit, ct)
+            : new List<LexicalMatch>();
+
+    var combined = CombineCandidates(vectorResults, lexicalResults, k, depth, lexicalEnabled, !lexicalOnly && vectorResults.Count > 0);
+
+        _logger.LogInformation(
+            "Search produced {CombinedCount} chunks (vector: {VectorCount}, lexical: {LexicalCount})",
+            combined.Count,
+            vectorResults.Count,
+            lexicalResults.Count);
+
+        return combined;
+    }
+
+    private async Task<List<Source>> ExecuteVectorSearchAsync(
+        NpgsqlConnection conn,
+        float[] queryEmbedding,
+        int limit,
+        string? providerType,
+        string? providerName,
+        CancellationToken ct)
+    {
         var sql = @"
             SELECT 
                 doc_id,
@@ -67,11 +107,11 @@ public class VectorSearchService
             FROM docs_chunks";
 
         var whereConditions = new List<string>();
-        if (!string.IsNullOrEmpty(providerType))
+        if (!string.IsNullOrWhiteSpace(providerType))
         {
             whereConditions.Add("provider_type = @provider_type");
         }
-        if (!string.IsNullOrEmpty(providerName))
+        if (!string.IsNullOrWhiteSpace(providerName))
         {
             whereConditions.Add("provider_name = @provider_name");
         }
@@ -85,23 +125,21 @@ public class VectorSearchService
             ORDER BY embedding <=> (@embedding)::vector
             LIMIT @limit";
 
-    await using var cmd = new NpgsqlCommand(sql, conn);
-    // Pass embedding as text and cast to vector in SQL to avoid relying on Npgsql/Pgvector
-    // type mapping which can be fragile in some runtime environments.
-    var embeddingText = "[" + string.Join(",", queryEmbedding.Select(f => f.ToString(System.Globalization.CultureInfo.InvariantCulture))) + "]";
-    cmd.Parameters.AddWithValue("embedding", embeddingText);
-    cmd.Parameters.AddWithValue("limit", k);
-        
-        if (!string.IsNullOrEmpty(providerType))
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        var embeddingText = "[" + string.Join(",", queryEmbedding.Select(f => f.ToString(CultureInfo.InvariantCulture))) + "]";
+        cmd.Parameters.AddWithValue("embedding", embeddingText);
+        cmd.Parameters.AddWithValue("limit", limit);
+
+        if (!string.IsNullOrWhiteSpace(providerType))
         {
             cmd.Parameters.AddWithValue("provider_type", providerType);
         }
-        if (!string.IsNullOrEmpty(providerName))
+        if (!string.IsNullOrWhiteSpace(providerName))
         {
             cmd.Parameters.AddWithValue("provider_name", providerName);
         }
 
-        var results = new List<Source>();
+        var results = new List<Source>(capacity: limit);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
@@ -113,9 +151,7 @@ public class VectorSearchService
             var chunkNum = reader.GetInt32(4);
             var text = reader.GetString(5);
             var distance = reader.GetDouble(7);
-
-            // Generate citation including provider info
-            var citation = $"[{pType}/{pName}:{filename}#chunk{chunkNum}]";
+            var citation = BuildCitation(pType, pName, filename, chunkNum);
 
             results.Add(new Source(
                 DocId: docId,
@@ -129,9 +165,240 @@ public class VectorSearchService
             ));
         }
 
-        _logger.LogInformation("Found {Count} similar chunks", results.Count);
-
         return results;
+    }
+
+    private async Task<List<LexicalMatch>> ExecuteLexicalSearchAsync(
+        NpgsqlConnection conn,
+        string queryText,
+        string? providerType,
+        string? providerName,
+        int limit,
+        CancellationToken ct)
+    {
+        if (_lexicalSearchUnavailable)
+        {
+            return new List<LexicalMatch>();
+        }
+
+        const string sql = @"
+            WITH search_query AS (
+                SELECT websearch_to_tsquery(CAST(@config AS regconfig), @query) AS q
+            )
+            SELECT
+                c.doc_id,
+                c.filename,
+                c.provider_type,
+                c.provider_name,
+                c.chunk_num,
+                c.text,
+                c.metadata,
+                ts_rank_cd(c.search_lexeme, sq.q) AS rank
+            FROM docs_chunks c, search_query sq";
+
+        var whereConditions = new List<string> { "c.search_lexeme @@ sq.q" };
+        if (!string.IsNullOrWhiteSpace(providerType))
+        {
+            whereConditions.Add("c.provider_type = @provider_type");
+        }
+        if (!string.IsNullOrWhiteSpace(providerName))
+        {
+            whereConditions.Add("c.provider_name = @provider_name");
+        }
+
+    var sqlBuilder = new StringBuilder(sql);
+        sqlBuilder.AppendLine();
+        sqlBuilder.Append("WHERE ");
+        sqlBuilder.Append(string.Join(" AND ", whereConditions));
+        sqlBuilder.AppendLine();
+        sqlBuilder.AppendLine("ORDER BY rank DESC");
+        sqlBuilder.AppendLine("LIMIT @limit");
+
+        try
+        {
+            await using var cmd = new NpgsqlCommand(sqlBuilder.ToString(), conn);
+            cmd.Parameters.AddWithValue("config", _searchOptions.LexicalConfiguration);
+            cmd.Parameters.AddWithValue("query", queryText);
+            cmd.Parameters.AddWithValue("limit", limit);
+
+            if (!string.IsNullOrWhiteSpace(providerType))
+            {
+                cmd.Parameters.AddWithValue("provider_type", providerType!);
+            }
+            if (!string.IsNullOrWhiteSpace(providerName))
+            {
+                cmd.Parameters.AddWithValue("provider_name", providerName!);
+            }
+
+            var matches = new List<LexicalMatch>(capacity: limit);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var docId = reader.GetString(0);
+                var filename = reader.GetString(1);
+                var pType = reader.GetString(2);
+                var pName = reader.GetString(3);
+                var chunkNum = reader.GetInt32(4);
+                var text = reader.GetString(5);
+                var rank = reader.GetDouble(7);
+                var citation = BuildCitation(pType, pName, filename, chunkNum);
+
+                var source = new Source(
+                    DocId: docId,
+                    Filename: filename,
+                    ChunkNum: chunkNum,
+                    Text: text,
+                    Distance: 1d,
+                    Citation: citation,
+                    ProviderType: pType,
+                    ProviderName: pName
+                );
+
+                matches.Add(new LexicalMatch(source, rank));
+            }
+
+            return matches;
+        }
+        catch (PostgresException ex) when (
+            ex.SqlState is "42P01" or "42703" or "42883")
+        {
+            _lexicalSearchUnavailable = true;
+            _logger.LogWarning(ex, "Lexical search disabled because the database is missing the required schema or extension.");
+            return new List<LexicalMatch>();
+        }
+        catch (PostgresException ex) when (ex.SqlState == "XX000")
+        {
+            // tsquery parse/plan error (often due to malformed user input). Swallow and fall back to vector-only results.
+            _logger.LogDebug(ex, "Lexical search failed for query '{Query}'. Falling back to vector-only results.", queryText);
+            return new List<LexicalMatch>();
+        }
+    }
+
+    private List<Source> CombineCandidates(
+        IReadOnlyCollection<Source> vectorResults,
+        IReadOnlyCollection<LexicalMatch> lexicalResults,
+        int limit,
+        int depth,
+        bool lexicalEnabled,
+        bool vectorEnabled)
+    {
+        if (vectorResults.Count == 0 && lexicalResults.Count == 0)
+        {
+            return new List<Source>();
+        }
+
+        var candidates = new Dictionary<(string DocId, int Chunk), CandidateScore>();
+
+        foreach (var source in vectorResults)
+        {
+            var key = (source.DocId, source.ChunkNum);
+            if (!candidates.TryGetValue(key, out var candidate))
+            {
+                candidate = new CandidateScore(source);
+                candidates[key] = candidate;
+            }
+
+            candidate.VectorDistance = source.Distance;
+            candidate.VectorScore = Math.Max(candidate.VectorScore, CalculateVectorScore(source.Distance));
+            candidate.Source = source;
+        }
+
+        if (lexicalResults.Count > 0)
+        {
+            var maxRank = lexicalResults.Max(match => match.Rank);
+            var normalization = maxRank <= 0d ? 0d : maxRank;
+
+            foreach (var match in lexicalResults)
+            {
+                var key = (match.Source.DocId, match.Source.ChunkNum);
+                if (!candidates.TryGetValue(key, out var candidate))
+                {
+                    candidate = new CandidateScore(match.Source);
+                    candidates[key] = candidate;
+                }
+
+                var lexicalScore = normalization == 0d ? 0d : match.Rank / normalization;
+                candidate.LexicalScore = Math.Max(candidate.LexicalScore, lexicalScore);
+
+                // Prefer lexical text if vector text is empty (shouldn't happen, but guard anyway)
+                if (string.IsNullOrWhiteSpace(candidate.Source.Text))
+                {
+                    candidate.Source = match.Source;
+                }
+            }
+        }
+
+        var lexicalWeight = DetermineLexicalWeight(depth, lexicalEnabled, vectorEnabled);
+        var vectorWeight = 1d - lexicalWeight;
+
+        var ordered = candidates.Values
+            .Select(candidate =>
+            {
+                var combinedScore = (vectorWeight * candidate.VectorScore) + (lexicalWeight * candidate.LexicalScore);
+                var adjustedDistance = 1d - combinedScore;
+                var updatedSource = candidate.Source with { Distance = adjustedDistance };
+                return new
+                {
+                    Source = updatedSource,
+                    Combined = combinedScore,
+                    candidate.VectorDistance
+                };
+            })
+            .OrderByDescending(x => x.Combined)
+            .ThenBy(x => x.VectorDistance ?? double.MaxValue)
+            .ThenBy(x => x.Source.Distance)
+            .Take(limit)
+            .Select(x => x.Source)
+            .ToList();
+
+        return ordered;
+    }
+
+    private static double CalculateVectorScore(double distance)
+    {
+        var clamped = Math.Clamp(distance, 0d, 2d);
+        return 1d - (clamped / 2d);
+    }
+
+    private double DetermineLexicalWeight(int depth, bool lexicalEnabled, bool vectorEnabled)
+    {
+        if (!lexicalEnabled)
+        {
+            return 0d;
+        }
+
+        if (!vectorEnabled)
+        {
+            return 1d;
+        }
+
+        return depth switch
+        {
+            1 => 1d,
+            2 => Math.Clamp(_searchOptions.LexicalScoreWeight + 0.15d, 0d, 1d),
+            _ => Math.Clamp(_searchOptions.LexicalScoreWeight, 0d, 1d)
+        };
+    }
+
+    private static string BuildCitation(string providerType, string providerName, string filename, int chunkNum)
+    {
+        return $"[{providerType}/{providerName}:{filename}#chunk{chunkNum}]";
+    }
+
+    private sealed record LexicalMatch(Source Source, double Rank);
+
+    private sealed class CandidateScore
+    {
+        public CandidateScore(Source source)
+        {
+            Source = source;
+        }
+
+        public Source Source { get; set; }
+        public double? VectorDistance { get; set; }
+        public double VectorScore { get; set; }
+        public double LexicalScore { get; set; }
     }
 
     /// <summary>

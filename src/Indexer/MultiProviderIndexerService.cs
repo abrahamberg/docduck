@@ -277,8 +277,15 @@ public class MultiProviderIndexerService
                         );
                     }).ToList();
 
-                    // Upsert to database
-                    await _vectorRepository.InsertOrUpsertChunksAsync(
+                    // Delete old chunks if this document was previously indexed
+                    await _vectorRepository.DeleteDocumentChunksAsync(
+                        doc.DocumentId,
+                        provider.ProviderType,
+                        provider.ProviderName,
+                        ct);
+
+                    // Insert new chunks to database
+                    await _vectorRepository.InsertChunksAsync(
                         records, 
                         provider.ProviderType, 
                         provider.ProviderName, 

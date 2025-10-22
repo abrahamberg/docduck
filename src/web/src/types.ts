@@ -14,6 +14,7 @@ export interface QueryRequest {
   topK?: number;
   providerType?: string;
   providerName?: string;
+  searchDepth?: number;
 }
 
 export interface QueryResponse {
@@ -44,6 +45,7 @@ export interface ChatRequest {
   providerType?: string;
   providerName?: string;
   streamSteps?: boolean;
+  searchDepth?: number;
 }
 
 export interface ChatResponse {
@@ -61,6 +63,8 @@ export interface ChatStreamUpdate {
   files?: DocumentResult[] | null;
   final?: ChatResponse | null;
 }
+
+// Persistent chat types removed - UI uses independent `QueryRequest`/`QueryResponse` for single-question flows.
 
 export interface ProviderInfo {
   providerType: string;

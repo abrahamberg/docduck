@@ -1,4 +1,4 @@
-import { ChatRequest, ChatResponse, ProviderInfo, QueryRequest, QueryResponse, HealthStatus, DocumentResult, ChatStreamUpdate } from './types';
+import { ProviderInfo, QueryRequest, QueryResponse, HealthStatus, DocumentResult, ChatRequest, ChatStreamUpdate } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:5000';
 
@@ -30,8 +30,8 @@ export async function postDocSearch(req: QueryRequest): Promise<{ query: string;
   return http(`/docsearch`, { method: 'POST', body: JSON.stringify(req) });
 }
 
-export async function postChat(req: ChatRequest): Promise<ChatResponse> {
-  return http<ChatResponse>(`/chat`, { method: 'POST', body: JSON.stringify(req) });
+export async function postChat(req: ChatRequest): Promise<any> {
+  return http(`/chat`, { method: 'POST', body: JSON.stringify(req) });
 }
 
 export async function postChatStream(req: ChatRequest, onUpdate: (update: ChatStreamUpdate) => void): Promise<void> {
@@ -56,9 +56,7 @@ export async function postChatStream(req: ChatRequest, onUpdate: (update: ChatSt
 
   while (true) {
     const { value, done } = await reader.read();
-    if (done) {
-      break;
-    }
+    if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
 
@@ -83,9 +81,7 @@ export async function postChatStream(req: ChatRequest, onUpdate: (update: ChatSt
       boundary = buffer.indexOf('\n\n');
     }
 
-    if (shouldStop) {
-      break;
-    }
+    if (shouldStop) break;
   }
 
   if (!shouldStop && buffer.trim().length > 0) {

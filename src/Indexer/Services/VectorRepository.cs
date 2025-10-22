@@ -77,10 +77,10 @@ public class VectorRepository
     }
 
     /// <summary>
-    /// Inserts or updates chunks with embeddings for a document.
-    /// Uses upsert on (doc_id, chunk_num) to ensure idempotency.
+    /// Inserts chunks with embeddings for a document.
+    /// Caller must ensure old chunks are deleted before calling this (via CleanupOrphanedDocumentsAsync or similar).
     /// </summary>
-    public async Task InsertOrUpsertChunksAsync(
+    public async Task InsertChunksAsync(
         IEnumerable<ChunkRecord> records,
         string providerType,
         string providerName,
@@ -100,16 +100,7 @@ public class VectorRepository
 
         const string sql = @"
             INSERT INTO docs_chunks (doc_id, filename, provider_type, provider_name, chunk_num, text, metadata, embedding)
-            VALUES (@doc_id, @filename, @provider_type, @provider_name, @chunk_num, @text, @metadata::jsonb, @embedding::vector)
-            ON CONFLICT (doc_id, chunk_num)
-            DO UPDATE SET
-                filename = EXCLUDED.filename,
-                provider_type = EXCLUDED.provider_type,
-                provider_name = EXCLUDED.provider_name,
-                text = EXCLUDED.text,
-                metadata = EXCLUDED.metadata,
-                embedding = EXCLUDED.embedding,
-                created_at = now()";
+            VALUES (@doc_id, @filename, @provider_type, @provider_name, @chunk_num, @text, @metadata::jsonb, @embedding::vector)";
 
         var insertedCount = 0;
 
@@ -135,8 +126,45 @@ public class VectorRepository
             insertedCount++;
         }
 
-        _logger.LogInformation("Upserted {Count} chunks to database for provider {Type}/{Name}", 
+        _logger.LogInformation("Inserted {Count} chunks to database for provider {Type}/{Name}", 
             insertedCount, providerType, providerName);
+    }
+
+    /// <summary>
+    /// Deletes all chunks for a specific document.
+    /// Used when re-indexing a changed document (different ETag).
+    /// </summary>
+    public async Task DeleteDocumentChunksAsync(
+        string docId,
+        string providerType,
+        string providerName,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(docId);
+        ArgumentNullException.ThrowIfNull(providerType);
+        ArgumentNullException.ThrowIfNull(providerName);
+
+        await using var conn = new NpgsqlConnection(_options.ConnectionString);
+        await conn.OpenAsync(ct);
+
+        const string sql = @"
+            DELETE FROM docs_chunks
+            WHERE doc_id = @doc_id
+              AND provider_type = @provider_type
+              AND provider_name = @provider_name";
+
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("doc_id", docId);
+        cmd.Parameters.AddWithValue("provider_type", providerType);
+        cmd.Parameters.AddWithValue("provider_name", providerName);
+
+        var deletedCount = await cmd.ExecuteNonQueryAsync(ct);
+        
+        if (deletedCount > 0)
+        {
+            _logger.LogDebug("Deleted {Count} old chunks for {DocId} from {Type}/{Name}",
+                deletedCount, docId, providerType, providerName);
+        }
     }
 
     /// <summary>
