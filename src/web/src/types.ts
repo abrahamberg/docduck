@@ -12,8 +12,7 @@ export interface Source {
 export interface QueryRequest {
   question: string;
   topK?: number;
-  providerType?: string;
-  providerName?: string;
+  providerNames?: string[];
   searchDepth?: number;
 }
 
@@ -42,8 +41,7 @@ export interface ChatRequest {
   message: string;
   history?: ChatMessage[];
   topK?: number;
-  providerType?: string;
-  providerName?: string;
+  providerNames?: string[];
   streamSteps?: boolean;
   searchDepth?: number;
 }

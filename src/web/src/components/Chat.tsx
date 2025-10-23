@@ -8,13 +8,12 @@ import SendIcon from '@mui/icons-material/Send';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 
 interface Props {
-  providerType?: string;
-  providerName?: string;
+  providerNames?: string[];
   topK?: number;
   searchDepth?: number;
 }
 
-export const Chat: React.FC<Props> = ({ providerType, providerName, topK, searchDepth }) => {
+export const Chat: React.FC<Props> = ({ providerNames, topK, searchDepth }) => {
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -44,15 +43,18 @@ export const Chat: React.FC<Props> = ({ providerType, providerName, topK, search
     setHistory(newHistory);
     setLastResponse(null);
     setInput('');
-    const request = {
+    const singleProviderName = providerNames && providerNames.length === 1 ? providerNames[0] : undefined;
+    const request: any = {
       message: newHistory[newHistory.length - 1].content,
       history: newHistory.slice(0, -1),
       topK,
-      providerType,
-      providerName,
+      providerNames,
       streamSteps: streamMode,
-  searchDepth: depth,
+      searchDepth: depth,
     };
+    if (singleProviderName) {
+      request.providerName = singleProviderName; // backward compatibility until backend updated
+    }
 
     try {
       if (streamMode) {

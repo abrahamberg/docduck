@@ -68,9 +68,19 @@ services:
     environment:
       VITE_API_BASE: /api
     ports:
-      - "8080:5173"
+      - "8080:5173" # host:container
     depends_on:
-      - api
+      api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5173/index.html >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    labels:
+      org.docduck.component: web
+      org.docduck.tier: frontend
     networks:
       - docduck
 

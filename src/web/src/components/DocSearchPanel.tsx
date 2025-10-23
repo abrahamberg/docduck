@@ -5,12 +5,11 @@ import { Box, Stack, TextField, Button, Card, CardContent, Typography, CircularP
 import { DocSearchResults } from './DocSearchResults';
 
 interface Props {
-  providerType?: string;
-  providerName?: string;
+  providerNames?: string[];
   searchDepth?: number;
 }
 
-export const DocSearchPanel: React.FC<Props> = ({ providerType, providerName }) => {
+export const DocSearchPanel: React.FC<Props> = ({ providerNames }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<DocumentResult[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -22,7 +21,7 @@ export const DocSearchPanel: React.FC<Props> = ({ providerType, providerName }) 
     setError(null);
     setResults(null);
     try {
-      const data = await postDocSearch({ question: query, providerType, providerName });
+      const data = await postDocSearch({ question: query, providerNames });
       setResults(data.results);
     } catch (e: any) {
       setError(e.message || 'Error');

@@ -5,8 +5,9 @@
   <title>DocDuck Chat</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    html,body { margin:0; padding:0; font-family: system-ui, sans-serif; background:#0f1115; color:#eee; }
-    #root { height:100vh; display:flex; }
+    html,body { margin:0; padding:0; font-family: system-ui, sans-serif; background:#0f1115; color:#eee; min-height:100dvh; }
+    /* Root no longer forced to flex; allow app component to own layout */
+    #root { min-height:100dvh; }
   </style>
 </head>
 <body>

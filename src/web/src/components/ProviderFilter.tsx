@@ -1,41 +1,46 @@
 import React from 'react';
+// DEPRECATED: This component has been replaced by the AppBar Autocomplete multi-select.
+// Retained temporarily for reference; remove once no longer needed.
 import { ProviderInfo } from '../types';
-import { FormControl, InputLabel, Select, MenuItem, Stack } from '@mui/material';
+import { FormControl, FormLabel, FormGroup, FormControlLabel, Checkbox, Stack, Box } from '@mui/material';
 
 interface Props {
   providers: ProviderInfo[];
-  value: { providerType?: string; providerName?: string };
-  onChange: (v: { providerType?: string; providerName?: string }) => void;
+  value: string[];
+  onChange: (v: string[]) => void;
 }
 
 export const ProviderFilter: React.FC<Props> = ({ providers, value, onChange }) => {
-  const types = Array.from(new Set(providers.map(p => p.providerType)));
-  const namesForType = providers.filter(p => !value.providerType || p.providerType === value.providerType).map(p => p.providerName);
+  const handleToggle = (providerName: string) => {
+    const newValue = value.includes(providerName)
+      ? value.filter(n => n !== providerName)
+      : [...value, providerName];
+    onChange(newValue);
+  };
 
   return (
-    <Stack direction="row" spacing={2} flexWrap="wrap">
-      <FormControl size="small" sx={{ minWidth: 160 }}>
-        <InputLabel>Provider Type</InputLabel>
-        <Select
-          label="Provider Type"
-          value={value.providerType || ''}
-          onChange={e => onChange({ providerType: e.target.value ? String(e.target.value) : undefined, providerName: undefined })}
-        >
-          <MenuItem value="">All</MenuItem>
-          {types.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-        </Select>
-      </FormControl>
-      <FormControl size="small" sx={{ minWidth: 160 }}>
-        <InputLabel>Provider Name</InputLabel>
-        <Select
-          label="Provider Name"
-          value={value.providerName || ''}
-          onChange={e => onChange({ providerType: value.providerType, providerName: e.target.value ? String(e.target.value) : undefined })}
-        >
-          <MenuItem value="">All</MenuItem>
-          {namesForType.map(n => <MenuItem key={n} value={n}>{n}</MenuItem>)}
-        </Select>
-      </FormControl>
-    </Stack>
+    <FormControl component="fieldset" variant="standard">
+      <FormLabel component="legend" sx={{ mb: 1, fontSize: '0.875rem', fontWeight: 500 }}>
+        Select Providers
+      </FormLabel>
+      <FormGroup>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {providers.map(p => (
+            <FormControlLabel
+              key={`${p.providerType}-${p.providerName}`}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={value.includes(p.providerName)}
+                  onChange={() => handleToggle(p.providerName)}
+                />
+              }
+              label={`${p.providerName} (${p.providerType})`}
+              sx={{ mr: 2 }}
+            />
+          ))}
+        </Box>
+      </FormGroup>
+    </FormControl>
   );
 };
