@@ -1,4 +1,4 @@
-import { ProviderInfo, QueryRequest, QueryResponse, HealthStatus, DocumentResult, ChatRequest, ChatStreamUpdate } from './types';
+import { ProviderInfo, QueryRequest, QueryResponse, HealthStatus, DocumentResult, ChatStreamUpdate } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:5000';
 
@@ -22,20 +22,14 @@ export async function getProviders(): Promise<ProviderInfo[]> {
   return data.providers;
 }
 
+// Unified query endpoint - handles both simple and streaming modes
 export async function postQuery(req: QueryRequest): Promise<QueryResponse> {
   return http<QueryResponse>(`/query`, { method: 'POST', body: JSON.stringify(req) });
 }
 
-export async function postDocSearch(req: QueryRequest): Promise<{ query: string; count: number; results: DocumentResult[] }> {
-  return http(`/docsearch`, { method: 'POST', body: JSON.stringify(req) });
-}
-
-export async function postChat(req: ChatRequest): Promise<any> {
-  return http(`/chat`, { method: 'POST', body: JSON.stringify(req) });
-}
-
-export async function postChatStream(req: ChatRequest, onUpdate: (update: ChatStreamUpdate) => void): Promise<void> {
-  const resp = await fetch(`${API_BASE}/chat`, {
+// Streaming version of query - for showing intermediate thinking steps
+export async function postQueryStream(req: QueryRequest, onUpdate: (update: ChatStreamUpdate) => void): Promise<void> {
+  const resp = await fetch(`${API_BASE}/query`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -91,6 +85,10 @@ export async function postChatStream(req: ChatRequest, onUpdate: (update: ChatSt
       onUpdate(payload);
     }
   }
+}
+
+export async function postDocSearch(req: QueryRequest): Promise<{ query: string; count: number; results: DocumentResult[] }> {
+  return http(`/docsearch`, { method: 'POST', body: JSON.stringify(req) });
 }
 
 export async function getHealth(): Promise<HealthStatus> {

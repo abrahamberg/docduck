@@ -14,12 +14,17 @@ export interface QueryRequest {
   topK?: number;
   providerNames?: string[];
   searchDepth?: number;
+  streamSteps?: boolean;
+  history?: ChatMessage[];
 }
 
 export interface QueryResponse {
   answer: string;
   sources: Source[];
   tokensUsed: number;
+  steps?: string[];
+  files?: DocumentResult[];
+  history?: ChatMessage[];
 }
 
 export interface DocumentResult {

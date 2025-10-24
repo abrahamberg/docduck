@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { QueryResponse, DocumentResult, ChatStreamUpdate } from '../types';
-import { postQuery, postDocSearch, postChatStream } from '../api';
+import { postQuery, postQueryStream, postDocSearch } from '../api';
 import { SourceList } from './SourceList';
 import { DocSearchResults } from './DocSearchResults';
 import { Box, Stack, TextField, Button, Card, Typography, CircularProgress, Switch, FormControlLabel, Slider, IconButton, Popover, Divider } from '@mui/material';
@@ -37,23 +37,27 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
     setStreamingAnswer('');
     setDocResults(null);
     try {
-      const singleProviderName = providerNames && providerNames.length === 1 ? providerNames[0] : undefined;
       const userMessage = { role: 'user' as const, content: question, id: `user-${Date.now()}` };
+      setMessages(prev => [...prev, userMessage]);
+      setQuestion(''); // Clear immediately for better UX
+      
+      const queryRequest = { 
+        question, 
+        providerNames, 
+        topK, 
+        searchDepth,
+        streamSteps: streamMode,
+        history: messages.map(m => ({ role: m.role, content: m.content }))
+      };
+
       if (streamMode) {
-        setMessages(prev => [...prev, userMessage]);
-        setQuestion(''); // Clear immediately for better UX
-        await postChatStream({ message: question, history: messages.map(m => ({ role: m.role, content: m.content })), topK, providerNames,
-          // @ts-expect-error backward compat until backend fully migrated
-          providerName: singleProviderName,
-          searchDepth }, handleStreamUpdate);
+        // Stream mode: Show intermediate thinking steps
+        await postQueryStream(queryRequest, handleStreamUpdate);
       } else {
-        setMessages(prev => [...prev, userMessage]);
-        const resp = await postQuery({ question, providerNames, topK, searchDepth,
-          // @ts-expect-error backward compat
-          providerName: singleProviderName });
+        // Non-stream mode: Get final answer directly
+        const resp = await postQuery(queryRequest);
         setResponse(resp);
         setMessages(prev => [...prev, { role: 'assistant' as const, content: resp.answer, id: `assistant-${Date.now()}` }]);
-        setQuestion('');
       }
     } catch (e: any) {
       setError(e.message || 'Error');
@@ -71,10 +75,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
     setDocResults(null);
     setStreamingAnswer('');
     try {
-      const singleProviderName = providerNames && providerNames.length === 1 ? providerNames[0] : undefined;
-      const data = await postDocSearch({ question, providerNames, topK, searchDepth,
-        // @ts-expect-error backward compat
-        providerName: singleProviderName });
+      const data = await postDocSearch({ question, providerNames, topK, searchDepth });
       setDocResults(data.results);
       setQuestion('');
     } catch (e: any) {

@@ -2,23 +2,47 @@ namespace Api.Models;
 
 /// <summary>
 /// Request model for query endpoint.
+/// Supports simple Q&A (depth=1) or multi-step reasoning (depth=2-5).
+/// Can optionally stream intermediate thinking steps via SSE.
 /// </summary>
 public record QueryRequest(
     string Question,
     int? TopK = null,
     string? ProviderType = null,
     string? ProviderName = null,
-    int? SearchDepth = null
+    int? SearchDepth = null,
+    bool StreamSteps = false,
+    List<ChatMessage>? History = null
 );
 
 /// <summary>
 /// Response model for query endpoint.
+/// Includes reasoning steps when depth > 1, and conversation history when provided.
 /// </summary>
 public record QueryResponse(
     string Answer,
     List<Source> Sources,
-    int TokensUsed
-);
+    int TokensUsed,
+    List<string>? Steps = null,
+    List<DocumentResult>? Files = null,
+    List<ChatMessage>? History = null
+)
+{
+    /// <summary>
+    /// Convert a ChatResponse to a QueryResponse.
+    /// </summary>
+    public static QueryResponse FromChatResponse(ChatResponse chatResponse)
+    {
+        return new QueryResponse(
+            Answer: chatResponse.Answer,
+            Sources: chatResponse.Sources,
+            TokensUsed: chatResponse.TokensUsed,
+            Steps: chatResponse.Steps,
+            Files: chatResponse.Files,
+            History: chatResponse.History
+        );
+    }
+};
 
 /// <summary>
 /// Represents a source document chunk with citation information.

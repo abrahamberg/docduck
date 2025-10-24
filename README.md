@@ -10,8 +10,8 @@ Multi-provider document indexing and AI-powered Retrieval-Augmented Generation (
 - 🧠 Smart Indexing: ETag change detection, orphan cleanup, optional full reindex
 - ✂️ Robust Text Extraction: DOCX, Markdown/Text, PDF*, ODT, RTF (pluggable)
 - 🧩 Flexible Chunking: Tunable size & overlap for quality vs cost balance
-- 🗄️ Vector Search: PostgreSQL + pgvector (IVFFlat) similarity search
-- 💬 Minimal Query API: /query, /docsearch, /chat (with optional streaming)
+- 🗄️ Vector Search: PostgreSQL + pgvector (IVFFlat) + lexical hybrid search
+- 💬 Unified Query API: /query with adaptive depth (1-5) and optional SSE streaming
 - 🧱 Clean Architecture: Focused services, pragmatic SOLID, modern C#
 - 🚀 Deployment Friendly: Docker, Kubernetes CronJob (indexer) + Deployment (API)
 

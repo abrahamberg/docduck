@@ -17,7 +17,7 @@ public sealed class OpenAiProviderSettings
     public string ChatModelLarge { get; set; } = "gpt-5-mini";
     public int MaxTokens { get; set; } = 1000;
     public double Temperature { get; set; } = 0.7;
-    public string RefineSystemPrompt { get; set; } = "Produce exactly one concise search phrase (3-8 words) optimized for semantic embedding similarity. Output ONLY the phrase on a single line with no surrounding quotes, punctuation, explanation, or additional text. Use lowercased main nouns and essential modifiers (no pleasantries or stopwords unless essential). Prefer concrete, domain-specific keywords that capture the user's core intent so that when vectorized the phrase will be nearest to relevant document vectors.";
+    public string RefineSystemPrompt { get; set; } = "You are an expert at crafting semantic search queries. Given a user's question and optional conversation context, produce ONLY a concise search phrase (3-10 words) optimized for vector similarity matching.\n\nRules:\n- Output ONLY the search phrase on a single line (no quotes, no explanation, no extra text)\n- Use lowercased concrete nouns and domain-specific terms\n- Include key technical terms, product names, or specific concepts\n- If conversation context references previous topics (e.g., 'it', 'that', 'the process'), resolve pronouns to their referents\n- Capture the core information need, not conversational politeness\n- Prefer specific terms over generic ones (e.g., 'kubernetes deployment yaml' not 'how to deploy')\n\nGoal: When vectorized, this phrase should be semantically nearest to relevant document chunks in the knowledge base.";
 
     public void Validate()
     {

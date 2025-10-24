@@ -159,20 +159,31 @@ public sealed class OpenAiSdkService
         var chatClient = CreateChatClient(settings, model);
 
         var promptBuilder = new StringBuilder();
-        if (history != null)
+        
+        // Include conversation history first
+        if (history != null && history.Count > 0)
         {
-            foreach (var (_, content) in history)
+            promptBuilder.AppendLine("Conversation history:");
+            foreach (var (role, content) in history)
             {
-                promptBuilder.AppendLine(content);
+                promptBuilder.AppendLine($"{role}: {content}");
             }
+            promptBuilder.AppendLine();
         }
 
+        // Add retrieved document context
         var context = string.Join("\n\n", contextChunks.Select((chunk, index) => $"[{index + 1}] {chunk}"));
-        promptBuilder.AppendLine($"Context:\n{context}\n\nQuestion: {question}");
+        promptBuilder.AppendLine($"Retrieved context from knowledge base:\n{context}");
+        promptBuilder.AppendLine();
+        promptBuilder.AppendLine($"Current question: {question}");
+
+        var systemPrompt = history != null && history.Count > 0
+            ? "You are a helpful assistant that answers questions based on provided document excerpts and conversation history. Use the conversation context to resolve pronouns (like 'it', 'that', 'them') and understand follow-up questions. Answer concisely and cite document numbers like [1] when referencing specific information."
+            : "You are a helpful assistant that answers questions based on the provided document excerpts. Answer concisely and cite document numbers like [1] when referencing specific information.";
 
         var sdkMessages = new List<ChatMessage>
         {
-            ChatMessage.CreateSystemMessage("You are a helpful assistant that answers questions based on the provided document excerpts."),
+            ChatMessage.CreateSystemMessage(systemPrompt),
             ChatMessage.CreateUserMessage(promptBuilder.ToString())
         };
 
@@ -191,9 +202,26 @@ public sealed class OpenAiSdkService
 
         var sdkMessages = new List<ChatMessage>
         {
-            ChatMessage.CreateSystemMessage(settings.RefineSystemPrompt),
-            ChatMessage.CreateUserMessage(original)
+            ChatMessage.CreateSystemMessage(settings.RefineSystemPrompt)
         };
+
+        // Include conversation history for context-aware refinement
+        if (history != null && history.Count > 0)
+        {
+            var contextBuilder = new StringBuilder();
+            contextBuilder.AppendLine("Conversation context:");
+            foreach (var msg in history.TakeLast(4)) // Last 4 messages for context
+            {
+                contextBuilder.AppendLine($"{msg.Role}: {msg.Content}");
+            }
+            contextBuilder.AppendLine();
+            contextBuilder.AppendLine($"Current question: {original}");
+            sdkMessages.Add(ChatMessage.CreateUserMessage(contextBuilder.ToString()));
+        }
+        else
+        {
+            sdkMessages.Add(ChatMessage.CreateUserMessage(original));
+        }
 
         var completionResult = await chatClient.CompleteChatAsync(sdkMessages, options: null, cancellationToken: ct);
         var completion = completionResult.Value;
@@ -206,13 +234,26 @@ public sealed class OpenAiSdkService
         var chatClient = CreateChatClient(settings, settings.ChatModelSmall);
 
         var builder = new StringBuilder();
-        builder.AppendLine($"Original phrase: {previous}");
+        
+        // Include conversation history for context
+        if (history != null && history.Count > 0)
+        {
+            builder.AppendLine("Conversation context:");
+            foreach (var msg in history.TakeLast(4))
+            {
+                builder.AppendLine($"{msg.Role}: {msg.Content}");
+            }
+            builder.AppendLine();
+        }
+
+        builder.AppendLine($"Previous search phrase: {previous}");
+        
         if (previousResults != null && previousResults.Count > 0)
         {
-            builder.AppendLine("Previous search results (top results with distance):");
-            foreach (var result in previousResults.Take(5))
+            builder.AppendLine("Previous search found these results (but may not be sufficient):");
+            foreach (var result in previousResults.Take(3))
             {
-                builder.AppendLine($"- {result.Text} (distance: {result.Distance:F4})");
+                builder.AppendLine($"- {result.Filename}: \"{result.Text.Substring(0, Math.Min(100, result.Text.Length))}...\" (distance: {result.Distance:F4})");
             }
         }
         else

@@ -254,12 +254,19 @@ app.MapGet("/providers", async (VectorSearchService searchService, CancellationT
     }
 });
 
-// Query endpoint - simple question answering with optional provider filtering
+// Unified Query endpoint - adaptive intelligence based on search depth
+// - depth=1: Simple mode (single search + answer, no refinement)
+// - depth=2-5: Smart mode (multi-attempt with query refinement and answerability checks)
+// - streamSteps=true: Stream intermediate thinking via SSE
+// - streamSteps=false: Return final result only
 app.MapPost("/query", async (
+    HttpContext httpContext,
     QueryRequest request,
     OpenAiSdkService openAiClient,
     VectorSearchService searchService,
+    ChatService chatService,
     IOptions<SearchOptions> searchOptions,
+    ILogger<Program> endpointLogger,
     CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(request.Question))
@@ -267,56 +274,111 @@ app.MapPost("/query", async (
         return Results.BadRequest(new { error = "Question is required" });
     }
 
+    var depth = Math.Clamp(request.SearchDepth ?? searchOptions.Value.DefaultSearchDepth, 1, searchOptions.Value.MaxSearchDepth);
+    
+    logger.LogInformation("Processing query: {Question} (Depth: {Depth}, Stream: {Stream}, Provider: {Type}/{Name})", 
+        request.Question, depth, request.StreamSteps, request.ProviderType ?? "all", request.ProviderName ?? "all");
+
     try
     {
-        var depth = Math.Clamp(request.SearchDepth ?? searchOptions.Value.DefaultSearchDepth, 1, searchOptions.Value.MaxSearchDepth);
-        logger.LogInformation("Processing query: {Question} (Provider: {Type}/{Name})", 
-            request.Question, request.ProviderType ?? "all", request.ProviderName ?? "all");
-        logger.LogInformation("Query search depth {Depth}", depth);
-
-        // 1. Generate embedding for the question
-        var questionEmbedding = await openAiClient.EmbedAsync(request.Question, ct);
-
-        // 2. Search for similar chunks with optional provider filter
-        var sources = await searchService.SearchAsync(
-            questionEmbedding, 
-            request.Question,
-            request.TopK, 
-            request.ProviderType, 
-            request.ProviderName, 
-            depth,
-            ct);
-
-        if (sources.Count == 0)
+        // Depth=1: Use simple single-shot flow (fast, no refinement)
+        if (depth == 1)
         {
-            return Results.Ok(new QueryResponse(
-                Answer: "I couldn't find any relevant information in the indexed documents.",
-                Sources: new List<Source>(),
-                TokensUsed: 0
-            ));
+            var questionEmbedding = await openAiClient.EmbedAsync(request.Question, ct);
+            var sources = await searchService.SearchAsync(
+                questionEmbedding, 
+                request.Question,
+                request.TopK, 
+                request.ProviderType, 
+                request.ProviderName, 
+                depth,
+                ct);
+
+            if (sources.Count == 0)
+            {
+                return Results.Ok(new QueryResponse(
+                    Answer: "I couldn't find any relevant information in the indexed documents.",
+                    Sources: new List<Source>(),
+                    TokensUsed: 0
+                ));
+            }
+
+            var contextChunks = sources.Select(s => s.Text).ToList();
+            var (answer, tokensUsed) = await openAiClient.GenerateAnswerAsync(
+                request.Question,
+                contextChunks,
+                request.History?.Select(h => (h.Role, h.Content)).ToList(),
+                ct);
+
+            var response = new QueryResponse(
+                Answer: answer,
+                Sources: sources,
+                TokensUsed: tokensUsed
+            );
+
+            logger.LogInformation("Simple query completed ({Tokens} tokens)", tokensUsed);
+            return Results.Ok(response);
         }
 
-        // 3. Generate answer using retrieved context
-        var contextChunks = sources.Select(s => s.Text).ToList();
-        var (answer, tokensUsed) = await openAiClient.GenerateAnswerAsync(
-            request.Question,
-            contextChunks,
-            null,
-            ct);
-
-        // 4. Return response with citations
-        var response = new QueryResponse(
-            Answer: answer,
-            Sources: sources,
-            TokensUsed: tokensUsed
+        // Depth > 1: Use intelligent multi-attempt flow via ChatService
+        var chatRequest = new ChatRequest(
+            Message: request.Question,
+            History: request.History,
+            TopK: request.TopK,
+            ProviderType: request.ProviderType,
+            ProviderName: request.ProviderName,
+            StreamSteps: request.StreamSteps,
+            SearchDepth: depth
         );
 
-        logger.LogInformation("Query completed successfully ({Tokens} tokens)", tokensUsed);
-        return Results.Ok(response);
+        if (request.StreamSteps)
+        {
+            // Streaming mode: Send SSE events
+            httpContext.Response.StatusCode = StatusCodes.Status200OK;
+            httpContext.Response.ContentType = "text/event-stream";
+            httpContext.Response.Headers.CacheControl = "no-cache";
+            httpContext.Response.Headers["X-Accel-Buffering"] = "no";
+
+            var streamJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+            async Task WriteUpdateAsync(ChatStreamUpdate update)
+            {
+                var payload = JsonSerializer.Serialize(update, streamJsonOptions);
+                await httpContext.Response.WriteAsync($"data: {payload}\n\n", ct);
+                await httpContext.Response.Body.FlushAsync(ct);
+            }
+
+            await chatService.ProcessAsync(chatRequest, WriteUpdateAsync, ct);
+            return Results.Empty;
+        }
+        else
+        {
+            // Non-streaming mode: Return complete response
+            var chatResponse = await chatService.ProcessAsync(chatRequest, null, ct);
+            var queryResponse = QueryResponse.FromChatResponse(chatResponse);
+            
+            logger.LogInformation("Smart query completed ({Tokens} tokens)", queryResponse.TokensUsed);
+            return Results.Ok(queryResponse);
+        }
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Error processing query");
+        endpointLogger.LogError(ex, "Error processing query");
+
+        if (request.StreamSteps && httpContext.Response.HasStarted)
+        {
+            var streamJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+            var errorUpdate = new ChatStreamUpdate(
+                Type: "error",
+                Message: "An error occurred processing your query.",
+                Files: null,
+                Final: null);
+            var payload = JsonSerializer.Serialize(errorUpdate, streamJsonOptions);
+            await httpContext.Response.WriteAsync($"data: {payload}\n\n", ct);
+            await httpContext.Response.Body.FlushAsync(ct);
+            return Results.Empty;
+        }
+
         return Results.Problem("An error occurred processing your query");
     }
 });
@@ -380,87 +442,17 @@ app.MapPost("/docsearch", async (
     }
 });
 
-// Chat endpoint - conversation with history and optional provider filtering
-var streamJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-
-app.MapPost("/chat", async (
-    HttpContext httpContext,
-    ChatRequest request,
-    ChatService chatService,
-    ILogger<Program> endpointLogger,
-    CancellationToken ct) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Message))
-    {
-        return Results.BadRequest(new { error = "Message is required" });
-    }
-
-    try
-    {
-        if (request.StreamSteps)
-        {
-            httpContext.Response.StatusCode = StatusCodes.Status200OK;
-            httpContext.Response.ContentType = "text/event-stream";
-            httpContext.Response.Headers.CacheControl = "no-cache";
-            httpContext.Response.Headers["X-Accel-Buffering"] = "no";
-
-            async Task WriteUpdateAsync(ChatStreamUpdate update)
-            {
-                var payload = JsonSerializer.Serialize(update, streamJsonOptions);
-                await httpContext.Response.WriteAsync($"data: {payload}\n\n", ct);
-                await httpContext.Response.Body.FlushAsync(ct);
-            }
-
-            logger.LogInformation("Processing chat message (streaming): {Message}", request.Message);
-            await chatService.ProcessAsync(request, WriteUpdateAsync, ct);
-            return Results.Empty;
-        }
-
-        logger.LogInformation("Processing chat message (batched): {Message}", request.Message);
-        var response = await chatService.ProcessAsync(request, null, ct);
-        logger.LogInformation("Chat completed ({Tokens} tokens)", response.TokensUsed);
-        return Results.Ok(response);
-    }
-    catch (Exception ex)
-    {
-        endpointLogger.LogError(ex, "Error processing chat message");
-
-        if (request.StreamSteps)
-        {
-            if (!httpContext.Response.HasStarted)
-            {
-                httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                httpContext.Response.ContentType = "text/event-stream";
-                httpContext.Response.Headers.CacheControl = "no-cache";
-                httpContext.Response.Headers["X-Accel-Buffering"] = "no";
-            }
-
-            var errorUpdate = new ChatStreamUpdate(
-                Type: "error",
-                Message: "An error occurred processing your message.",
-                Files: null,
-                Final: null);
-            var payload = JsonSerializer.Serialize(errorUpdate, streamJsonOptions);
-            await httpContext.Response.WriteAsync($"data: {payload}\n\n", ct);
-            await httpContext.Response.Body.FlushAsync(ct);
-            return Results.Empty;
-        }
-
-        return Results.Problem("An error occurred processing your message");
-    }
-});
-
 // Root endpoint - API info
 app.MapGet("/", () => Results.Ok(new
 {
     name = "DocDuck Query API",
-    version = "2.0.0",
+    version = "3.0.0",
     endpoints = new[]
     {
         "GET /health - Health check",
         "GET /providers - List active document providers",
-        "POST /query - Question answering with optional provider filtering",
-        "POST /chat - Conversational chat with optional provider filtering"
+        "POST /query - Intelligent Q&A with adaptive depth (1-5) and optional streaming",
+        "POST /docsearch - Document-level search (returns top 5 matching documents)"
     }
 }));
 

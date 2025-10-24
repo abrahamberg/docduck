@@ -38,10 +38,23 @@ public class ChatService
     {
         var history = request.History ?? new List<ChatMessage>();
         var depth = Math.Clamp(request.SearchDepth ?? _searchOptions.DefaultSearchDepth, 1, _searchOptions.MaxSearchDepth);
-        var maxAttempts = depth >= 5 ? 4 : depth >= 4 ? 3 : 2;
+        
+        // Depth-based attempt logic:
+        // depth=1: 1 attempt (simple, no retry)
+        // depth=2-3: 2 attempts (smart with one refinement)
+        // depth=4: 3 attempts (advanced)
+        // depth=5: 4 attempts (deep search with multiple refinements)
+        var maxAttempts = depth switch
+        {
+            1 => 1,
+            2 or 3 => 2,
+            4 => 3,
+            _ => 4  // depth 5
+        };
+        
         var steps = new List<string>();
 
-        _logger.LogInformation("Chat search depth {Depth} configured for {Attempts} attempt(s)", depth, maxAttempts);
+        _logger.LogInformation("Query search depth {Depth} configured for {Attempts} attempt(s)", depth, maxAttempts);
 
         async Task RecordStepAsync(string message)
         {
@@ -228,6 +241,16 @@ public class ChatService
             {
                 updatedHistory.Add(new ChatMessage("assistant", step));
             }
+        }
+
+        // Include top source files in history for better context in follow-up questions
+        if (files.Count > 0)
+        {
+            var fileList = string.Join(", ", files.Take(3).Select(f => f.Filename));
+            var sourceSummary = files.Count <= 3 
+                ? $"[Found in: {fileList}]" 
+                : $"[Found in: {fileList}, and {files.Count - 3} more]";
+            updatedHistory.Add(new ChatMessage("assistant", sourceSummary));
         }
 
         updatedHistory.Add(new ChatMessage("assistant", $"Answer:\n{answer}"));
