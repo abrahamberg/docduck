@@ -6,11 +6,18 @@ using Microsoft.Extensions.Options;
 namespace Api.Services;
 
 /// <summary>
-/// Orchestrates multi-step chat interaction:
+/// Orchestrates multi-step chat interaction with LLM-driven refinement:
 /// 1. Digest user input -> refine phrase for embedding (small model)
 /// 2. Vector search for candidate chunks
-/// 3. Evaluate if answerable; may request more context or rephrase and retry (attempts scale with search depth)
-/// 4. Produce final answer or ask user to rephrase.
+/// 3. Evaluate using function calling - model explicitly chooses action:
+///    - answer_ready: Context is sufficient
+///    - needs_more_context: Search was on-topic but incomplete
+///    - refine_query: Search was off-topic, needs better phrase
+///    - cannot_answer: Question is fundamentally unanswerable
+/// 4. Based on decision, either answer or refine and retry (attempts scale with search depth)
+/// 5. Produce final answer or ask user to rephrase.
+/// 
+/// Uses OpenAI function calling for structured, reliable decision-making.
 /// </summary>
 public class ChatService
 {
@@ -131,19 +138,71 @@ public class ChatService
             var docCount = latestSources.Select(s => s.DocId).Distinct().Count();
             await RecordStepAsync($"Found {latestSources.Count} chunks across {docCount} documents.");
 
-            var eval = await _openAiClient.EvaluateAnswerabilityAsync(currentPhrase, latestSources.Select(s => s.Text).ToList(), ct);
-            totalTokens += eval.TokensUsed;
+            // Use tool-based evaluation for structured decision making
+            var (decision, evalTokens) = await _openAiClient.EvaluateWithToolsAsync(
+                currentPhrase, 
+                latestSources.Select(s => s.Text).ToList(), 
+                ct);
+            totalTokens += evalTokens;
 
-            if (!eval.Answerable && attempt < maxAttempts)
+            _logger.LogInformation("Model decision: {Action} - {Reasoning}", decision.Action, decision.Reasoning);
+
+            switch (decision.Action)
             {
-                _logger.LogInformation("Model suggests more context or refinement before answering (attempt {Attempt})", attempt);
-                await RecordStepAsync("Context isn't strong enough yet; refining the search phrase.");
-                currentPhrase = eval.SuggestedQuery ?? await _openAiClient.RephraseForRetryAsync(currentPhrase, history, latestSources, ct);
-                await RecordStepAsync($"Switching to \"{currentPhrase}\" for the next search.");
-                continue;
+                case RefinementAction.AnswerReady:
+                    await RecordStepAsync($"Context evaluation: {decision.Reasoning}");
+                    await RecordStepAsync("Context looks solid — drafting the answer.");
+                    break;
+
+                case RefinementAction.NeedsMoreContext when attempt < maxAttempts:
+                    await RecordStepAsync($"Model analysis: {decision.Reasoning}");
+                    await RecordStepAsync("Broadening the search for additional context.");
+                    // Keep same query but increase topK or search depth on next iteration
+                    // For now, rephrase to try a different angle
+                    currentPhrase = await _openAiClient.RephraseForRetryAsync(currentPhrase, history, latestSources, ct);
+                    await RecordStepAsync($"Trying alternative phrasing: \"{currentPhrase}\".");
+                    continue;
+
+                case RefinementAction.RefineQuery when attempt < maxAttempts:
+                    await RecordStepAsync($"Model analysis: {decision.Reasoning}");
+                    currentPhrase = decision.SuggestedQuery ?? await _openAiClient.RephraseForRetryAsync(currentPhrase, history, latestSources, ct);
+                    await RecordStepAsync($"Switching to refined query: \"{currentPhrase}\".");
+                    continue;
+
+                case RefinementAction.CannotAnswer:
+                    _logger.LogInformation("Model determined question cannot be answered: {Reason}", decision.CannotAnswerReason);
+                    await RecordStepAsync($"Analysis: {decision.Reasoning}");
+                    await RecordStepAsync("This question appears to be outside the scope of available documentation.");
+                    
+                    var cannotAnswerResponse = BuildResponse(
+                        answer: $"I cannot answer this question with the available documentation. {decision.Reasoning}",
+                        userMessage: request.Message,
+                        history,
+                        steps,
+                        sources: latestSources,
+                        tokens: totalTokens,
+                        includeStepsInHistory: progress != null,
+                        includeStepsInResponse: progress != null);
+
+                    if (progress != null)
+                    {
+                        await progress(new ChatStreamUpdate(
+                            Type: "final",
+                            Message: null,
+                            Files: cannotAnswerResponse.Files,
+                            Final: cannotAnswerResponse));
+                    }
+
+                    return cannotAnswerResponse;
+
+                default:
+                    // Reached max attempts with needs_more_context or refine_query
+                    await RecordStepAsync($"Analysis: {decision.Reasoning}");
+                    await RecordStepAsync($"Reached attempt limit ({maxAttempts}). Answering with available context.");
+                    break;
             }
 
-            await RecordStepAsync("Context looks solid — drafting the answer.");
+            await RecordStepAsync("Generating answer from available context.");
             var (answer, answerTokens) = await _openAiClient.GenerateAnswerAsync(
                 currentPhrase,
                 latestSources.Select(s => s.Text).ToList(),

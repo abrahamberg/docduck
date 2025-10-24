@@ -272,6 +272,73 @@ public sealed class OpenAiSdkService
         return completion.Content.FirstOrDefault()?.Text?.Trim() ?? previous;
     }
 
+    /// <summary>
+    /// Evaluate context using function calling tools (modern approach).
+    /// The model explicitly chooses an action: answer_ready, needs_more_context, refine_query, or cannot_answer.
+    /// </summary>
+    public async Task<(RefinementDecision Decision, int TokensUsed)> EvaluateWithToolsAsync(
+        string query, 
+        List<string> chunks, 
+        CancellationToken ct = default)
+    {
+        var settings = await GetSettingsAsync(ct);
+        var chatClient = CreateChatClient(settings, settings.ChatModelSmall);
+
+        var context = string.Join("\n\n", chunks.Select((chunk, index) => $"[{index + 1}] {chunk}"));
+        
+        var systemPrompt = """
+            You are an expert evaluator determining if retrieved document chunks can answer a user's question.
+            
+            Evaluate the context and choose ONE action:
+            - answer_ready: Context is sufficient to answer confidently
+            - needs_more_context: Context is related but incomplete (need broader/different search)
+            - refine_query: Context is off-topic or irrelevant (need better search phrase)
+            - cannot_answer: Question is fundamentally unanswerable with this knowledge base
+            
+            Be decisive. Choose the action that best reflects the context quality.
+            """;
+
+        var userPrompt = $"Query: {query}\n\nRetrieved context:\n{context}";
+
+        var messages = new List<ChatMessage>
+        {
+            ChatMessage.CreateSystemMessage(systemPrompt),
+            ChatMessage.CreateUserMessage(userPrompt)
+        };
+
+        var options = new ChatCompletionOptions
+        {
+            Tools = { RefinementTools.AnswerReadyTool, RefinementTools.NeedsMoreContextTool, 
+                      RefinementTools.RefineQueryTool, RefinementTools.CannotAnswerTool },
+            ToolChoice = ChatToolChoice.CreateAutoChoice() // Let model decide which tool
+        };
+
+        var completionResult = await chatClient.CompleteChatAsync(messages, options, cancellationToken: ct);
+        var completion = completionResult.Value;
+        var tokens = GetTotalTokensFromUsage(completion.Usage);
+
+        // Parse tool calls
+        var toolCalls = completion.ToolCalls?.ToList() ?? new List<ChatToolCall>();
+        
+        if (toolCalls.Count > 0)
+        {
+            var toolCall = toolCalls[0]; // Take first tool call
+            var decision = RefinementTools.ParseToolCall(toolCall);
+            _logger.LogInformation("Model chose tool: {Tool} - {Reasoning}", 
+                toolCall.FunctionName, decision.Reasoning);
+            return (decision, tokens);
+        }
+
+        // Fallback if no tool was called (shouldn't happen with tool_choice=auto and tools provided)
+        _logger.LogWarning("No tool call received from model, defaulting to answer_ready");
+        return (new RefinementDecision(RefinementAction.AnswerReady, "No tool call received"), tokens);
+    }
+
+    /// <summary>
+    /// Legacy method - deprecated in favor of EvaluateWithToolsAsync.
+    /// Kept for backward compatibility during migration.
+    /// </summary>
+    [Obsolete("Use EvaluateWithToolsAsync instead for better structured decision making")]
     public async Task<(bool Answerable, string? SuggestedQuery, int TokensUsed)> EvaluateAnswerabilityAsync(string query, List<string> chunks, CancellationToken ct = default)
     {
         var settings = await GetSettingsAsync(ct);
