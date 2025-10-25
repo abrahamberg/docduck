@@ -38,6 +38,26 @@ Index: IVFFlat (or HNSW future) on `embedding` with cosine distance.
 ### providers
 (If present) Tracks enabled providers and last sync time.
 
+### ai_provider_settings
+Stores AI provider configurations (chat models and embedding models). Each provider gets its own row.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| provider_id | text | Primary key - unique model identifier |
+| provider_type | text | 'global', 'chat', or 'embedding' |
+| settings | jsonb | Provider-specific configuration |
+| test_status | text | 'Untested', 'Passed', or 'Failed' |
+| last_tested_at | timestamptz | Timestamp of last connectivity test |
+| last_test_message | text | Result message from last test |
+| updated_at | timestamptz | Last configuration update |
+
+**Row types:**
+- `provider_type = 'global'`: Global AI settings (tier assignments, defaults)
+- `provider_type = 'chat'`: Individual chat model configurations
+- `provider_type = 'embedding'`: Individual embedding model configurations
+
+The API preloads only assigned providers (those referenced in tier assignments or active embedding).
+
 ## Sample Vector Index Creation
 ```sql
 CREATE INDEX IF NOT EXISTS docs_chunks_embedding_idx ON docs_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists=100);

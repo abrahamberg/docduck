@@ -8,11 +8,10 @@ This document is a concise reference for LLM-based automation or code-assist too
 | Index Orchestration | `src/Indexer/MultiProviderIndexerService.cs` | `MultiProviderIndexerService` |
 | Provider Abstraction | `src/Indexer/Providers/IDocumentProvider.cs` | `IDocumentProvider`, `ProviderDocument` |
 | Text Extraction | `src/Indexer/Services/TextExtraction` | `TextExtractionService`, `ITextExtractor` |
-| Embeddings | `src/Indexer/Services/OpenAiEmbeddingsClient.cs` | `OpenAiEmbeddingsClient` |
+| Embeddings & AI | `src/Providers.Shared/Ai/ModelAgnosticAiService.cs` | `ModelAgnosticAiService` |
 | Storage | `src/Indexer/Services/VectorRepository.cs` | `VectorRepository` |
 | Query API | `src/Api/Program.cs` | Minimal API endpoints |
 | Search Logic | `src/Api/Services/VectorSearchService.cs` | `VectorSearchService` |
-| Answer Generation | `src/Api/Services/OpenAiSdkService.cs` | `OpenAiSdkService` |
 | Chat Orchestration | `src/Api/Services/ChatService.cs` | `ChatService` |
 
 ## Endpoint Contract Summary

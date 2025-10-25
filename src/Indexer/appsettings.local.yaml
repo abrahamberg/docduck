@@ -1,9 +1,6 @@
 # Local-only DocDuck Indexer Configuration
-OpenAi:
-  ApiKey: "${OPENAI_API_KEY}"
-  BaseUrl: "https://api.openai.com/v1"
-  EmbedModel: "text-embedding-3-small"
-  BatchSize: 100
+# AI Configuration is now managed via admin API or environment variables
+# Set OPENAI_API_KEY for automatic seeding on first run
 
 Database:
   ConnectionString: "Host=postgres;Database=docduck;Username=docduck;Password=docduck123"

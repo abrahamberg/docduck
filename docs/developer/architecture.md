@@ -26,14 +26,14 @@ DocDuck comprises two primary runtime components plus shared libraries:
 - `IDocumentProvider` implementations supply documents
 - `TextExtractionService` selects extractor by extension
 - `TextChunker` splits text
-- `OpenAiEmbeddingsClient` batches embedding requests
+- `ModelAgnosticAiService` handles embedding generation
 - `VectorRepository` handles persistence & idempotency
 
 ## Query API Internals
 - Minimal ASP.NET Core host (`src/Api/Program.cs`)
 - `VectorSearchService` performs vector similarity queries
-- `OpenAiSdkService` produces embeddings & answers
-- `ChatService` manages conversation state/streaming updates
+- `ModelAgnosticAiService` provides multi-tier chat completion and embeddings
+- `ChatService` manages conversation state/streaming updates with intelligent refinement
 
 ## Data Flow (Detailed)
 1. Provider enumerates docs → doc metadata

@@ -104,24 +104,20 @@ By default, generate code that is clean, small, and obvious; apply SOLID where i
 When you need to run the stack locally for manual testing commands are:
 
 ```bash
-set -a; source .env.local; set +a  # load required envinonments 
+set -a; source .env.local; set +a;  # load required environments 
 
-docker compose -f docker-compose-local.yml up --build
+docker compose up -d # add more options as needed
 ```
 
 Notes and helpful checks:
 - `.env.local` should contain `OPENAI_API_KEY` and `LOCAL_DOCS_PATH` (absolute path). If `.env.local` is not present, refer to `docs/guides/quickstart.md` for the required variables and example `.env.local` content.
-- To check which services are already running and only rebuild ones that changed, use:
 
-```bash
-docker compose -f docker-compose-local.yml ps
-```
 
 - If a service is already running and you changed code you want to apply to the container, rebuild the image and recreate that service only:
 
 ```bash
-docker compose -f docker-compose-local.yml build <service>
-docker compose -f docker-compose-local.yml up -d --no-deps --force-recreate <service>
+docker compose  build <service>
+docker compose up -d --no-deps --force-recreate <service>
 ```
 
 Replace `<service>` with `api`, `indexer`, or `web` as needed. `--no-deps` avoids restarting dependent services; omit it if you need to rebuild dependents too.
@@ -129,7 +125,7 @@ Replace `<service>` with `api`, `indexer`, or `web` as needed. `--no-deps` avoid
 - If you only want to re-run the indexer one-off (fresh ingestion) without touching the rest of the stack:
 
 ```bash
-docker compose -f docker-compose-local.yml run --rm indexer
+docker compose  run --rm indexer
 ```
 
 These steps should be used during local development and manual testing. For CI or production deployments use the appropriate automation or Kubernetes manifests in `k8s/`.

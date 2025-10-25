@@ -1,16 +1,18 @@
 # Embeddings & AI Layer
 
-Responsible for generating embeddings and synthesizing answers.
+Responsible for generating embeddings and synthesizing answers via model-agnostic architecture.
 
 ## Embeddings
-- Default model: `text-embedding-3-small` (1536 dims)
-- Batched via `OpenAiEmbeddingsClient.EmbedBatchedAsync`
-- Batch size tuned by env (`EMBED_BATCH_SIZE`)
+- Configurable embedding model via admin UI or seeding from environment
+- Default: `text-embedding-3-small` (1536 dims) when `OPENAI_API_KEY` is set
+- Supports any OpenAI-compatible embedding API (OpenAI, Azure, local servers)
+- Batched embedding generation with configurable batch size
 
 ## Answer Generation
-- `OpenAiSdkService.GenerateAnswerAsync(question, contextChunks, history)`
-- Concatenates top-K chunk texts into a prompt
-- Tracks token usage (approx) for logging
+- `ModelAgnosticAiService` provides multi-tier chat completion (Micro/Mini/Full)
+- Strategy selection: Eco (cost), Standard (balanced), Turbo (quality)
+- Automatic fallback between tiers when model unavailable
+- Supports any OpenAI-compatible chat API endpoint
 
 ## Chat
 - `ChatService` sequences: embed last user message → retrieve context → build incremental answer

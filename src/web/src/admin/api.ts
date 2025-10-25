@@ -1,4 +1,13 @@
-import { LoginResponse, AdminUser, ProviderSettings, OpenAiSettingsDto, OpenAiSettingsUpdate, ProviderProbeResult } from './types';
+import { 
+  LoginResponse, 
+  AdminUser, 
+  ProviderSettings, 
+  ProviderProbeResult,
+  AiConfigurationDto,
+  AiProbeRequest,
+  AiProbeResponse,
+  EmbeddingChangeWarningResponse
+} from './types';
 
 const API_BASES = (() => {
   const unique = new Set<string>();
@@ -184,17 +193,6 @@ export async function listProviders(): Promise<{ providers: ProviderSettings[]; 
   return request('/admin/providers');
 }
 
-export async function getOpenAiSettings(): Promise<OpenAiSettingsDto> {
-  return request('/admin/ai/openai');
-}
-
-export async function updateOpenAiSettings(settings: OpenAiSettingsUpdate): Promise<OpenAiSettingsDto> {
-  return request('/admin/ai/openai', {
-    method: 'PUT',
-    body: JSON.stringify({ settings }),
-  });
-}
-
 export async function updateProvider(
   providerType: string,
   providerName: string,
@@ -238,5 +236,45 @@ export async function probeProvider(
   return request('/admin/providers/probe', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+// New AI Configuration API
+export async function getAiConfiguration(): Promise<AiConfigurationDto> {
+  return request('/admin/ai/config');
+}
+
+export async function updateAiConfiguration(config: AiConfigurationDto): Promise<AiConfigurationDto> {
+  return request('/admin/ai/config', {
+    method: 'PUT',
+    body: JSON.stringify(config),
+  });
+}
+
+export async function probeAiModel(req: AiProbeRequest): Promise<AiProbeResponse> {
+  return request('/admin/ai/probe', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+}
+
+export async function checkEmbeddingChange(newDimensions: number): Promise<EmbeddingChangeWarningResponse> {
+  return request('/admin/ai/check-embedding-change', {
+    method: 'POST',
+    body: JSON.stringify({ newDimensions }),
+  });
+}
+
+export async function testModel(modelId: string): Promise<AiProbeResponse> {
+  return request('/admin/ai/test-model', {
+    method: 'POST',
+    body: JSON.stringify({ modelId }),
+  });
+}
+
+export async function testEmbedding(modelId: string): Promise<AiProbeResponse> {
+  return request('/admin/ai/test-embedding', {
+    method: 'POST',
+    body: JSON.stringify({ modelId }),
   });
 }

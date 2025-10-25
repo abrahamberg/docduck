@@ -44,9 +44,14 @@ api:
     annotations: {}
   env:
     # Static (non-secret) environment variables
-    OPENAI_BASE_URL: "https://api.openai.com/v1"
-    OPENAI_EMBED_MODEL: "text-embedding-3-small"
-    OPENAI_CHAT_MODEL: "gpt-4o-mini"
+    # Note: OPENAI_API_KEY should be set via secrets (see below)
+    # Optional overrides for AI models (defaults to gpt-5-nano/gpt-5-mini/gpt-5 when OPENAI_API_KEY is set)
+    # OPENAI_BASE_URL: "https://api.openai.com/v1"
+    # OPENAI_MICRO_MODEL: "gpt-5-nano"
+    # OPENAI_MINI_MODEL: "gpt-5-mini"
+    # OPENAI_FULL_MODEL: "gpt-5"
+    # OPENAI_EMBEDDING_MODEL: "text-embedding-3-small"
+    # OPENAI_EMBEDDING_DIMENSIONS: "1536"
     DEFAULT_TOP_K: 8
     MAX_TOP_K: 20
   envFrom: []  # Additional raw envFrom entries (configMapRef/secretRef blocks)
@@ -175,8 +180,13 @@ indexer:
       cpu: 2000m
       memory: 2Gi
   env:
-    OPENAI_BASE_URL: "https://api.openai.com/v1"
-    OPENAI_EMBED_MODEL: "text-embedding-3-small"
+    # Note: OPENAI_API_KEY set via secrets (see below)
+    # Optional: Override default models (gpt-5-nano/gpt-5-mini/gpt-5/text-embedding-3-small)
+    # OPENAI_BASE_URL: "https://api.openai.com/v1"
+    # OPENAI_MICRO_MODEL: "gpt-5-nano"
+    # OPENAI_MINI_MODEL: "gpt-5-mini"
+    # OPENAI_FULL_MODEL: "gpt-5"
+    # OPENAI_EMBEDDING_MODEL: "text-embedding-3-small"
     CHUNK_SIZE: 500
     CHUNK_OVERLAP: 50
     BATCH_SIZE: 16
@@ -187,11 +197,8 @@ indexer:
   # Structured configuration instead of raw appsettings content.
   config:
     enabled: true
-    openAi:
-      enabled: true
-      baseUrl: "https://api.openai.com/v1"
-      embedModel: "text-embedding-3-small"
-      batchSize: 100
+    # Note: AI configuration now managed via admin API or auto-seeded from OPENAI_API_KEY
+    # Old openAi section is deprecated - remove if present
     database:
       # Connection string is always injected via env & referenced in config as ${DB_CONNECTION_STRING}
       enabled: true

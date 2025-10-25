@@ -1,0 +1,331 @@
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Divider,
+  FormControl,
+  FormControlLabel,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { CheckCircle, Error, HelpOutline } from '@mui/icons-material';
+import { getAiConfiguration, updateAiConfiguration } from '../api';
+import type { AiConfigurationDto } from '../types';
+
+const getTestStatusLabel = (status?: number) => {
+  switch (status) {
+    case 1:
+      return { label: 'Passed', color: 'success' as const, icon: <CheckCircle fontSize="small" /> };
+    case 2:
+      return { label: 'Failed', color: 'error' as const, icon: <Error fontSize="small" /> };
+    default:
+      return { label: 'Untested', color: 'default' as const, icon: <HelpOutline fontSize="small" /> };
+  }
+};
+
+export const AiModelsPage: React.FC = () => {
+  const [config, setConfig] = useState<AiConfigurationDto | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadConfig();
+  }, []);
+
+  const loadConfig = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getAiConfiguration();
+      setConfig(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load AI configuration');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!config) return;
+
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      
+      await updateAiConfiguration(config);
+      setSuccess('AI configuration saved successfully');
+      await loadConfig();
+    } catch (err: any) {
+      setError(err.message || 'Failed to save configuration');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" p={4}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!config) {
+    return (
+      <Box p={3}>
+        <Alert severity="error">Failed to load AI configuration</Alert>
+      </Box>
+    );
+  }
+
+  const activeEmbedding = config.embeddingRegistry.find(e => e.id === config.activeEmbeddingModelId);
+
+  return (
+    <Box>
+      <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
+        AI Model Configuration
+      </Typography>
+
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>{success}</Alert>}
+
+      {/* Global Settings */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Global Settings
+        </Typography>
+        <Box display="flex" flexDirection="column" gap={2}>
+          <FormControlLabel
+            control={
+              <Switch checked={config.enabled} onChange={(e) => setConfig({ ...config, enabled: e.target.checked })} />
+            }
+            label="AI Features Enabled"
+          />
+          <FormControl fullWidth>
+            <InputLabel>Default Selection Strategy</InputLabel>
+            <Select
+              value={config.defaultSelectionStrategy}
+              onChange={(e) =>
+                setConfig({ ...config, defaultSelectionStrategy: e.target.value as 'Eco' | 'Standard' | 'Turbo' })
+              }
+              label="Default Selection Strategy"
+            >
+              <MenuItem value="Eco">Eco (Cost-focused: Micro → Mini → Full)</MenuItem>
+              <MenuItem value="Standard">Standard (Balanced: Mini → Full → Micro)</MenuItem>
+              <MenuItem value="Turbo">Turbo (Quality-focused: Full → Mini → Micro)</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField
+            label="Default Temperature"
+            type="number"
+            inputProps={{ step: 0.1, min: 0, max: 2 }}
+            value={config.defaultTemperature}
+            onChange={(e) => setConfig({ ...config, defaultTemperature: parseFloat(e.target.value) || 0 })}
+            fullWidth
+          />
+        </Box>
+      </Paper>
+
+      <Divider sx={{ my: 3 }} />
+
+      {/* Tier Assignments */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Tier Assignments
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Assign models from the registry to tiers. Models can be unassigned.
+        </Typography>
+        <Box display="flex" flexDirection="column" gap={2}>
+          <FormControl fullWidth>
+            <InputLabel>Micro Tier</InputLabel>
+            <Select
+              value={config.microModelId || ''}
+              onChange={(e) => setConfig({ ...config, microModelId: e.target.value || undefined })}
+              label="Micro Tier"
+            >
+              <MenuItem value="">None</MenuItem>
+              {config.modelRegistry.map(m => (
+                <MenuItem key={m.id} value={m.id}>{m.displayName} ({m.modelId})</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl fullWidth>
+            <InputLabel>Mini Tier</InputLabel>
+            <Select
+              value={config.miniModelId || ''}
+              onChange={(e) => setConfig({ ...config, miniModelId: e.target.value || undefined })}
+              label="Mini Tier"
+            >
+              <MenuItem value="">None</MenuItem>
+              {config.modelRegistry.map(m => (
+                <MenuItem key={m.id} value={m.id}>{m.displayName} ({m.modelId})</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl fullWidth>
+            <InputLabel>Full Tier</InputLabel>
+            <Select
+              value={config.fullModelId || ''}
+              onChange={(e) => setConfig({ ...config, fullModelId: e.target.value || undefined })}
+              label="Full Tier"
+            >
+              <MenuItem value="">None</MenuItem>
+              {config.modelRegistry.map(m => (
+                <MenuItem key={m.id} value={m.id}>{m.displayName} ({m.modelId})</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      </Paper>
+
+      <Divider sx={{ my: 3 }} />
+
+      {/* Chat Models Registry */}
+      <Box mb={2}>
+        <Typography variant="h6">
+          Chat Models Registry ({config.modelRegistry.length})
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          All available chat models. Assign them to tiers above.
+        </Typography>
+      </Box>
+
+      <Paper sx={{ mb: 3 }}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Name</TableCell>
+              <TableCell>Model ID</TableCell>
+              <TableCell>Base URL</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Test Status</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {config.modelRegistry.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} align="center">
+                  <Typography color="text.secondary">No models configured.</Typography>
+                </TableCell>
+              </TableRow>
+            )}
+            {config.modelRegistry.map((model) => {
+              const testStatus = getTestStatusLabel(model.testStatus);
+              return (
+                <TableRow key={model.id}>
+                  <TableCell>{model.displayName}</TableCell>
+                  <TableCell>
+                    <code style={{ fontSize: '0.875rem' }}>{model.modelId}</code>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                      {model.baseUrl}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={model.enabled ? 'Enabled' : 'Disabled'} color={model.enabled ? 'success' : 'default'} size="small" />
+                  </TableCell>
+                  <TableCell>
+                    <Chip icon={testStatus.icon} label={testStatus.label} color={testStatus.color} size="small" />
+                    {model.lastTestMessage && (
+                      <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+                        {model.lastTestMessage}
+                      </Typography>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </Paper>
+
+      <Divider sx={{ my: 3 }} />
+
+      {/* Embedding Models */}
+      <Box mb={2}>
+        <Typography variant="h6">
+          Embedding Model
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Currently active: {activeEmbedding ? `${activeEmbedding.displayName} (${activeEmbedding.modelId})` : 'None'}
+        </Typography>
+      </Box>
+
+      {activeEmbedding && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Box display="flex" flexDirection="column" gap={2}>
+            <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Typography variant="subtitle1" fontWeight={600}>
+                {activeEmbedding.displayName}
+              </Typography>
+              <Box display="flex" gap={1}>
+                <Chip 
+                  label={activeEmbedding.enabled ? 'Enabled' : 'Disabled'} 
+                  color={activeEmbedding.enabled ? 'success' : 'default'} 
+                  size="small" 
+                />
+                <Chip 
+                  label={`${activeEmbedding.dimensions}d`} 
+                  variant="outlined" 
+                  size="small" 
+                />
+              </Box>
+            </Box>
+            <Box>
+              <Typography variant="body2" color="text.secondary">
+                Model ID: <code>{activeEmbedding.modelId}</code>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Base URL: {activeEmbedding.baseUrl}
+              </Typography>
+            </Box>
+            {activeEmbedding.lastTestMessage && (
+              <Alert severity={activeEmbedding.testStatus === 1 ? 'success' : 'info'} sx={{ mt: 1 }}>
+                {activeEmbedding.lastTestMessage}
+              </Alert>
+            )}
+          </Box>
+        </Paper>
+      )}
+
+      {/* Save Button */}
+      <Box display="flex" justifyContent="flex-end" gap={2} mt={3}>
+        <Button variant="outlined" onClick={loadConfig} disabled={saving}>
+          Reset
+        </Button>
+        <Button variant="contained" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving...' : 'Save Configuration'}
+        </Button>
+      </Box>
+
+      {/* Info Alert */}
+      <Alert severity="info" sx={{ mt: 3 }}>
+        <Typography variant="body2" fontWeight={600} gutterBottom>
+          Registry-Based Configuration
+        </Typography>
+        <Typography variant="body2">
+          Models are stored in registries and can be assigned to tiers (Micro/Mini/Full) by ID. 
+          This allows the same model to be used in multiple tiers or left unassigned for testing.
+        </Typography>
+      </Alert>
+    </Box>
+  );
+};

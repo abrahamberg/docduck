@@ -69,14 +69,10 @@ builder.Services.AddSingleton(sp => new ProviderCatalog(sp.GetRequiredService<Pr
 builder.Services.AddSingleton(sp =>
 {
     var dbOptions = sp.GetRequiredService<IOptions<Indexer.Options.DbOptions>>().Value;
-    return new AiProviderSettingsStore(dbOptions.ConnectionString);
+    return new AiProviderConfigurationStore(dbOptions.ConnectionString);
 });
-builder.Services.AddSingleton<AiConfigurationService>();
-builder.Services.AddSingleton<OpenAiSettingsSeeder>();
-builder.Services.AddSingleton<IOptions<OpenAiOptions>, OpenAiOptionsProvider>();
-
-// Register SDK-based OpenAI embeddings client
-builder.Services.AddSingleton<OpenAiEmbeddingsClient>();
+builder.Services.AddSingleton<ModelAgnosticAiService>();
+builder.Services.AddSingleton<AiConfigurationSeeder>();
 
 // Register text extraction services
 builder.Services.AddSingleton<ITextExtractor, DocxTextExtractor>();
@@ -123,11 +119,11 @@ await seeder.SeedFromEnvironmentAsync();
 var providerConfigService = host.Services.GetRequiredService<ProviderConfigurationService>();
 await providerConfigService.ReloadAsync();
 
-var openAiSeeder = host.Services.GetRequiredService<OpenAiSettingsSeeder>();
-await openAiSeeder.SeedFromEnvironmentAsync();
+var aiSeeder = host.Services.GetRequiredService<AiConfigurationSeeder>();
+await aiSeeder.SeedFromEnvironmentAsync();
 
-var aiConfigService = host.Services.GetRequiredService<AiConfigurationService>();
-await aiConfigService.ReloadAsync();
+var aiService = host.Services.GetRequiredService<ModelAgnosticAiService>();
+await aiService.ReloadAsync();
 
 // Log configuration status
 var logger = host.Services.GetRequiredService<ILogger<Program>>();

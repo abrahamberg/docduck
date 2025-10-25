@@ -6,7 +6,7 @@ import { AdminProvider, useAdminAuth } from './AdminContext';
 import { LoginPage } from './LoginPage';
 import { Dashboard } from './pages/Dashboard';
 import { ProvidersPage } from './pages/ProvidersPage';
-import { OpenAiPage } from './pages/OpenAiPage';
+import { AiModelsPage } from './pages/AiModelsPage';
 import { UsersPage } from './pages/UsersPage';
 import { AdminLayout } from './AdminLayout';
 import { getProfile } from './api';
@@ -52,8 +52,8 @@ const AdminRoutes: React.FC = () => {
         element={token && user ? <AdminLayout title="Providers" navKey="providers"><ProvidersPage /></AdminLayout> : <Navigate to="/login" replace />}
       />
       <Route
-        path="/openai"
-        element={token && user ? <AdminLayout title="OpenAI Configuration" navKey="openai"><OpenAiPage /></AdminLayout> : <Navigate to="/login" replace />}
+        path="/ai"
+        element={token && user ? <AdminLayout title="AI Models" navKey="ai"><AiModelsPage /></AdminLayout> : <Navigate to="/login" replace />}
       />
       <Route
         path="/users"

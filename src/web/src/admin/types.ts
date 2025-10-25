@@ -11,37 +11,6 @@ export interface LoginResponse {
   user: AdminUser;
 }
 
-export interface OpenAiSettingsDto {
-  settings: {
-    enabled: boolean;
-    apiKey: string;
-    baseUrl: string;
-    chatModel: string;
-    chatModelSmall: string;
-    chatModelLarge: string;
-    embedModel: string;
-    embedBatchSize: number;
-    maxTokens: number;
-    temperature: number;
-    refineSystemPrompt: string;
-  };
-  updatedAt: string;
-}
-
-export interface OpenAiSettingsUpdate {
-  enabled: boolean;
-  apiKey: string;
-  baseUrl: string;
-  chatModel: string;
-  chatModelSmall: string;
-  chatModelLarge: string;
-  embedModel: string;
-  embedBatchSize: number;
-  maxTokens: number;
-  temperature: number;
-  refineSystemPrompt: string;
-}
-
 export interface ProviderSettings {
   providerType: string;
   providerName: string;
@@ -62,4 +31,76 @@ export interface ProviderProbeResult {
   success: boolean;
   message: string;
   documents: ProviderProbeDocument[];
+}
+
+// New AI Configuration types
+export interface AiModelAssignmentDto {
+  id: string;
+  displayName: string;
+  modelId: string;
+  baseUrl: string;
+  apiKey: string;
+  maxContextTokens: number;
+  maxOutputTokens: number;
+  supportsFunctionCalling: boolean;
+  costFactor: number;
+  enabled: boolean;
+  customHeaders?: Record<string, string>;
+  timeoutSeconds: number;
+  testStatus?: number; // 0=Untested, 1=Passed, 2=Failed
+  lastTestedAt?: string;
+  lastTestMessage?: string;
+}
+
+export interface AiEmbeddingModelAssignmentDto {
+  id: string;
+  displayName: string;
+  modelId: string;
+  baseUrl: string;
+  apiKey: string;
+  dimensions: number;
+  enabled: boolean;
+  customHeaders?: Record<string, string>;
+  timeoutSeconds: number;
+  testStatus?: number;
+  lastTestedAt?: string;
+  lastTestMessage?: string;
+}
+
+export interface AiConfigurationDto {
+  enabled: boolean;
+  defaultSelectionStrategy: 'Eco' | 'Standard' | 'Turbo';
+  
+  // Model registry: all available models
+  modelRegistry: AiModelAssignmentDto[];
+  
+  // Tier assignments by ID (optional)
+  microModelId?: string;
+  miniModelId?: string;
+  fullModelId?: string;
+  
+  // Embedding registry and active selection
+  embeddingRegistry: AiEmbeddingModelAssignmentDto[];
+  activeEmbeddingModelId: string;
+  
+  defaultTemperature: number;
+  refineSystemPrompt?: string;
+}
+
+export interface AiProbeRequest {
+  modelAssignment: Omit<AiModelAssignmentDto, 'id' | 'displayName' | 'costFactor'>;
+}
+
+export interface AiProbeResponse {
+  success: boolean;
+  model?: string;
+  error?: string;
+  latencyMs: number;
+}
+
+export interface EmbeddingChangeWarningResponse {
+  hasExistingEmbeddings: boolean;
+  currentDimensions?: number;
+  affectedChunkCount: number;
+  warning: string;
 }

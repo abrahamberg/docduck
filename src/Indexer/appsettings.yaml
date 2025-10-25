@@ -1,13 +1,6 @@
 # DocDuck Indexer Configuration
 # Configure which document providers are enabled and their settings
 
-# OpenAI Embedding Configuration
-OpenAi:
-  ApiKey: "${OPENAI_API_KEY}"
-  BaseUrl: "https://api.openai.com/v1"
-  EmbedModel: "text-embedding-3-small"
-  BatchSize: 100
-
 # Database Configuration
 Database:
   ConnectionString: "${DB_CONNECTION_STRING}"

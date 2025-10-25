@@ -21,8 +21,12 @@ CREATE TABLE IF NOT EXISTS provider_settings (
 );
 
 CREATE TABLE IF NOT EXISTS ai_provider_settings (
-    provider_type TEXT PRIMARY KEY,
+    provider_id TEXT PRIMARY KEY,
+    provider_type TEXT NOT NULL,
     settings JSONB NOT NULL,
+    test_status TEXT NOT NULL DEFAULT 'Untested',
+    last_tested_at TIMESTAMPTZ,
+    last_test_message TEXT,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

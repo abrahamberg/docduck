@@ -98,15 +98,13 @@ builder.Services.AddSingleton<ProviderFactory>();
 builder.Services.AddSingleton<ProviderConfigurationService>();
 builder.Services.AddSingleton<ProviderSettingsSeeder>();
 
-builder.Services.AddSingleton(new AiProviderSettingsStore(dbConnectionString));
-builder.Services.AddSingleton<AiConfigurationService>();
-builder.Services.AddSingleton<OpenAiSettingsSeeder>();
+builder.Services.AddSingleton(new AiProviderConfigurationStore(dbConnectionString));
+builder.Services.AddSingleton<ModelAgnosticAiService>();
+builder.Services.AddSingleton<AiConfigurationSeeder>();
 
 builder.Services.AddSingleton(sp => new AdminUserStore(dbConnectionString, sp.GetRequiredService<ILogger<AdminUserStore>>()));
 builder.Services.AddSingleton<AdminAuthService>();
 builder.Services.AddScoped<AdminAuthFilter>();
-
-builder.Services.AddSingleton<OpenAiSdkService>();
 
 builder.Services.AddSingleton<VectorSearchService>();
 builder.Services.AddSingleton<ChatService>();
@@ -143,20 +141,19 @@ using (var scope = app.Services.CreateScope())
     await providerConfig.ReloadAsync();
     var snapshot = await providerConfig.GetSnapshotAsync();
 
-    var openAiSeeder = services.GetRequiredService<OpenAiSettingsSeeder>();
-    await openAiSeeder.SeedFromEnvironmentAsync();
+    var aiSeeder = services.GetRequiredService<AiConfigurationSeeder>();
+    await aiSeeder.SeedFromEnvironmentAsync();
 
-    var aiConfig = services.GetRequiredService<AiConfigurationService>();
-    await aiConfig.ReloadAsync();
-    var openAiSettings = await aiConfig.GetOpenAiAsync();
+    var bootstrapAiService = services.GetRequiredService<ModelAgnosticAiService>();
+    await bootstrapAiService.ReloadAsync();
+    var bootstrapAiConfig = await bootstrapAiService.GetConfigurationAsync();
 
     var adminUserStore = services.GetRequiredService<AdminUserStore>();
     await adminUserStore.EnsureDefaultAdminAsync(CancellationToken.None);
 
     var bootstrapLogger = services.GetRequiredService<ILogger<Program>>();
     bootstrapLogger.LogInformation("Provider configurations loaded: {Count}", snapshot.Settings.Count);
-    bootstrapLogger.LogInformation("OpenAI settings present: {Configured}", openAiSettings is not null);
-    bootstrapLogger.LogInformation("Admin default user ensured.");
+    bootstrapLogger.LogInformation("AI provider configured: {Configured}", bootstrapAiConfig is { Enabled: true });
 }
 
 // Enable CORS
@@ -166,8 +163,9 @@ app.MapAdminEndpoints();
 
 // Grab logger from app so middleware can use it
 var logger = app.Logger;
-var aiConfiguration = app.Services.GetRequiredService<AiConfigurationService>();
-var openAiConfigured = (await aiConfiguration.GetOpenAiAsync())?.Enabled == true;
+var aiService = app.Services.GetRequiredService<ModelAgnosticAiService>();
+var aiConfig = await aiService.GetConfigurationAsync();
+var aiConfigured = aiConfig is { Enabled: true };
 
 // Global exception logging middleware: captures unhandled exceptions and logs request details
 app.Use(async (context, next) =>
@@ -201,19 +199,19 @@ app.Use(async (context, next) =>
 
 // Log configuration status
 logger.LogInformation("DocDuck Query API starting...");
-logger.LogInformation("OpenAI provider configured: {Status}", openAiConfigured ? "Enabled" : "Disabled/Missing");
+logger.LogInformation("AI provider configured: {Status}", aiConfigured ? "Enabled" : "Disabled/Missing");
 logger.LogInformation("DB Connection configured: {Configured}", !string.IsNullOrWhiteSpace(dbConnectionString));
 
 // Health check endpoint
-app.MapGet("/health", async (VectorSearchService searchService, AiConfigurationService aiService, CancellationToken ct) =>
+app.MapGet("/health", async (VectorSearchService searchService, ModelAgnosticAiService aiSvc, CancellationToken ct) =>
 {
     try
     {
         var chunkCount = await searchService.GetChunkCountAsync(ct);
         var docCount = await searchService.GetDocumentCountAsync(ct);
 
-        var aiSettings = await aiService.GetOpenAiAsync(ct);
-        var openAiKeyPresent = aiSettings is { Enabled: true } && !string.IsNullOrWhiteSpace(aiSettings.ApiKey);
+        var config = await aiSvc.GetConfigurationAsync(ct);
+        var aiKeyPresent = config is { Enabled: true, EmbeddingModel: not null } && !string.IsNullOrWhiteSpace(config.EmbeddingModel.ApiKey);
         var dbConnectionPresent = !string.IsNullOrWhiteSpace(dbConnectionString);
 
         return Results.Ok(new
@@ -222,7 +220,7 @@ app.MapGet("/health", async (VectorSearchService searchService, AiConfigurationS
             timestamp = DateTime.UtcNow,
             chunks = chunkCount,
             documents = docCount,
-            openAiKeyPresent,
+            aiKeyPresent,
             dbConnectionPresent
         });
     }
@@ -262,7 +260,7 @@ app.MapGet("/providers", async (VectorSearchService searchService, CancellationT
 app.MapPost("/query", async (
     HttpContext httpContext,
     QueryRequest request,
-    OpenAiSdkService openAiClient,
+    ModelAgnosticAiService aiSvc,
     VectorSearchService searchService,
     ChatService chatService,
     IOptions<SearchOptions> searchOptions,
@@ -284,7 +282,7 @@ app.MapPost("/query", async (
         // Depth=1: Use simple single-shot flow (fast, no refinement)
         if (depth == 1)
         {
-            var questionEmbedding = await openAiClient.EmbedAsync(request.Question, ct);
+            var questionEmbedding = await aiSvc.EmbedAsync(request.Question, ct);
             var sources = await searchService.SearchAsync(
                 questionEmbedding, 
                 request.Question,
@@ -303,20 +301,34 @@ app.MapPost("/query", async (
                 ));
             }
 
+            // Build simple answer using CompleteChatAsync
             var contextChunks = sources.Select(s => s.Text).ToList();
-            var (answer, tokensUsed) = await openAiClient.GenerateAnswerAsync(
-                request.Question,
-                contextChunks,
-                request.History?.Select(h => (h.Role, h.Content)).ToList(),
+            var contextText = string.Join("\n\n", contextChunks.Select((chunk, i) => $"[{i + 1}] {chunk}"));
+            
+            var systemPrompt = "You are a helpful assistant. Answer the user's question based on the provided context. If the context doesn't contain relevant information, say so.";
+            var userPrompt = $"Context:\n{contextText}\n\nQuestion: {request.Question}";
+            
+            var messages = new List<ChatMessagePayload> { new("system", systemPrompt) };
+            if (request.History != null)
+            {
+                messages.AddRange(request.History.Select(h => new ChatMessagePayload(h.Role, h.Content)));
+            }
+            messages.Add(new ChatMessagePayload("user", userPrompt));
+            
+            var result = await aiSvc.CompleteChatAsync(
+                messages,
+                TaskComplexity.Simple,
+                null, // default strategy
+                null, // default options
                 ct);
 
             var response = new QueryResponse(
-                Answer: answer,
+                Answer: result.Content,
                 Sources: sources,
-                TokensUsed: tokensUsed
+                TokensUsed: result.TotalTokens
             );
 
-            logger.LogInformation("Simple query completed ({Tokens} tokens)", tokensUsed);
+            logger.LogInformation("Simple query completed ({Tokens} tokens)", result.TotalTokens);
             return Results.Ok(response);
         }
 
@@ -386,7 +398,7 @@ app.MapPost("/query", async (
 // Lightweight document search endpoint: return up to 5 most relevant documents (grouped by doc_id)
 app.MapPost("/docsearch", async (
     QueryRequest request,
-    OpenAiSdkService openAiClient,
+    ModelAgnosticAiService aiSvc,
     VectorSearchService searchService,
     IOptions<SearchOptions> searchOptions,
     CancellationToken ct) =>
@@ -400,7 +412,7 @@ app.MapPost("/docsearch", async (
     {
         var depth = Math.Clamp(request.SearchDepth ?? searchOptions.Value.DefaultSearchDepth, 1, searchOptions.Value.MaxSearchDepth);
         // Create embedding for the query
-        var qEmbedding = await openAiClient.EmbedAsync(request.Question, ct);
+        var qEmbedding = await aiSvc.EmbedAsync(request.Question, ct);
 
         // Fetch chunks (limit a bit higher to allow grouping) - respect TopK if provided but cap to 100
         var fetchTopK = Math.Min(request.TopK ?? 20, 100);

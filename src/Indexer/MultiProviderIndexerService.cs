@@ -1,5 +1,6 @@
 using DocDuck.Providers.Configuration;
 using DocDuck.Providers.Providers;
+using DocDuck.Providers.Ai;
 using Indexer.Options;
 using Indexer.Services;
 using Indexer.Services.TextExtraction;
@@ -20,7 +21,7 @@ public class MultiProviderIndexerService
     private readonly ProviderCatalog _providerCatalog;
     private readonly TextExtractionService _textExtractor;
     private readonly TextChunker _textChunker;
-    private readonly OpenAiEmbeddingsClient _embeddingsClient;
+    private readonly ModelAgnosticAiService _aiService;
     private readonly VectorRepository _vectorRepository;
     private readonly ChunkingOptions _chunkingOptions;
     private readonly ILogger<MultiProviderIndexerService> _logger;
@@ -29,7 +30,7 @@ public class MultiProviderIndexerService
     ProviderCatalog providerCatalog,
         TextExtractionService textExtractor,
         TextChunker textChunker,
-        OpenAiEmbeddingsClient embeddingsClient,
+        ModelAgnosticAiService aiService,
         VectorRepository vectorRepository,
         IOptions<ChunkingOptions> chunkingOptions,
         ILogger<MultiProviderIndexerService> logger)
@@ -37,7 +38,7 @@ public class MultiProviderIndexerService
     ArgumentNullException.ThrowIfNull(providerCatalog);
         ArgumentNullException.ThrowIfNull(textExtractor);
         ArgumentNullException.ThrowIfNull(textChunker);
-        ArgumentNullException.ThrowIfNull(embeddingsClient);
+        ArgumentNullException.ThrowIfNull(aiService);
         ArgumentNullException.ThrowIfNull(vectorRepository);
         ArgumentNullException.ThrowIfNull(chunkingOptions);
         ArgumentNullException.ThrowIfNull(logger);
@@ -45,7 +46,7 @@ public class MultiProviderIndexerService
     _providerCatalog = providerCatalog;
         _textExtractor = textExtractor;
         _textChunker = textChunker;
-        _embeddingsClient = embeddingsClient;
+        _aiService = aiService;
         _vectorRepository = vectorRepository;
         _chunkingOptions = chunkingOptions.Value;
         _logger = logger;
@@ -249,7 +250,7 @@ public class MultiProviderIndexerService
 
                     // Generate embeddings in batches
                     var chunkTexts = chunks.Select(c => c.Text).ToList();
-                    var embeddings = await _embeddingsClient.EmbedBatchedAsync(chunkTexts, ct);
+                    var embeddings = await _aiService.EmbedBatchAsync(chunkTexts, ct);
 
                     // Create chunk records with metadata
                     var records = chunks.Select((chunk, index) =>

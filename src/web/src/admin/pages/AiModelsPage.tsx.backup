@@ -1,0 +1,374 @@
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Divider,
+  FormControl,
+  FormControlLabel,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Switch,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { getAiConfiguration, updateAiConfiguration, checkEmbeddingChange } from '../api';
+import type { AiConfigurationDto, AiModelAssignmentDto, AiEmbeddingModelAssignmentDto } from '../types';
+
+const defaultModelAssignment: Partial<AiModelAssignmentDto> = {
+  displayName: '',
+  modelId: '',
+  baseUrl: 'https://api.openai.com/v1',
+  apiKey: '',
+  maxContextTokens: 128000,
+  maxOutputTokens: 16000,
+  supportsFunctionCalling: true,
+  costFactor: 1.0,
+  enabled: true,
+  timeoutSeconds: 120,
+};
+
+const defaultEmbeddingModel: Partial<AiEmbeddingModelAssignmentDto> = {
+  displayName: 'Text Embedding',
+  modelId: 'text-embedding-3-small',
+  baseUrl: 'https://api.openai.com/v1',
+  apiKey: '',
+  dimensions: 1536,
+  enabled: true,
+  timeoutSeconds: 120,
+};
+
+export const AiModelsPage: React.FC = () => {
+  const [config, setConfig] = useState<AiConfigurationDto | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [embeddingWarning, setEmbeddingWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadConfig();
+  }, []);
+
+  const loadConfig = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getAiConfiguration();
+      setConfig(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load AI configuration');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!config) return;
+
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      setEmbeddingWarning(null);
+      
+      await updateAiConfiguration(config);
+      setSuccess('AI configuration saved successfully');
+    } catch (err: any) {
+      setError(err.message || 'Failed to save configuration');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEmbeddingDimensionChange = async (newDimensions: number) => {
+    if (!config) return;
+
+    try {
+      const warning = await checkEmbeddingChange(newDimensions);
+      if (warning.hasExistingEmbeddings && warning.affectedChunkCount > 0) {
+        setEmbeddingWarning(
+          `WARNING: Changing embedding dimensions will affect ${warning.affectedChunkCount} existing chunks. You'll need to re-index all documents!`
+        );
+      } else {
+        setEmbeddingWarning(null);
+      }
+    } catch (err: any) {
+      console.error('Failed to check embedding change:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" p={4}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!config) {
+    return (
+      <Box p={3}>
+        <Alert severity="error">Failed to load AI configuration</Alert>
+      </Box>
+    );
+  }
+
+  const renderModelSection = (
+    title: string,
+    tier: 'micro' | 'mini' | 'full',
+    model: AiModelAssignmentDto | undefined
+  ) => {
+    const isConfigured = !!model;
+    const tierKey = `${tier}Model` as keyof AiConfigurationDto;
+
+    const toggleModel = () => {
+      if (isConfigured) {
+        setConfig({ ...config, [tierKey]: undefined });
+      } else {
+        const newModel: AiModelAssignmentDto = {
+          id: `${tier}-model`,
+          ...defaultModelAssignment,
+        } as AiModelAssignmentDto;
+        setConfig({ ...config, [tierKey]: newModel });
+      }
+    };
+
+    const updateField = <K extends keyof AiModelAssignmentDto>(field: K, value: AiModelAssignmentDto[K]) => {
+      if (!model) return;
+      const updated = { ...model, [field]: value };
+      setConfig({ ...config, [tierKey]: updated });
+    };
+
+    return (
+      <Paper sx={{ p: 3, mb: 2 }}>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+          <Box display="flex" alignItems="center" gap={2}>
+            <Typography variant="h6">{title}</Typography>
+            {!isConfigured && <Chip label="Not Configured" size="small" />}
+            {isConfigured && model?.enabled && <Chip label="Enabled" color="success" size="small" />}
+            {isConfigured && !model?.enabled && <Chip label="Disabled" color="default" size="small" />}
+          </Box>
+          <Button variant={isConfigured ? 'outlined' : 'contained'} onClick={toggleModel} size="small">
+            {isConfigured ? 'Remove' : 'Add Model'}
+          </Button>
+        </Box>
+
+        {isConfigured && model && (
+          <Box display="flex" flexDirection="column" gap={2}>
+            <FormControlLabel
+              control={<Switch checked={model.enabled} onChange={(e) => updateField('enabled', e.target.checked)} />}
+              label="Enabled"
+            />
+            <TextField
+              label="Display Name"
+              value={model.displayName}
+              onChange={(e) => updateField('displayName', e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Model ID"
+              value={model.modelId}
+              onChange={(e) => updateField('modelId', e.target.value)}
+              placeholder="gpt-4o-mini"
+              fullWidth
+            />
+            <TextField
+              label="Base URL"
+              value={model.baseUrl}
+              onChange={(e) => updateField('baseUrl', e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="API Key"
+              type="password"
+              value={model.apiKey}
+              onChange={(e) => updateField('apiKey', e.target.value)}
+              fullWidth
+            />
+            <Box display="flex" gap={2}>
+              <TextField
+                label="Max Context Tokens"
+                type="number"
+                value={model.maxContextTokens}
+                onChange={(e) => updateField('maxContextTokens', parseInt(e.target.value))}
+                fullWidth
+              />
+              <TextField
+                label="Max Output Tokens"
+                type="number"
+                value={model.maxOutputTokens}
+                onChange={(e) => updateField('maxOutputTokens', parseInt(e.target.value))}
+                fullWidth
+              />
+            </Box>
+            <Box display="flex" gap={2}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={model.supportsFunctionCalling}
+                    onChange={(e) => updateField('supportsFunctionCalling', e.target.checked)}
+                  />
+                }
+                label="Supports Function Calling"
+              />
+              <TextField
+                label="Cost Factor"
+                type="number"
+                inputProps={{ step: 0.1 }}
+                value={model.costFactor}
+                onChange={(e) => updateField('costFactor', parseFloat(e.target.value))}
+                sx={{ width: 150 }}
+              />
+            </Box>
+          </Box>
+        )}
+      </Paper>
+    );
+  };
+
+  return (
+    <Box>
+      <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
+        AI Model Configuration
+      </Typography>
+
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
+      {embeddingWarning && <Alert severity="warning" sx={{ mb: 2 }}>{embeddingWarning}</Alert>}
+
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Global Settings
+        </Typography>
+        <Box display="flex" flexDirection="column" gap={2}>
+          <FormControlLabel
+            control={
+              <Switch checked={config.enabled} onChange={(e) => setConfig({ ...config, enabled: e.target.checked })} />
+            }
+            label="AI Features Enabled"
+          />
+          <FormControl fullWidth>
+            <InputLabel>Default Selection Strategy</InputLabel>
+            <Select
+              value={config.defaultSelectionStrategy}
+              onChange={(e) =>
+                setConfig({ ...config, defaultSelectionStrategy: e.target.value as 'Eco' | 'Standard' | 'Turbo' })
+              }
+              label="Default Selection Strategy"
+            >
+              <MenuItem value="Eco">Eco (Cost-focused: Micro → Mini → Full)</MenuItem>
+              <MenuItem value="Standard">Standard (Balanced: Mini → Full → Micro)</MenuItem>
+              <MenuItem value="Turbo">Turbo (Quality-focused: Full → Mini → Micro)</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField
+            label="Default Temperature"
+            type="number"
+            inputProps={{ step: 0.1, min: 0, max: 2 }}
+            value={config.defaultTemperature}
+            onChange={(e) => setConfig({ ...config, defaultTemperature: parseFloat(e.target.value) })}
+            fullWidth
+          />
+        </Box>
+      </Paper>
+
+      <Divider sx={{ my: 3 }} />
+
+      <Typography variant="h6" gutterBottom>
+        Chat Models (Optional Tiers)
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Configure up to 3 model tiers. The system will automatically select the best model based on task complexity and
+        your strategy.
+      </Typography>
+
+      {renderModelSection('Micro Tier', 'micro', config.microModel)}
+      {renderModelSection('Mini Tier', 'mini', config.miniModel)}
+      {renderModelSection('Full Tier', 'full', config.fullModel)}
+
+      <Divider sx={{ my: 3 }} />
+
+      <Typography variant="h6" gutterBottom>
+        Embedding Model (Required)
+      </Typography>
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Box display="flex" flexDirection="column" gap={2}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={config.embeddingModel.enabled}
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    embeddingModel: { ...config.embeddingModel, enabled: e.target.checked },
+                  })
+                }
+              />
+            }
+            label="Enabled"
+          />
+          <TextField
+            label="Display Name"
+            value={config.embeddingModel.displayName}
+            onChange={(e) =>
+              setConfig({ ...config, embeddingModel: { ...config.embeddingModel, displayName: e.target.value } })
+            }
+            fullWidth
+          />
+          <TextField
+            label="Model ID"
+            value={config.embeddingModel.modelId}
+            onChange={(e) =>
+              setConfig({ ...config, embeddingModel: { ...config.embeddingModel, modelId: e.target.value } })
+            }
+            placeholder="text-embedding-3-small"
+            fullWidth
+          />
+          <TextField
+            label="Base URL"
+            value={config.embeddingModel.baseUrl}
+            onChange={(e) =>
+              setConfig({ ...config, embeddingModel: { ...config.embeddingModel, baseUrl: e.target.value } })
+            }
+            fullWidth
+          />
+          <TextField
+            label="API Key"
+            type="password"
+            value={config.embeddingModel.apiKey}
+            onChange={(e) =>
+              setConfig({ ...config, embeddingModel: { ...config.embeddingModel, apiKey: e.target.value } })
+            }
+            fullWidth
+          />
+          <TextField
+            label="Dimensions"
+            type="number"
+            value={config.embeddingModel.dimensions}
+            onChange={(e) => {
+              const newDims = parseInt(e.target.value);
+              setConfig({ ...config, embeddingModel: { ...config.embeddingModel, dimensions: newDims } });
+              handleEmbeddingDimensionChange(newDims);
+            }}
+            helperText="WARNING: Changing dimensions requires re-indexing all documents"
+            fullWidth
+          />
+        </Box>
+      </Paper>
+
+      <Box display="flex" justifyContent="flex-end" gap={2}>
+        <Button variant="outlined" onClick={loadConfig} disabled={saving}>
+          Reset
+        </Button>
+        <Button variant="contained" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving...' : 'Save Configuration'}
+        </Button>
+      </Box>
+    </Box>
+  );
+};

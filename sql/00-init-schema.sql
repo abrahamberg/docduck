@@ -44,9 +44,23 @@ CREATE TABLE IF NOT EXISTS provider_settings (
 );
 
 -- AI provider settings (OpenAI, etc.)
+-- Each AI model/embedding gets its own row with provider_id as primary key
+-- Supports flexible configuration for any OpenAI-compatible API
 CREATE TABLE IF NOT EXISTS ai_provider_settings (
-    provider_type TEXT PRIMARY KEY,
+    provider_id TEXT PRIMARY KEY,
+    provider_type TEXT NOT NULL, -- 'chat' or 'embedding'
     settings JSONB NOT NULL,
+    
+    -- Flexible model configuration (added in v2 for multi-provider support)
+    url TEXT, -- Full API endpoint URL (e.g., https://api.openai.com/v1/chat/completions)
+    headers JSONB DEFAULT '{"Content-Type": "application/json"}'::jsonb, -- HTTP headers
+    request_template JSONB, -- Request body template with variable placeholders
+    response_mapping JSONB, -- JSONPath expressions for extracting response data
+    default_params JSONB DEFAULT '{}'::jsonb, -- Model-specific defaults (temperature, etc.)
+    
+    test_status TEXT NOT NULL DEFAULT 'Untested', -- 'Untested', 'Passed', 'Failed'
+    last_tested_at TIMESTAMPTZ,
+    last_test_message TEXT,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -139,6 +153,16 @@ CREATE INDEX IF NOT EXISTS docs_files_filename_idx
 -- Admin user indexes
 CREATE UNIQUE INDEX IF NOT EXISTS admin_users_username_lower_idx 
     ON admin_users ((LOWER(username)));
+
+-- AI provider settings indexes (for flexible model configuration)
+CREATE INDEX IF NOT EXISTS ai_provider_settings_url_idx 
+    ON ai_provider_settings(url);
+
+CREATE INDEX IF NOT EXISTS ai_provider_settings_headers_idx 
+    ON ai_provider_settings USING GIN (headers);
+
+CREATE INDEX IF NOT EXISTS ai_provider_settings_default_params_idx 
+    ON ai_provider_settings USING GIN (default_params);
 
 -- =============================================================================
 -- Verification and Statistics

@@ -5,7 +5,7 @@ import { useAdminAuth } from './AdminContext';
 
 interface Props {
   title: string;
-  navKey: 'dashboard' | 'providers' | 'openai' | 'users';
+  navKey: 'dashboard' | 'providers' | 'ai' | 'openai' | 'users';
   actions?: React.ReactNode;
   children: React.ReactNode;
 }
@@ -13,7 +13,7 @@ interface Props {
 const NAV_ITEMS: Array<{ key: Props['navKey']; label: string; to: string }> = [
   { key: 'dashboard', label: 'Dashboard', to: '/' },
   { key: 'providers', label: 'Providers', to: '/providers' },
-  { key: 'openai', label: 'OpenAI', to: '/openai' },
+  { key: 'ai', label: 'AI Models', to: '/ai' },
   { key: 'users', label: 'Users', to: '/users' },
 ];
 
