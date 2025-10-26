@@ -36,7 +36,7 @@ public sealed class AiModelSelector
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(logger);
-        
+
         _config = config;
         _logger = logger;
     }
@@ -67,7 +67,7 @@ public sealed class AiModelSelector
         foreach (var tier in preferredTiers)
         {
             var model = GetModelForTier(tier);
-            
+
             if (model == null || !model.Enabled)
             {
                 _logger.LogDebug("Tier {Tier} has no enabled model, trying next", tier);
@@ -108,33 +108,33 @@ public sealed class AiModelSelector
         return (complexity, strategy) switch
         {
             // Simple tasks
-            (TaskComplexity.Simple, ModelSelectionStrategy.Eco) => 
+            (TaskComplexity.Simple, ModelSelectionStrategy.Eco) =>
                 new() { AiModelTier.Micro, AiModelTier.Mini, AiModelTier.Full },
-            
-            (TaskComplexity.Simple, ModelSelectionStrategy.Standard) => 
+
+            (TaskComplexity.Simple, ModelSelectionStrategy.Standard) =>
                 new() { AiModelTier.Micro, AiModelTier.Mini, AiModelTier.Full },
-            
-            (TaskComplexity.Simple, ModelSelectionStrategy.Turbo) => 
+
+            (TaskComplexity.Simple, ModelSelectionStrategy.Turbo) =>
                 new() { AiModelTier.Mini, AiModelTier.Full, AiModelTier.Micro },
 
             // Moderate tasks
-            (TaskComplexity.Moderate, ModelSelectionStrategy.Eco) => 
+            (TaskComplexity.Moderate, ModelSelectionStrategy.Eco) =>
                 new() { AiModelTier.Mini, AiModelTier.Micro, AiModelTier.Full },
-            
-            (TaskComplexity.Moderate, ModelSelectionStrategy.Standard) => 
+
+            (TaskComplexity.Moderate, ModelSelectionStrategy.Standard) =>
                 new() { AiModelTier.Mini, AiModelTier.Full, AiModelTier.Micro },
-            
-            (TaskComplexity.Moderate, ModelSelectionStrategy.Turbo) => 
+
+            (TaskComplexity.Moderate, ModelSelectionStrategy.Turbo) =>
                 new() { AiModelTier.Full, AiModelTier.Mini, AiModelTier.Micro },
 
             // Complex tasks
-            (TaskComplexity.Complex, ModelSelectionStrategy.Eco) => 
+            (TaskComplexity.Complex, ModelSelectionStrategy.Eco) =>
                 new() { AiModelTier.Full, AiModelTier.Mini, AiModelTier.Micro },
-            
-            (TaskComplexity.Complex, ModelSelectionStrategy.Standard) => 
+
+            (TaskComplexity.Complex, ModelSelectionStrategy.Standard) =>
                 new() { AiModelTier.Full, AiModelTier.Mini, AiModelTier.Micro },
-            
-            (TaskComplexity.Complex, ModelSelectionStrategy.Turbo) => 
+
+            (TaskComplexity.Complex, ModelSelectionStrategy.Turbo) =>
                 new() { AiModelTier.Full, AiModelTier.Mini, AiModelTier.Micro },
 
             _ => new() { AiModelTier.Mini, AiModelTier.Full, AiModelTier.Micro }

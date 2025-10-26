@@ -19,18 +19,18 @@ namespace Api.Services;
 ///
 /// Uses function calling for structured, reliable decision-making across any OpenAI-compatible model.
 /// </summary>
-public class ChatService
+public class ChatService : IChatService
 {
     private const string SystemRole = "system";
 
-    private readonly VectorSearchService _searchService;
-    private readonly ModelAgnosticAiService _aiService;
+    private readonly IVectorSearchService _searchService;
+    private readonly IModelAgnosticAiService _aiService;
     private readonly ILogger<ChatService> _logger;
     private readonly SearchOptions _searchOptions;
 
     public ChatService(
-        VectorSearchService searchService,
-        ModelAgnosticAiService aiService,
+        IVectorSearchService searchService,
+        IModelAgnosticAiService aiService,
         IOptions<SearchOptions> searchOptions,
         ILogger<ChatService> logger)
     {

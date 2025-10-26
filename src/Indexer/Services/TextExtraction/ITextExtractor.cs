@@ -9,7 +9,7 @@ public interface ITextExtractor
     /// Gets the file extensions this extractor supports (e.g., ".docx", ".pdf").
     /// </summary>
     IReadOnlySet<string> SupportedExtensions { get; }
-    
+
     /// <summary>
     /// Extracts plain text from a file stream.
     /// </summary>

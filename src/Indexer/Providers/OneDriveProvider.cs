@@ -62,14 +62,14 @@ public class OneDriveProvider : IDocumentProvider
                 driveId, _config.FolderPath);
 
             var rootItem = await _client.Drives[driveId].Root.GetAsync(cancellationToken: ct);
-            
+
             var childrenRequest = _client.Drives[driveId]
                 .Items[rootItem?.Id]
                 .ItemWithPath(_config.FolderPath)
                 .Children;
 
             var driveItems = await childrenRequest.GetAsync(cancellationToken: ct);
-            
+
             if (driveItems == null)
             {
                 _logger.LogWarning("No items found in OneDrive path: {Path}", _config.FolderPath);

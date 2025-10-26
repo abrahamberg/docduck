@@ -256,14 +256,14 @@ public static class AdminEndpointExtensions
             {
                 // Use longer timeout for probe (some models can take minutes)
                 var timeout = TimeSpan.FromSeconds(request.TimeoutSeconds ?? 120);
-                
+
                 using var http = new HttpClient
                 {
                     BaseAddress = new Uri(request.BaseUrl, UriKind.Absolute),
                     Timeout = timeout
                 };
 
-                http.DefaultRequestHeaders.Authorization = 
+                http.DefaultRequestHeaders.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", request.ApiKey);
 
                 if (request.CustomHeaders != null)
@@ -293,7 +293,7 @@ public static class AdminEndpointExtensions
                     System.Text.Encoding.UTF8,
                     "application/json");
 
-                logger.LogInformation("Probing AI model {Model} at {BaseUrl} (timeout: {Timeout}s)", 
+                logger.LogInformation("Probing AI model {Model} at {BaseUrl} (timeout: {Timeout}s)",
                     request.ModelId, request.BaseUrl, timeout.TotalSeconds);
 
                 using var response = await http.PostAsync("chat/completions", jsonContent, ct);
@@ -302,9 +302,9 @@ public static class AdminEndpointExtensions
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    logger.LogWarning("AI probe failed for {Model}: HTTP {Status}", 
+                    logger.LogWarning("AI probe failed for {Model}: HTTP {Status}",
                         request.ModelId, (int)response.StatusCode);
-                    
+
                     return Results.Ok(new AiProbeResponse(
                         Success: false,
                         Message: $"Model test failed with status {(int)response.StatusCode}. Check model ID and API key.",
@@ -313,14 +313,14 @@ public static class AdminEndpointExtensions
                 }
 
                 var result = JsonSerializer.Deserialize<JsonElement>(body);
-                var responseText = result.TryGetProperty("choices", out var choices) && 
+                var responseText = result.TryGetProperty("choices", out var choices) &&
                                    choices.GetArrayLength() > 0 &&
                                    choices[0].TryGetProperty("message", out var msg) &&
                                    msg.TryGetProperty("content", out var content)
                     ? content.GetString() ?? "No content"
                     : "No response";
 
-                logger.LogInformation("AI probe succeeded for {Model} in {Elapsed}ms: {Response}", 
+                logger.LogInformation("AI probe succeeded for {Model} in {Elapsed}ms: {Response}",
                     request.ModelId, sw.ElapsedMilliseconds, responseText);
 
                 return Results.Ok(new AiProbeResponse(
@@ -332,9 +332,9 @@ public static class AdminEndpointExtensions
             catch (TaskCanceledException ex)
             {
                 sw.Stop();
-                logger.LogWarning(ex, "AI probe timed out for {Model} after {Elapsed}ms", 
+                logger.LogWarning(ex, "AI probe timed out for {Model} after {Elapsed}ms",
                     request.ModelId, sw.ElapsedMilliseconds);
-                
+
                 return Results.Ok(new AiProbeResponse(
                     Success: false,
                     Message: $"Model test timed out after {sw.ElapsedMilliseconds}ms. The model may be slow or unavailable.",
@@ -344,9 +344,9 @@ public static class AdminEndpointExtensions
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 sw.Stop();
-                logger.LogError(ex, "AI probe failed for {Model} after {Elapsed}ms", 
+                logger.LogError(ex, "AI probe failed for {Model} after {Elapsed}ms",
                     request.ModelId, sw.ElapsedMilliseconds);
-                
+
                 return Results.Ok(new AiProbeResponse(
                     Success: false,
                     Message: $"Connection failed: {ex.Message}",
@@ -384,13 +384,13 @@ public static class AdminEndpointExtensions
             try
             {
                 var timeout = TimeSpan.FromSeconds(120);
-                
+
                 // Use new flexible Url property
                 if (string.IsNullOrWhiteSpace(model.Url))
                 {
                     return Results.BadRequest(new { error = "Model URL is not configured." });
                 }
-                
+
                 using var http = new HttpClient
                 {
                     Timeout = timeout
@@ -406,7 +406,7 @@ public static class AdminEndpointExtensions
                             var parts = value.Split(' ', 2, StringSplitOptions.TrimEntries);
                             if (parts.Length == 2)
                             {
-                                http.DefaultRequestHeaders.Authorization = 
+                                http.DefaultRequestHeaders.Authorization =
                                     new System.Net.Http.Headers.AuthenticationHeaderValue(parts[0], parts[1]);
                             }
                         }
@@ -473,7 +473,7 @@ public static class AdminEndpointExtensions
                     System.Text.Encoding.UTF8,
                     "application/json");
 
-                logger.LogInformation("Testing saved model {ModelId} ({Model}) at {Url}", 
+                logger.LogInformation("Testing saved model {ModelId} ({Model}) at {Url}",
                     model.Id, model.ModelId, model.Url);
 
                 using var response = await http.PostAsync(model.Url, jsonContent, ct);
@@ -482,9 +482,9 @@ public static class AdminEndpointExtensions
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    logger.LogWarning("AI model test failed for {ModelId}: HTTP {Status}", 
+                    logger.LogWarning("AI model test failed for {ModelId}: HTTP {Status}",
                         model.Id, (int)response.StatusCode);
-                    
+
                     JsonElement? errorDetails = null;
                     try
                     {
@@ -494,7 +494,7 @@ public static class AdminEndpointExtensions
                     {
                         // Not JSON
                     }
-                    
+
                     return Results.Ok(new AiProbeResponse(
                         Success: false,
                         Message: $"❌ HTTP {(int)response.StatusCode}: {response.ReasonPhrase}",
@@ -545,7 +545,7 @@ public static class AdminEndpointExtensions
                 {
                     responseText = content.GetString() ?? "";
                 }
-                
+
                 // If content is empty, check reasoning field (some models use this)
                 if (string.IsNullOrWhiteSpace(responseText) && msg.TryGetProperty("reasoning", out var reasoning))
                 {
@@ -553,8 +553,8 @@ public static class AdminEndpointExtensions
                 }
 
                 // Check for function/tool calls (function calling capability test)
-                var hasToolCalls = msg.TryGetProperty("tool_calls", out var toolCalls) && 
-                                   toolCalls.ValueKind == JsonValueKind.Array && 
+                var hasToolCalls = msg.TryGetProperty("tool_calls", out var toolCalls) &&
+                                   toolCalls.ValueKind == JsonValueKind.Array &&
                                    toolCalls.GetArrayLength() > 0;
 
                 var supportsFunctionCalling = false;
@@ -583,7 +583,7 @@ public static class AdminEndpointExtensions
                     ));
                 }
 
-                logger.LogInformation("AI model test succeeded for {ModelId} in {Elapsed}ms (function calling: {SupportsFunctionCalling})", 
+                logger.LogInformation("AI model test succeeded for {ModelId} in {Elapsed}ms (function calling: {SupportsFunctionCalling})",
                     model.Id, sw.ElapsedMilliseconds, supportsFunctionCalling);
 
                 var successMessage = supportsFunctionCalling
@@ -599,9 +599,9 @@ public static class AdminEndpointExtensions
             catch (TaskCanceledException ex)
             {
                 sw.Stop();
-                logger.LogWarning(ex, "AI model test timed out for {ModelId} after {Elapsed}ms", 
+                logger.LogWarning(ex, "AI model test timed out for {ModelId} after {Elapsed}ms",
                     model.Id, sw.ElapsedMilliseconds);
-                
+
                 return Results.Ok(new AiProbeResponse(
                     Success: false,
                     Message: $"⏱ Timeout after {sw.ElapsedMilliseconds}ms",
@@ -611,9 +611,9 @@ public static class AdminEndpointExtensions
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 sw.Stop();
-                logger.LogError(ex, "AI model test failed for {ModelId} after {Elapsed}ms", 
+                logger.LogError(ex, "AI model test failed for {ModelId} after {Elapsed}ms",
                     model.Id, sw.ElapsedMilliseconds);
-                
+
                 return Results.Ok(new AiProbeResponse(
                     Success: false,
                     Message: $"❌ {ex.Message}",
@@ -651,13 +651,13 @@ public static class AdminEndpointExtensions
             try
             {
                 var timeout = TimeSpan.FromSeconds(120);
-                
+
                 // Use new flexible Url property
                 if (string.IsNullOrWhiteSpace(embedding.Url))
                 {
                     return Results.BadRequest(new { error = "Embedding model URL is not configured." });
                 }
-                
+
                 using var http = new HttpClient
                 {
                     Timeout = timeout
@@ -673,7 +673,7 @@ public static class AdminEndpointExtensions
                             var parts = value.Split(' ', 2, StringSplitOptions.TrimEntries);
                             if (parts.Length == 2)
                             {
-                                http.DefaultRequestHeaders.Authorization = 
+                                http.DefaultRequestHeaders.Authorization =
                                     new System.Net.Http.Headers.AuthenticationHeaderValue(parts[0], parts[1]);
                             }
                         }
@@ -697,7 +697,7 @@ public static class AdminEndpointExtensions
                     System.Text.Encoding.UTF8,
                     "application/json");
 
-                logger.LogInformation("Testing saved embedding model {ModelId} ({Model}) at {Url}", 
+                logger.LogInformation("Testing saved embedding model {ModelId} ({Model}) at {Url}",
                     embedding.Id, embedding.ModelId, embedding.Url);
 
                 using var response = await http.PostAsync(embedding.Url, jsonContent, ct);
@@ -706,9 +706,9 @@ public static class AdminEndpointExtensions
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    logger.LogWarning("Embedding model test failed for {ModelId}: HTTP {Status}", 
+                    logger.LogWarning("Embedding model test failed for {ModelId}: HTTP {Status}",
                         embedding.Id, (int)response.StatusCode);
-                    
+
                     JsonElement? errorDetails = null;
                     try
                     {
@@ -718,7 +718,7 @@ public static class AdminEndpointExtensions
                     {
                         // Not JSON
                     }
-                    
+
                     return Results.Ok(new AiProbeResponse(
                         Success: false,
                         Message: $"❌ HTTP {(int)response.StatusCode}: {response.ReasonPhrase}",
@@ -741,12 +741,12 @@ public static class AdminEndpointExtensions
                         Details: null
                     ));
                 }
-                
+
                 if (!result.TryGetProperty("data", out var data) || data.GetArrayLength() == 0)
                 {
-                    logger.LogWarning("Embedding model test for {ModelId} returned no data array", 
+                    logger.LogWarning("Embedding model test for {ModelId} returned no data array",
                         embedding.Id);
-                    
+
                     return Results.Ok(new AiProbeResponse(
                         Success: false,
                         Message: "❌ No data array in response",
@@ -756,9 +756,9 @@ public static class AdminEndpointExtensions
 
                 if (!data[0].TryGetProperty("embedding", out var embeddingVec) || embeddingVec.GetArrayLength() == 0)
                 {
-                    logger.LogWarning("Embedding model test for {ModelId} returned no embedding vector", 
+                    logger.LogWarning("Embedding model test for {ModelId} returned no embedding vector",
                         embedding.Id);
-                    
+
                     return Results.Ok(new AiProbeResponse(
                         Success: false,
                         Message: "❌ No embedding vector in response",
@@ -769,10 +769,10 @@ public static class AdminEndpointExtensions
                 var actualDimensions = embeddingVec.GetArrayLength();
                 var dimensionMatch = actualDimensions == embedding.Dimensions;
 
-                logger.LogInformation("Embedding model test succeeded for {ModelId} in {Ms}ms (dimensions: {Actual}/{Expected})", 
+                logger.LogInformation("Embedding model test succeeded for {ModelId} in {Ms}ms (dimensions: {Actual}/{Expected})",
                     embedding.Id, sw.ElapsedMilliseconds, actualDimensions, embedding.Dimensions);
-                
-                var message = dimensionMatch 
+
+                var message = dimensionMatch
                     ? $"✅ Success in {sw.ElapsedMilliseconds}ms (dimensions: {actualDimensions})"
                     : $"⚠️ Success in {sw.ElapsedMilliseconds}ms but dimension mismatch (expected: {embedding.Dimensions}, got: {actualDimensions})";
 
@@ -785,9 +785,9 @@ public static class AdminEndpointExtensions
             catch (TaskCanceledException ex)
             {
                 sw.Stop();
-                logger.LogWarning(ex, "Embedding model test timed out for {ModelId} after {Ms}ms", 
+                logger.LogWarning(ex, "Embedding model test timed out for {ModelId} after {Ms}ms",
                     embedding.Id, sw.ElapsedMilliseconds);
-                
+
                 return Results.Ok(new AiProbeResponse(
                     Success: false,
                     Message: $"❌ Request timed out after {sw.ElapsedMilliseconds}ms",
@@ -797,9 +797,9 @@ public static class AdminEndpointExtensions
             catch (Exception ex)
             {
                 sw.Stop();
-                logger.LogError(ex, "Embedding model test failed for {ModelId} after {Ms}ms", 
+                logger.LogError(ex, "Embedding model test failed for {ModelId} after {Ms}ms",
                     embedding.Id, sw.ElapsedMilliseconds);
-                
+
                 return Results.Ok(new AiProbeResponse(
                     Success: false,
                     Message: $"❌ {ex.Message}",
@@ -815,10 +815,10 @@ public static class AdminEndpointExtensions
             CancellationToken ct) =>
         {
             var current = await store.GetAsync(ct);
-            
+
             // Get new active embedding model from request
             var newEmbeddingModel = request.EmbeddingRegistry?.FirstOrDefault(e => e.Id == request.ActiveEmbeddingModelId);
-            
+
             // No current config or no current embedding
             if (current?.EmbeddingModel == null)
             {
@@ -980,7 +980,7 @@ public static class AdminEndpointExtensions
                             var parts = value.Split(' ', 2, StringSplitOptions.TrimEntries);
                             if (parts.Length == 2)
                             {
-                                http.DefaultRequestHeaders.Authorization = 
+                                http.DefaultRequestHeaders.Authorization =
                                     new System.Net.Http.Headers.AuthenticationHeaderValue(parts[0], parts[1]);
                             }
                         }
@@ -997,18 +997,18 @@ public static class AdminEndpointExtensions
                 {
                     var context = new TemplateContext(
                         ModelId: request.ModelId ?? "test-model",
-                        Messages: new List<ChatMessagePayload> 
-                        { 
+                        Messages: new List<ChatMessagePayload>
+                        {
                             new("user", "Respond with just 'OK' to confirm you are working.")
                         },
                         Temperature: 0.0,
                         MaxTokens: 10
                     );
                     // Template is stored as a JSON string value, deserialize it first
-                    var templateString = request.RequestTemplate.RootElement.GetString() 
+                    var templateString = request.RequestTemplate.RootElement.GetString()
                         ?? request.RequestTemplate.RootElement.GetRawText();
                     requestJson = TemplateSubstitutionService.Substitute(
-                        templateString, 
+                        templateString,
                         context
                     );
                 }
@@ -1050,7 +1050,7 @@ public static class AdminEndpointExtensions
                 // Auto-detect response mapping
                 var detector = new ResponseMappingDetector();
                 var mapping = detector.DetectMapping(responseBody);
-                
+
                 var mappingDto = new ResponseMappingDto(
                     ContentPath: mapping.ContentPath,
                     RolePath: mapping.RolePath,
@@ -1062,8 +1062,8 @@ public static class AdminEndpointExtensions
                     DetectedAt: mapping.DetectedAt
                 );
 
-                logger.LogInformation("Model probe succeeded in {Ms}ms. Detected format: {Format}", 
-                    sw.ElapsedMilliseconds, 
+                logger.LogInformation("Model probe succeeded in {Ms}ms. Detected format: {Format}",
+                    sw.ElapsedMilliseconds,
                     mapping.AutoDetected ? "auto-detected" : "default");
 
                 return Results.Ok(new ProbeModelResponse(

@@ -11,7 +11,7 @@ namespace Indexer.Services.TextExtraction;
 public class DocxTextExtractor : ITextExtractor
 {
     private readonly ILogger<DocxTextExtractor> _logger;
-    
+
     private static readonly HashSet<string> _supportedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".docx"

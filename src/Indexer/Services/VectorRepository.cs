@@ -49,7 +49,7 @@ public class VectorRepository
         cmd.Parameters.AddWithValue("provider_name", metadata.ProviderName);
         cmd.Parameters.AddWithValue("is_enabled", metadata.IsEnabled);
         cmd.Parameters.AddWithValue("registered_at", metadata.RegisteredAt);
-        cmd.Parameters.AddWithValue("metadata", 
+        cmd.Parameters.AddWithValue("metadata",
             System.Text.Json.JsonSerializer.Serialize(metadata.AdditionalInfo ?? new Dictionary<string, string>()));
 
         await cmd.ExecuteNonQueryAsync(ct);
@@ -126,7 +126,7 @@ public class VectorRepository
             insertedCount++;
         }
 
-        _logger.LogInformation("Inserted {Count} chunks to database for provider {Type}/{Name}", 
+        _logger.LogInformation("Inserted {Count} chunks to database for provider {Type}/{Name}",
             insertedCount, providerType, providerName);
     }
 
@@ -159,7 +159,7 @@ public class VectorRepository
         cmd.Parameters.AddWithValue("provider_name", providerName);
 
         var deletedCount = await cmd.ExecuteNonQueryAsync(ct);
-        
+
         if (deletedCount > 0)
         {
             _logger.LogDebug("Deleted {Count} old chunks for {DocId} from {Type}/{Name}",
@@ -171,10 +171,10 @@ public class VectorRepository
     /// Checks if a document has already been indexed by comparing ETag.
     /// </summary>
     public async Task<bool> IsDocumentIndexedAsync(
-        string docId, 
-        string etag, 
-        string providerType, 
-        string providerName, 
+        string docId,
+        string etag,
+        string providerType,
+        string providerName,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(docId);
@@ -242,7 +242,7 @@ public class VectorRepository
         cmd.Parameters.AddWithValue("relative_path", (object?)relativePath ?? DBNull.Value);
 
         await cmd.ExecuteNonQueryAsync(ct);
-        _logger.LogDebug("Updated file tracking for {DocId} from {Type}/{Name}", 
+        _logger.LogDebug("Updated file tracking for {DocId} from {Type}/{Name}",
             docId, providerType, providerName);
     }
 

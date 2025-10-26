@@ -47,7 +47,7 @@ public sealed class ProviderFactory
             return false;
         }
 
-    settings = (IProviderSettings)record.Payload.RootElement.Deserialize(settingsType, ConfigurationJson.Default)!;
+        settings = (IProviderSettings)record.Payload.RootElement.Deserialize(settingsType, ConfigurationJson.Default)!;
         settings.Validate();
         return true;
     }

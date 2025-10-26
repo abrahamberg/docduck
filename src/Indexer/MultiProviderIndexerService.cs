@@ -21,7 +21,7 @@ public class MultiProviderIndexerService
     private readonly ProviderCatalog _providerCatalog;
     private readonly TextExtractionService _textExtractor;
     private readonly TextChunker _textChunker;
-    private readonly ModelAgnosticAiService _aiService;
+    private readonly IModelAgnosticAiService _aiService;
     private readonly VectorRepository _vectorRepository;
     private readonly ChunkingOptions _chunkingOptions;
     private readonly ILogger<MultiProviderIndexerService> _logger;
@@ -30,12 +30,12 @@ public class MultiProviderIndexerService
     ProviderCatalog providerCatalog,
         TextExtractionService textExtractor,
         TextChunker textChunker,
-        ModelAgnosticAiService aiService,
+        IModelAgnosticAiService aiService,
         VectorRepository vectorRepository,
         IOptions<ChunkingOptions> chunkingOptions,
         ILogger<MultiProviderIndexerService> logger)
     {
-    ArgumentNullException.ThrowIfNull(providerCatalog);
+        ArgumentNullException.ThrowIfNull(providerCatalog);
         ArgumentNullException.ThrowIfNull(textExtractor);
         ArgumentNullException.ThrowIfNull(textChunker);
         ArgumentNullException.ThrowIfNull(aiService);
@@ -43,7 +43,7 @@ public class MultiProviderIndexerService
         ArgumentNullException.ThrowIfNull(chunkingOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
-    _providerCatalog = providerCatalog;
+        _providerCatalog = providerCatalog;
         _textExtractor = textExtractor;
         _textChunker = textChunker;
         _aiService = aiService;
@@ -95,15 +95,15 @@ public class MultiProviderIndexerService
                     provider.ProviderType, provider.ProviderName);
 
                 var (processed, skipped, chunks) = await ProcessProviderAsync(provider, ct);
-                
+
                 totalProcessed += processed;
                 totalSkipped += skipped;
                 totalChunks += chunks;
 
                 // Update provider sync time
                 await _vectorRepository.UpdateProviderSyncTimeAsync(
-                    provider.ProviderType, 
-                    provider.ProviderName, 
+                    provider.ProviderType,
+                    provider.ProviderName,
                     ct);
             }
 
@@ -138,13 +138,13 @@ public class MultiProviderIndexerService
             {
                 _logger.LogWarning("Force full reindex enabled. Deleting all existing data for {Type}/{Name}",
                     provider.ProviderType, provider.ProviderName);
-                
+
                 await _vectorRepository.DeleteAllProviderDocumentsAsync(
                     provider.ProviderType,
                     provider.ProviderName,
                     ct);
             }
-            
+
             // List all documents from this provider
             var documents = await provider.ListDocumentsAsync(ct);
 
@@ -152,7 +152,7 @@ public class MultiProviderIndexerService
             {
                 _logger.LogInformation("No documents found in provider {Type}/{Name}",
                     provider.ProviderType, provider.ProviderName);
-                
+
                 // Cleanup: if provider has no documents, remove all indexed data
                 if (_chunkingOptions.CleanupOrphanedDocuments)
                 {
@@ -162,7 +162,7 @@ public class MultiProviderIndexerService
                         Array.Empty<string>(),
                         ct);
                 }
-                
+
                 return (0, 0, 0);
             }
 
@@ -198,10 +198,10 @@ public class MultiProviderIndexerService
                     // Check if document has already been indexed
                     if (!string.IsNullOrEmpty(doc.ETag) &&
                         await _vectorRepository.IsDocumentIndexedAsync(
-                            doc.DocumentId, 
-                            doc.ETag, 
-                            provider.ProviderType, 
-                            provider.ProviderName, 
+                            doc.DocumentId,
+                            doc.ETag,
+                            provider.ProviderType,
+                            provider.ProviderName,
                             ct))
                     {
                         _logger.LogInformation("Skipping unchanged file: {Filename} from {Provider} (ETag: {ETag})",
@@ -212,12 +212,12 @@ public class MultiProviderIndexerService
 
                     _logger.LogInformation("Processing file: {Filename} from {Provider}",
                         doc.Filename, provider.ProviderName);
-                    
+
                     var fileStopwatch = Stopwatch.StartNew();
 
                     // Download and extract text using appropriate extractor
                     await using var stream = await provider.DownloadDocumentAsync(doc.DocumentId, ct);
-                    
+
                     // Check if file type is supported
                     if (!_textExtractor.IsSupported(doc.Filename))
                     {
@@ -226,7 +226,7 @@ public class MultiProviderIndexerService
                         skippedCount++;
                         continue;
                     }
-                    
+
                     var text = await _textExtractor.ExtractTextAsync(stream, doc.Filename, ct);
 
                     if (string.IsNullOrWhiteSpace(text))
@@ -287,9 +287,9 @@ public class MultiProviderIndexerService
 
                     // Insert new chunks to database
                     await _vectorRepository.InsertChunksAsync(
-                        records, 
-                        provider.ProviderType, 
-                        provider.ProviderName, 
+                        records,
+                        provider.ProviderType,
+                        provider.ProviderName,
                         ct);
 
                     // Update file tracking

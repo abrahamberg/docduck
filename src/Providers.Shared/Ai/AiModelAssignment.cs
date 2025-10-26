@@ -232,14 +232,14 @@ public sealed class AiModelAssignment
         // Extract base URL from full URL (e.g., https://api.openai.com/v1/chat/completions -> https://api.openai.com/v1)
         var uri = new Uri(Url);
         var pathParts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        
+
         if (pathParts.Length > 0)
         {
             // Remove last path segment (endpoint name)
             var basePath = string.Join("/", pathParts.Take(pathParts.Length - 1));
             return $"{uri.Scheme}://{uri.Host}{(string.IsNullOrEmpty(basePath) ? "" : "/" + basePath)}";
         }
-        
+
         return $"{uri.Scheme}://{uri.Host}";
     }
 

@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Api.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Npgsql" Version="8.0.5" />
     <PackageReference Include="OpenAI" Version="2.5.0" />
     <PackageReference Include="Pgvector" Version="0.3.2" />

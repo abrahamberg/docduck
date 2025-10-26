@@ -32,12 +32,12 @@ public static class TemplateSubstitutionService
 
         // Simple string replacement for scalar values
         result = result.Replace("{MODEL_ID}", context.ModelId);
-        
+
         if (context.Temperature.HasValue)
         {
             result = result.Replace("{TEMPERATURE}", context.Temperature.Value.ToString("F1"));
         }
-        
+
         if (context.MaxTokens.HasValue)
         {
             result = result.Replace("{MAX_TOKENS}", context.MaxTokens.Value.ToString());
@@ -67,7 +67,7 @@ public static class TemplateSubstitutionService
             foreach (var (key, value) in context.CustomVariables)
             {
                 var placeholder = $"{{{key}}}";
-                
+
                 // If value looks like JSON, insert as-is; otherwise quote it
                 var substitution = IsJsonValue(value) ? value : JsonSerializer.Serialize(value);
                 result = result.Replace(placeholder, substitution);

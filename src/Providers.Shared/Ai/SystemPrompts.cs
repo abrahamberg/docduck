@@ -10,7 +10,7 @@ public static class SystemPrompts
     /// System prompt for query refinement.
     /// Used when refining user queries for better vector search results.
     /// </summary>
-    public const string Refine = 
+    public const string Refine =
         "You are an expert at crafting semantic search queries. Given a user's question and optional conversation context, produce ONLY a concise search phrase (3-10 words) optimized for vector similarity matching.\n\n" +
         "Rules:\n" +
         "- Output ONLY the search phrase on a single line (no quotes, no explanation, no extra text)\n" +
@@ -25,7 +25,7 @@ public static class SystemPrompts
     /// Default system prompt for chat interactions.
     /// Used when no specific system prompt is provided.
     /// </summary>
-    public const string Chat = 
+    public const string Chat =
         "You are a helpful AI assistant with access to a knowledge base. " +
         "Answer questions accurately and concisely based on the provided context. " +
         "If you don't know the answer, say so clearly.";
@@ -34,7 +34,7 @@ public static class SystemPrompts
     /// System prompt for evaluation tasks.
     /// Used when evaluating model responses for quality, relevance, or correctness.
     /// </summary>
-    public const string Evaluation = 
+    public const string Evaluation =
         "You are an expert evaluator assessing AI-generated responses. " +
         "Rate responses objectively based on accuracy, relevance, and helpfulness. " +
         "Provide clear, justified scores.";

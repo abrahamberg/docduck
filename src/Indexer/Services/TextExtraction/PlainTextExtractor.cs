@@ -8,7 +8,7 @@ namespace Indexer.Services.TextExtraction;
 public class PlainTextExtractor : ITextExtractor
 {
     private readonly ILogger<PlainTextExtractor> _logger;
-    
+
     private static readonly HashSet<string> _supportedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".txt",
@@ -48,7 +48,7 @@ public class PlainTextExtractor : ITextExtractor
         {
             using var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true);
             var text = await reader.ReadToEndAsync(ct);
-            
+
             _logger.LogDebug("Extracted {Length} characters from {Filename}", text.Length, filename);
             return text;
         }

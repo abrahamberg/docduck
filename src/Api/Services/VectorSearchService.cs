@@ -11,7 +11,7 @@ namespace Api.Services;
 /// <summary>
 /// Repository for vector similarity search against PostgreSQL + pgvector.
 /// </summary>
-public class VectorSearchService
+public class VectorSearchService : IVectorSearchService
 {
     private readonly DbOptions _dbOptions;
     private readonly SearchOptions _searchOptions;
@@ -53,7 +53,7 @@ public class VectorSearchService
         var normalizedQuery = queryText.Trim();
         var lexicalEnabled = _searchOptions.EnableLexicalSearch && !string.IsNullOrWhiteSpace(normalizedQuery);
         var lexicalOnly = lexicalEnabled && depth == 1;
-    var lexicalLimit = Math.Max(1, Math.Min(_searchOptions.MaxLexicalResults, Math.Max(k * 3, k)));
+        var lexicalLimit = Math.Max(1, Math.Min(_searchOptions.MaxLexicalResults, Math.Max(k * 3, k)));
 
         _logger.LogDebug(
             "Searching depth {Depth} for top {K} chunks (Provider: {Type}/{Name}, Lexical:{LexicalEnabled}, Vector:{VectorEnabled})",
@@ -75,7 +75,7 @@ public class VectorSearchService
             ? await ExecuteLexicalSearchAsync(conn, normalizedQuery, providerType, providerName, lexicalLimit, ct)
             : new List<LexicalMatch>();
 
-    var combined = CombineCandidates(vectorResults, lexicalResults, k, depth, lexicalEnabled, !lexicalOnly && vectorResults.Count > 0);
+        var combined = CombineCandidates(vectorResults, lexicalResults, k, depth, lexicalEnabled, !lexicalOnly && vectorResults.Count > 0);
 
         _logger.LogInformation(
             "Search produced {CombinedCount} chunks (vector: {VectorCount}, lexical: {LexicalCount})",
@@ -206,7 +206,7 @@ public class VectorSearchService
             whereConditions.Add("c.provider_name = @provider_name");
         }
 
-    var sqlBuilder = new StringBuilder(sql);
+        var sqlBuilder = new StringBuilder(sql);
         sqlBuilder.AppendLine();
         sqlBuilder.Append("WHERE ");
         sqlBuilder.Append(string.Join(" AND ", whereConditions));
@@ -424,7 +424,7 @@ public class VectorSearchService
         await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(
-            "SELECT COUNT(DISTINCT doc_id) FROM docs_chunks", 
+            "SELECT COUNT(DISTINCT doc_id) FROM docs_chunks",
             conn);
         var count = (long)(await cmd.ExecuteScalarAsync(ct) ?? 0L);
 

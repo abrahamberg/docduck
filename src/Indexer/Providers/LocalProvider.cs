@@ -61,7 +61,7 @@ public class LocalProvider : IDocumentProvider
 
                     var fileInfo = new FileInfo(filePath);
                     var relativePath = Path.GetRelativePath(_config.RootPath, filePath);
-                    
+
                     // Generate a stable document ID based on the relative path
                     var docId = GenerateDocumentId(relativePath);
 
@@ -103,7 +103,7 @@ public class LocalProvider : IDocumentProvider
             // In practice, we should store a mapping or use the relative path directly
             // For simplicity, we'll search for the file with matching ID
             var files = Directory.GetFiles(_config.RootPath, "*.*", SearchOption.AllDirectories);
-            
+
             foreach (var filePath in files)
             {
                 var relativePath = Path.GetRelativePath(_config.RootPath, filePath);
@@ -152,7 +152,7 @@ public class LocalProvider : IDocumentProvider
         if (_config.ExcludePatterns.Count == 0) return false;
 
         var relativePath = Path.GetRelativePath(_config.RootPath, filePath);
-        
+
         // Always exclude Office temp/lock files which start with ~$
         var fileName = Path.GetFileName(filePath);
         if (!string.IsNullOrEmpty(fileName) && fileName.StartsWith("~$", StringComparison.Ordinal))

@@ -18,13 +18,13 @@ public sealed class ChatCompletionOptions
 /// Manages model selection, client creation, and intelligent fallback.
 /// Replaces the old OpenAI-specific service with flexible multi-provider support.
 /// </summary>
-public sealed class ModelAgnosticAiService : IAsyncDisposable
+public sealed class ModelAgnosticAiService : IModelAgnosticAiService
 {
     private readonly AiProviderConfigurationStore _store;
     private readonly ILogger<ModelAgnosticAiService> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
-    
+
     private AiProviderConfiguration? _config;
     private AiModelSelector? _selector;
     private DateTimeOffset _loadedAt;
@@ -71,21 +71,21 @@ public sealed class ModelAgnosticAiService : IAsyncDisposable
         try
         {
             var config = await _store.GetAsync(ct);
-            
+
             if (config == null || !config.Enabled)
             {
                 _logger.LogWarning("AI configuration not found or disabled");
                 _config = null;
                 _selector = null;
                 _loadedAt = DateTimeOffset.UtcNow;
-                
+
                 // Clear client cache
                 foreach (var client in _clientCache.Values)
                 {
                     client.Dispose();
                 }
                 _clientCache.Clear();
-                
+
                 return;
             }
 
@@ -142,9 +142,9 @@ public sealed class ModelAgnosticAiService : IAsyncDisposable
         }
 
         // For embedding, we can use any chat model's HTTP client
-        var anyModel = config.MicroModel ?? config.MiniModel ?? config.FullModel 
+        var anyModel = config.MicroModel ?? config.MiniModel ?? config.FullModel
             ?? config.ModelRegistry.FirstOrDefault(m => m.Enabled);
-        
+
         if (anyModel == null)
         {
             throw new InvalidOperationException("No chat model available to use for embedding client");
@@ -168,7 +168,7 @@ public sealed class ModelAgnosticAiService : IAsyncDisposable
 
         var anyModel = config.MicroModel ?? config.MiniModel ?? config.FullModel
             ?? config.ModelRegistry.FirstOrDefault(m => m.Enabled);
-        
+
         if (anyModel == null)
         {
             throw new InvalidOperationException("No chat model available to use for embedding client");
@@ -216,7 +216,7 @@ public sealed class ModelAgnosticAiService : IAsyncDisposable
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Chat completion failed with {Model}, attempting fallback", model.DisplayName);
-            
+
             // Try fallback to next available model
             var fallbackModel = TryGetFallbackModel(selector, model, requiresTools);
             if (fallbackModel != null)
@@ -255,7 +255,7 @@ public sealed class ModelAgnosticAiService : IAsyncDisposable
         bool requiresTools)
     {
         var allAssignments = selector.GetAllTierAssignments();
-        
+
         // Try other enabled models
         foreach (var (_, model) in allAssignments)
         {
@@ -292,7 +292,7 @@ public sealed class ModelAgnosticAiService : IAsyncDisposable
         }
         _clientCache.Clear();
         _reloadLock.Dispose();
-        
+
         await Task.CompletedTask;
     }
 }

@@ -193,9 +193,9 @@ public static class RefinementTools
         {
             using var doc = System.Text.Json.JsonDocument.Parse(args);
             var root = doc.RootElement;
-            
-            var confidence = root.TryGetProperty("confidence", out var confProp) 
-                ? confProp.GetString() ?? "medium" 
+
+            var confidence = root.TryGetProperty("confidence", out var confProp)
+                ? confProp.GetString() ?? "medium"
                 : "medium";
             var reasoning = root.TryGetProperty("reasoning", out var reasonProp)
                 ? reasonProp.GetString() ?? "Context appears sufficient"
@@ -221,7 +221,7 @@ public static class RefinementTools
         {
             using var doc = System.Text.Json.JsonDocument.Parse(args);
             var root = doc.RootElement;
-            
+
             var missing = root.TryGetProperty("what_is_missing", out var missProp)
                 ? missProp.GetString() ?? "additional context"
                 : "additional context";
@@ -249,7 +249,7 @@ public static class RefinementTools
         {
             using var doc = System.Text.Json.JsonDocument.Parse(args);
             var root = doc.RootElement;
-            
+
             var newQuery = root.TryGetProperty("new_query", out var queryProp)
                 ? queryProp.GetString()
                 : null;
@@ -281,7 +281,7 @@ public static class RefinementTools
         {
             using var doc = System.Text.Json.JsonDocument.Parse(args);
             var root = doc.RootElement;
-            
+
             var reason = root.TryGetProperty("reason", out var reasonProp)
                 ? reasonProp.GetString() ?? "no_relevant_documents"
                 : "no_relevant_documents";

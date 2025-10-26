@@ -49,8 +49,8 @@ VALUES (@id, @username, @password_hash, TRUE);
 
     public async Task<AdminUser?> GetByUsernameAsync(string username, CancellationToken ct)
     {
-    ArgumentException.ThrowIfNullOrEmpty(username);
-    username = username.Trim();
+        ArgumentException.ThrowIfNullOrEmpty(username);
+        username = username.Trim();
 
         const string sql = @"
 SELECT id, username, is_admin, created_at, updated_at, password_hash
@@ -120,9 +120,9 @@ ORDER BY username;
 
     public async Task<AdminUser> CreateUserAsync(string username, string password, bool isAdmin, CancellationToken ct)
     {
-    ArgumentException.ThrowIfNullOrEmpty(username);
-    ArgumentException.ThrowIfNullOrEmpty(password);
-    username = username.Trim();
+        ArgumentException.ThrowIfNullOrEmpty(username);
+        ArgumentException.ThrowIfNullOrEmpty(password);
+        username = username.Trim();
 
         const string sql = @"
 INSERT INTO admin_users (id, username, password_hash, is_admin)
@@ -207,12 +207,12 @@ WHERE id = @id;
             return null;
         }
 
-            if (!PasswordHasher.Verify(password, user.PasswordHash))
-            {
-                return null;
-            }
+        if (!PasswordHasher.Verify(password, user.PasswordHash))
+        {
+            return null;
+        }
 
-            return new AdminUser(user.Id, user.Username, user.IsAdmin, user.CreatedAt, user.UpdatedAt, null);
+        return new AdminUser(user.Id, user.Username, user.IsAdmin, user.CreatedAt, user.UpdatedAt, null);
     }
 
     private static AdminUser MapUser(NpgsqlDataReader reader)

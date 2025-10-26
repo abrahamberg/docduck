@@ -20,7 +20,7 @@ public sealed class ScheduledIndexerService : BackgroundService
     {
         _indexer = indexer;
         _logger = logger;
-        
+
         // Read schedule from config (default: every 6 hours)
         var intervalHours = configuration.GetValue<int?>("Scheduler:IntervalHours") ?? 6;
         _interval = TimeSpan.FromHours(intervalHours);
@@ -45,7 +45,7 @@ public sealed class ScheduledIndexerService : BackgroundService
             try
             {
                 var exitCode = await _indexer.ExecuteAsync(stoppingToken);
-                
+
                 if (exitCode == 0)
                 {
                     _logger.LogInformation("Indexing completed successfully");

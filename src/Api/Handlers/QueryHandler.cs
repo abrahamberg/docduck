@@ -15,16 +15,16 @@ namespace Api.Handlers;
 /// </summary>
 public sealed class QueryHandler
 {
-    private readonly ModelAgnosticAiService _aiService;
-    private readonly VectorSearchService _searchService;
-    private readonly ChatService _chatService;
+    private readonly IModelAgnosticAiService _aiService;
+    private readonly IVectorSearchService _searchService;
+    private readonly IChatService _chatService;
     private readonly SearchOptions _searchOptions;
     private readonly ILogger<QueryHandler> _logger;
 
     public QueryHandler(
-        ModelAgnosticAiService aiService,
-        VectorSearchService searchService,
-        ChatService chatService,
+        IModelAgnosticAiService aiService,
+        IVectorSearchService searchService,
+        IChatService chatService,
         IOptions<SearchOptions> searchOptions,
         ILogger<QueryHandler> logger)
     {

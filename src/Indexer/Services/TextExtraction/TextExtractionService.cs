@@ -22,7 +22,7 @@ public class TextExtractionService
 
         // Build extension -> extractor lookup map
         _extensionMap = new Dictionary<string, ITextExtractor>(StringComparer.OrdinalIgnoreCase);
-        
+
         var extractorList = extractors.ToList();
         foreach (var extractor in extractorList)
         {
@@ -55,7 +55,7 @@ public class TextExtractionService
         ArgumentNullException.ThrowIfNull(filename);
 
         var extension = Path.GetExtension(filename);
-        
+
         if (string.IsNullOrEmpty(extension))
         {
             _logger.LogWarning("File {Filename} has no extension, cannot determine extractor", filename);
@@ -81,7 +81,7 @@ public class TextExtractionService
     public bool IsSupported(string filename)
     {
         ArgumentNullException.ThrowIfNull(filename);
-        
+
         var extension = Path.GetExtension(filename);
         return !string.IsNullOrEmpty(extension) && _extensionMap.ContainsKey(extension);
     }

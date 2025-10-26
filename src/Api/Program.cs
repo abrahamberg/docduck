@@ -101,6 +101,7 @@ builder.Services.AddSingleton<ProviderSettingsSeeder>();
 
 builder.Services.AddSingleton(new AiProviderConfigurationStore(dbConnectionString));
 builder.Services.AddSingleton<ModelAgnosticAiService>();
+builder.Services.AddSingleton<IModelAgnosticAiService>(sp => sp.GetRequiredService<ModelAgnosticAiService>());
 builder.Services.AddSingleton<AiConfigurationSeeder>();
 
 builder.Services.AddSingleton(sp => new AdminUserStore(dbConnectionString, sp.GetRequiredService<ILogger<AdminUserStore>>()));
@@ -108,7 +109,9 @@ builder.Services.AddSingleton<AdminAuthService>();
 builder.Services.AddScoped<AdminAuthFilter>();
 
 builder.Services.AddSingleton<VectorSearchService>();
+builder.Services.AddSingleton<IVectorSearchService>(sp => sp.GetRequiredService<VectorSearchService>());
 builder.Services.AddSingleton<ChatService>();
+builder.Services.AddSingleton<IChatService>(sp => sp.GetRequiredService<ChatService>());
 builder.Services.AddSingleton<QueryHandler>();
 
 // Add CORS for development
@@ -146,7 +149,7 @@ using (var scope = app.Services.CreateScope())
     var aiSeeder = services.GetRequiredService<AiConfigurationSeeder>();
     await aiSeeder.SeedFromEnvironmentAsync();
 
-    var bootstrapAiService = services.GetRequiredService<ModelAgnosticAiService>();
+    var bootstrapAiService = services.GetRequiredService<IModelAgnosticAiService>();
     await bootstrapAiService.ReloadAsync();
     var bootstrapAiConfig = await bootstrapAiService.GetConfigurationAsync();
 
@@ -165,7 +168,7 @@ app.MapAdminEndpoints();
 
 // Grab logger from app so middleware can use it
 var logger = app.Logger;
-var aiService = app.Services.GetRequiredService<ModelAgnosticAiService>();
+var aiService = app.Services.GetRequiredService<IModelAgnosticAiService>();
 var aiConfig = await aiService.GetConfigurationAsync();
 var aiConfigured = aiConfig is { Enabled: true };
 
@@ -205,7 +208,7 @@ logger.LogInformation("AI provider configured: {Status}", aiConfigured ? "Enable
 logger.LogInformation("DB Connection configured: {Configured}", !string.IsNullOrWhiteSpace(dbConnectionString));
 
 // Health check endpoint
-app.MapGet("/health", async (VectorSearchService searchService, ModelAgnosticAiService aiSvc, CancellationToken ct) =>
+app.MapGet("/health", async (IVectorSearchService searchService, IModelAgnosticAiService aiSvc, CancellationToken ct) =>
 {
     try
     {
@@ -236,7 +239,7 @@ app.MapGet("/health", async (VectorSearchService searchService, ModelAgnosticAiS
 });
 
 // Get active providers endpoint
-app.MapGet("/providers", async (VectorSearchService searchService, CancellationToken ct) =>
+app.MapGet("/providers", async (IVectorSearchService searchService, CancellationToken ct) =>
 {
     try
     {
@@ -273,8 +276,8 @@ app.MapPost("/query", async (
 // Lightweight document search endpoint: return up to 5 most relevant documents (grouped by doc_id)
 app.MapPost("/docsearch", async (
     QueryRequest request,
-    ModelAgnosticAiService aiSvc,
-    VectorSearchService searchService,
+    IModelAgnosticAiService aiSvc,
+    IVectorSearchService searchService,
     IOptions<SearchOptions> searchOptions,
     CancellationToken ct) =>
 {

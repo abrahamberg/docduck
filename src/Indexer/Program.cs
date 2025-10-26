@@ -72,6 +72,7 @@ builder.Services.AddSingleton(sp =>
     return new AiProviderConfigurationStore(dbOptions.ConnectionString);
 });
 builder.Services.AddSingleton<ModelAgnosticAiService>();
+builder.Services.AddSingleton<IModelAgnosticAiService>(sp => sp.GetRequiredService<ModelAgnosticAiService>());
 builder.Services.AddSingleton<AiConfigurationSeeder>();
 
 // Register text extraction services
@@ -122,7 +123,7 @@ await providerConfigService.ReloadAsync();
 var aiSeeder = host.Services.GetRequiredService<AiConfigurationSeeder>();
 await aiSeeder.SeedFromEnvironmentAsync();
 
-var aiService = host.Services.GetRequiredService<ModelAgnosticAiService>();
+var aiService = host.Services.GetRequiredService<IModelAgnosticAiService>();
 await aiService.ReloadAsync();
 
 // Log configuration status

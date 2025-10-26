@@ -10,7 +10,7 @@ namespace Indexer.Services.TextExtraction;
 public class PdfTextExtractor : ITextExtractor
 {
     private readonly ILogger<PdfTextExtractor> _logger;
-    
+
     private static readonly HashSet<string> _supportedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".pdf"
@@ -35,15 +35,15 @@ public class PdfTextExtractor : ITextExtractor
             {
                 using var pdf = PdfDocument.Open(stream);
                 var sb = new StringBuilder();
-                
-                _logger.LogDebug("Extracting text from PDF: {Filename} with {PageCount} pages", 
+
+                _logger.LogDebug("Extracting text from PDF: {Filename} with {PageCount} pages",
                     filename, pdf.NumberOfPages);
 
                 foreach (var page in pdf.GetPages())
                 {
                     if (ct.IsCancellationRequested)
                     {
-                        _logger.LogWarning("PDF extraction cancelled for {Filename} at page {PageNumber}", 
+                        _logger.LogWarning("PDF extraction cancelled for {Filename} at page {PageNumber}",
                             filename, page.Number);
                         break;
                     }
@@ -57,7 +57,7 @@ public class PdfTextExtractor : ITextExtractor
                 }
 
                 var extractedText = sb.ToString().Trim();
-                _logger.LogDebug("Extracted {CharCount} characters from PDF: {Filename}", 
+                _logger.LogDebug("Extracted {CharCount} characters from PDF: {Filename}",
                     extractedText.Length, filename);
 
                 return extractedText;

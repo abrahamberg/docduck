@@ -35,7 +35,7 @@ public class OdtTextExtractor : ITextExtractor
 
             using var zipFile = new ZipFile(stream);
             var contentEntry = zipFile.GetEntry("content.xml");
-            
+
             if (contentEntry == null)
             {
                 throw new InvalidOperationException("ODT file does not contain content.xml");
@@ -90,7 +90,7 @@ public class OdtTextExtractor : ITextExtractor
             {
                 // Recursively extract text from child elements
                 sb.Append(ExtractTextFromElement(childElement));
-                
+
                 // Add space after certain elements
                 if (childElement.Name == TextNs + "s")
                 {

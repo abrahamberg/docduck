@@ -47,7 +47,7 @@ public class S3Provider : IDocumentProvider, IDisposable
             }
 
             _logger.LogInformation("Using access key for S3 authentication");
-            
+
             AWSCredentials credentials = string.IsNullOrEmpty(_config.SessionToken)
                 ? new BasicAWSCredentials(_config.AccessKeyId, _config.SecretAccessKey)
                 : new SessionAWSCredentials(_config.AccessKeyId, _config.SecretAccessKey, _config.SessionToken);
@@ -72,7 +72,7 @@ public class S3Provider : IDocumentProvider, IDisposable
             };
 
             ListObjectsV2Response? response;
-            
+
             do
             {
                 response = await _s3Client.ListObjectsV2Async(request, ct);
@@ -144,9 +144,9 @@ public class S3Provider : IDocumentProvider, IDisposable
             };
 
             var response = await _s3Client.GetObjectAsync(request, ct);
-            
+
             _logger.LogDebug("Downloaded document from S3: {Key}", documentId);
-            
+
             return response.ResponseStream;
         }
         catch (OperationCanceledException)

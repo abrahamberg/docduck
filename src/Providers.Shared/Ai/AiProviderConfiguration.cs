@@ -82,8 +82,8 @@ public sealed class AiProviderConfiguration
         }
 
         // At least one chat model must be assigned to a tier
-        if (string.IsNullOrWhiteSpace(MicroModelId) && 
-            string.IsNullOrWhiteSpace(MiniModelId) && 
+        if (string.IsNullOrWhiteSpace(MicroModelId) &&
+            string.IsNullOrWhiteSpace(MiniModelId) &&
             string.IsNullOrWhiteSpace(FullModelId))
         {
             throw new InvalidOperationException("At least one chat model must be assigned to a tier (Micro, Mini, or Full) when AI is enabled.");

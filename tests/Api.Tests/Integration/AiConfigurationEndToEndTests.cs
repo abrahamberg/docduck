@@ -109,6 +109,7 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
     }
 
     [Fact(Skip = "Requires OPENAI_API_KEY environment variable")]
+    [Obsolete]
     public async Task EndToEnd_AddModelConfiguration_SaveToDatabase_CallOpenAI()
     {
         // Simulate what the frontend sends - add a new model configuration

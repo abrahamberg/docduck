@@ -43,17 +43,17 @@ public class RtfTextExtractor : ITextExtractor
 
             // Convert RTF to HTML, then extract plain text
             var html = Rtf.ToHtml(rtfContent);
-            
+
             // Simple HTML tag removal (RtfPipe produces clean HTML)
             var text = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", string.Empty);
-            
+
             // Decode HTML entities
             text = System.Net.WebUtility.HtmlDecode(text);
-            
+
             // Clean up extra whitespace
             text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
             text = System.Text.RegularExpressions.Regex.Replace(text, @"(\r?\n\s*){3,}", "\n\n");
-            
+
             var result = text.Trim();
             _logger.LogDebug("Extracted {Length} characters from RTF file: {Filename}", result.Length, filename);
 

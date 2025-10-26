@@ -14,9 +14,9 @@ public static class MimeTypeHelper
     public static string GetMimeType(string extension)
     {
         ArgumentNullException.ThrowIfNull(extension);
-        
-        var ext = extension.StartsWith('.') 
-            ? extension.ToLowerInvariant() 
+
+        var ext = extension.StartsWith('.')
+            ? extension.ToLowerInvariant()
             : $".{extension.ToLowerInvariant()}";
 
         return ext switch
@@ -28,10 +28,10 @@ public static class MimeTypeHelper
             ".xls" => "application/vnd.ms-excel",
             ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             ".ppt" => "application/vnd.ms-powerpoint",
-            
+
             // PDF
             ".pdf" => "application/pdf",
-            
+
             // Text & Markup
             ".txt" => "text/plain",
             ".md" => "text/markdown",
@@ -40,7 +40,7 @@ public static class MimeTypeHelper
             ".xml" => "application/xml",
             ".yaml" or ".yml" => "application/x-yaml",
             ".html" or ".htm" => "text/html",
-            
+
             // Code & Scripts
             ".sql" => "application/sql",
             ".sh" => "application/x-sh",
@@ -50,7 +50,7 @@ public static class MimeTypeHelper
             ".ts" => "application/typescript",
             ".cs" => "text/x-csharp",
             ".py" => "text/x-python",
-            
+
             // Default
             _ => "application/octet-stream"
         };
