@@ -8,6 +8,8 @@ namespace DocDuck.Providers.Ai;
 /// </summary>
 public sealed class AiConfigurationSeeder
 {
+    private const string AuthorizationHeader = "Authorization";
+    
     private readonly AiProviderConfigurationStore _store;
     private readonly ILogger<AiConfigurationSeeder> _logger;
 
@@ -103,7 +105,7 @@ public sealed class AiConfigurationSeeder
             Headers = new Dictionary<string, string>
             {
                 ["Content-Type"] = "application/json",
-                ["Authorization"] = $"Bearer {apiKey}"
+                [AuthorizationHeader] = $"Bearer {apiKey}"
             },
             RequestTemplate = WrapTemplateAsJson(DefaultRequestTemplates.OpenAiChat),
             ResponseMapping = DefaultRequestTemplates.OpenAiResponseMapping,
@@ -124,7 +126,7 @@ public sealed class AiConfigurationSeeder
             Headers = new Dictionary<string, string>
             {
                 ["Content-Type"] = "application/json",
-                ["Authorization"] = $"Bearer {apiKey}"
+                [AuthorizationHeader] = $"Bearer {apiKey}"
             },
             RequestTemplate = WrapTemplateAsJson(DefaultRequestTemplates.OpenAiChat),
             ResponseMapping = DefaultRequestTemplates.OpenAiResponseMapping,
@@ -145,7 +147,7 @@ public sealed class AiConfigurationSeeder
             Headers = new Dictionary<string, string>
             {
                 ["Content-Type"] = "application/json",
-                ["Authorization"] = $"Bearer {apiKey}"
+                [AuthorizationHeader] = $"Bearer {apiKey}"
             },
             RequestTemplate = WrapTemplateAsJson(DefaultRequestTemplates.OpenAiChat),
             ResponseMapping = DefaultRequestTemplates.OpenAiResponseMapping,
@@ -165,7 +167,7 @@ public sealed class AiConfigurationSeeder
             Url = $"{baseUrl.TrimEnd('/')}/embeddings",
             Headers = new Dictionary<string, string>
             {
-                ["Authorization"] = $"Bearer {apiKey}"
+                [AuthorizationHeader] = $"Bearer {apiKey}"
             },
             RequestTemplate = WrapTemplateAsJson("""
             {

@@ -12,6 +12,10 @@ namespace DocDuck.Providers.Ai;
 /// </summary>
 public sealed class GenericAiHttpClient : IDisposable
 {
+    private const string FunctionType = "function";
+    private const string AuthorizationHeader = "Authorization";
+    private const string ContentTypeHeader = "Content-Type";
+    
     private readonly HttpClient _httpClient;
     private readonly AiModelAssignment _model;
     private readonly ILogger? _logger;
@@ -24,56 +28,33 @@ public sealed class GenericAiHttpClient : IDisposable
         _model = model;
         _logger = logger;
 
-        // Use new Url property, fall back to deprecated BaseUrl for backward compatibility
-        var baseUrl = !string.IsNullOrWhiteSpace(model.Url) 
-            ? model.Url 
-            : model.BaseUrl;
+        ArgumentException.ThrowIfNullOrWhiteSpace(model.Url, nameof(model.Url));
 
         _httpClient = new HttpClient
         {
-            BaseAddress = new Uri(baseUrl, UriKind.Absolute),
+            BaseAddress = new Uri(model.Url, UriKind.Absolute),
             Timeout = TimeSpan.FromSeconds(model.TimeoutSeconds)
         };
 
-        // Set headers from new Headers dictionary if available
-        if (model.Headers != null && model.Headers.Count > 0)
+        // Set headers from Headers dictionary
+        foreach (var (key, value) in model.Headers)
         {
-            foreach (var (key, value) in model.Headers)
+            if (key.Equals(AuthorizationHeader, StringComparison.OrdinalIgnoreCase))
             {
-                if (key.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
-                {
-                    var parts = value.Split(' ', 2, StringSplitOptions.TrimEntries);
-                    if (parts.Length == 2)
-                    {
-                        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(parts[0], parts[1]);
-                    }
-                }
-                else if (key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Content-Type is set per-request, skip here
-                    continue;
-                }
-                else
-                {
-                    _httpClient.DefaultRequestHeaders.TryAddWithoutValidation(key, value);
-                }
-            }
-        }
-        else
-        {
-            // Fall back to deprecated properties for backward compatibility
-            if (!string.IsNullOrWhiteSpace(model.ApiKey))
-            {
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", model.ApiKey);
-            }
-
-            foreach (var header in model.CustomHeaders)
-            {
-                var parts = header.Split(':', 2, StringSplitOptions.TrimEntries);
+                var parts = value.Split(' ', 2, StringSplitOptions.TrimEntries);
                 if (parts.Length == 2)
                 {
-                    _httpClient.DefaultRequestHeaders.TryAddWithoutValidation(parts[0], parts[1]);
+                    _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(parts[0], parts[1]);
                 }
+            }
+            else if (key.Equals(ContentTypeHeader, StringComparison.OrdinalIgnoreCase))
+            {
+                // Content-Type is set per-request, skip here
+                continue;
+            }
+            else
+            {
+                _httpClient.DefaultRequestHeaders.TryAddWithoutValidation(key, value);
             }
         }
     }
@@ -133,7 +114,7 @@ public sealed class GenericAiHttpClient : IDisposable
                 {
                     payload["tools"] = new JsonArray(tools.Select(t => new JsonObject
                     {
-                        ["type"] = "function",
+                        ["type"] = FunctionType,
                         ["function"] = new JsonObject
                         {
                             ["name"] = t.Name,
@@ -191,7 +172,7 @@ public sealed class GenericAiHttpClient : IDisposable
                 {
                     payload["tools"] = new JsonArray(tools.Select(t => new JsonObject
                     {
-                        ["type"] = "function",
+                        ["type"] = FunctionType,
                         ["function"] = new JsonObject
                         {
                             ["name"] = t.Name,
@@ -445,7 +426,7 @@ public sealed class GenericAiHttpClient : IDisposable
             foreach (var tc in toolCallsDoc.RootElement.EnumerateArray())
             {
                 var id = tc.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? string.Empty : string.Empty;
-                var function = tc.GetProperty("function");
+                var function = tc.GetProperty(FunctionType);
                 var name = function.GetProperty("name").GetString() ?? string.Empty;
                 var args = function.TryGetProperty("arguments", out var argsProp) && argsProp.ValueKind == JsonValueKind.String
                     ? argsProp.GetString() ?? "{}"

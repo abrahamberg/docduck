@@ -8,6 +8,9 @@ namespace DocDuck.Providers.Ai;
 /// </summary>
 public sealed class ResponseMappingDetector
 {
+    private const string ContentProperty = "content";
+    private const string UsageProperty = "usage";
+    
     private readonly ILogger<ResponseMappingDetector>? _logger;
 
     public ResponseMappingDetector(ILogger<ResponseMappingDetector>? logger = null)
@@ -75,21 +78,21 @@ public sealed class ResponseMappingDetector
     private static string DetectContentPath(JsonElement root)
     {
         // Pattern 1: OpenAI format - choices[0].message.content
-        if (TryGetPropertyPath(root, ["choices", "0", "message", "content"], out var path1))
+        if (TryGetPropertyPath(root, ["choices", "0", "message", "content"], out _))
         {
             return "choices[0].message.content";
         }
 
         // Pattern 2: Anthropic format - content[0].text
-        if (TryGetPropertyPath(root, ["content", "0", "text"], out var path2))
+        if (TryGetPropertyPath(root, ["content", "0", "text"], out _))
         {
             return "content[0].text";
         }
 
         // Pattern 3: Simple response - content or text or response
-        if (root.TryGetProperty("content", out _))
+        if (root.TryGetProperty(ContentProperty, out _))
         {
-            return "content";
+            return ContentProperty;
         }
         if (root.TryGetProperty("text", out _))
         {
@@ -101,15 +104,15 @@ public sealed class ResponseMappingDetector
         }
 
         // Pattern 4: Nested - data.content, result.content, output.text
-        if (TryGetPropertyPath(root, ["data", "content"], out var path3))
+        if (TryGetPropertyPath(root, ["data", ContentProperty], out _))
         {
             return "data.content";
         }
-        if (TryGetPropertyPath(root, ["result", "content"], out var path4))
+        if (TryGetPropertyPath(root, ["result", ContentProperty], out _))
         {
             return "result.content";
         }
-        if (TryGetPropertyPath(root, ["output", "text"], out var path5))
+        if (TryGetPropertyPath(root, ["output", "text"], out _))
         {
             return "output.text";
         }
@@ -121,13 +124,13 @@ public sealed class ResponseMappingDetector
     private static string DetectRolePath(JsonElement root)
     {
         // OpenAI format
-        if (TryGetPropertyPath(root, ["choices", "0", "message", "role"], out var path))
+        if (TryGetPropertyPath(root, ["choices", "0", "message", "role"], out _))
         {
             return "choices[0].message.role";
         }
 
         // Anthropic format
-        if (TryGetPropertyPath(root, ["role"], out var path2))
+        if (TryGetPropertyPath(root, ["role"], out _))
         {
             return "role";
         }
@@ -137,7 +140,7 @@ public sealed class ResponseMappingDetector
 
     private static string? DetectToolCallsPath(JsonElement root)
     {
-        if (TryGetPropertyPath(root, ["choices", "0", "message", "tool_calls"], out var path))
+        if (TryGetPropertyPath(root, ["choices", "0", "message", "tool_calls"], out _))
         {
             return "choices[0].message.tool_calls";
         }
@@ -147,12 +150,12 @@ public sealed class ResponseMappingDetector
 
     private static string? DetectUsagePromptTokensPath(JsonElement root)
     {
-        if (TryGetPropertyPath(root, ["usage", "prompt_tokens"], out var path))
+        if (TryGetPropertyPath(root, [UsageProperty, "prompt_tokens"], out _))
         {
             return "usage.prompt_tokens";
         }
 
-        if (TryGetPropertyPath(root, ["usage", "input_tokens"], out var path2))
+        if (TryGetPropertyPath(root, [UsageProperty, "input_tokens"], out _))
         {
             return "usage.input_tokens";
         }
@@ -162,12 +165,12 @@ public sealed class ResponseMappingDetector
 
     private static string? DetectUsageCompletionTokensPath(JsonElement root)
     {
-        if (TryGetPropertyPath(root, ["usage", "completion_tokens"], out var path))
+        if (TryGetPropertyPath(root, [UsageProperty, "completion_tokens"], out _))
         {
             return "usage.completion_tokens";
         }
 
-        if (TryGetPropertyPath(root, ["usage", "output_tokens"], out var path2))
+        if (TryGetPropertyPath(root, [UsageProperty, "output_tokens"], out _))
         {
             return "usage.output_tokens";
         }
@@ -177,7 +180,7 @@ public sealed class ResponseMappingDetector
 
     private static string? DetectUsageTotalTokensPath(JsonElement root)
     {
-        if (TryGetPropertyPath(root, ["usage", "total_tokens"], out var path))
+        if (TryGetPropertyPath(root, [UsageProperty, "total_tokens"], out _))
         {
             return "usage.total_tokens";
         }

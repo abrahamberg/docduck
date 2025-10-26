@@ -21,6 +21,8 @@ namespace Api.Services;
 /// </summary>
 public class ChatService
 {
+    private const string SystemRole = "system";
+    
     private readonly VectorSearchService _searchService;
     private readonly ModelAgnosticAiService _aiService;
     private readonly ILogger<ChatService> _logger;
@@ -374,12 +376,11 @@ public class ChatService
 
     private async Task<string> RefineQueryPhraseAsync(string original, List<ChatMessage> history, CancellationToken ct)
     {
-        var config = await _aiService.GetConfigurationAsync(ct);
         var systemPrompt = DocDuck.Providers.Ai.SystemPrompts.Refine;
 
         var messages = new List<ChatMessagePayload>
         {
-            new("system", systemPrompt)
+            new(SystemRole, systemPrompt)
         };
 
         if (history.Count > 0)
@@ -425,7 +426,6 @@ public class ChatService
         List<Source>? previousResults,
         CancellationToken ct)
     {
-        var config = await _aiService.GetConfigurationAsync(ct);
         var systemPrompt = DocDuck.Providers.Ai.SystemPrompts.Refine;
 
         var builder = new System.Text.StringBuilder();
@@ -458,7 +458,7 @@ public class ChatService
 
         var messages = new List<ChatMessagePayload>
         {
-            new("system", systemPrompt),
+            new(SystemRole, systemPrompt),
             new("user", builder.ToString())
         };
 
@@ -505,7 +505,7 @@ public class ChatService
 
         var messages = new List<ChatMessagePayload>
         {
-            new("system", systemPrompt),
+            new(SystemRole, systemPrompt),
             new("user", userPrompt)
         };
 
@@ -569,7 +569,7 @@ public class ChatService
 
         var messages = new List<ChatMessagePayload>
         {
-            new("system", systemPrompt),
+            new(SystemRole, systemPrompt),
             new("user", promptBuilder.ToString())
         };
 

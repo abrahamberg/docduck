@@ -211,7 +211,9 @@ app.MapGet("/health", async (VectorSearchService searchService, ModelAgnosticAiS
         var docCount = await searchService.GetDocumentCountAsync(ct);
 
         var config = await aiSvc.GetConfigurationAsync(ct);
-        var aiKeyPresent = config is { Enabled: true, EmbeddingModel: not null } && !string.IsNullOrWhiteSpace(config.EmbeddingModel.ApiKey);
+        var aiKeyPresent = config is { Enabled: true, EmbeddingModel: not null } 
+            && config.EmbeddingModel.Headers.TryGetValue("Authorization", out var authHeader)
+            && !string.IsNullOrWhiteSpace(authHeader);
         var dbConnectionPresent = !string.IsNullOrWhiteSpace(dbConnectionString);
 
         return Results.Ok(new
