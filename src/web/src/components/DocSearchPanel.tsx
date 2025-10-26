@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { QueryRequest, DocumentResult } from '../types';
+import { DocumentResult } from '../types';
 import { postDocSearch } from '../api';
 import { Box, Stack, TextField, Button, Card, CardContent, Typography, CircularProgress, Tooltip } from '@mui/material';
 import { DocSearchResults } from './DocSearchResults';

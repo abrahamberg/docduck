@@ -9,6 +9,7 @@ namespace DocDuck.Providers.Ai;
 public sealed class AiConfigurationSeeder
 {
     private const string AuthorizationHeader = "Authorization";
+    private const string DefaultOpenAiBaseUrl = "https://api.openai.com/v1";
 
     private readonly AiProviderConfigurationStore _store;
     private readonly ILogger<AiConfigurationSeeder> _logger;
@@ -34,7 +35,7 @@ public sealed class AiConfigurationSeeder
         }
 
         var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-        var baseUrl = Environment.GetEnvironmentVariable("OPENAI_BASE_URL") ?? "https://api.openai.com/v1";
+        var baseUrl = Environment.GetEnvironmentVariable("OPENAI_BASE_URL") ?? DefaultOpenAiBaseUrl;
 
         // Model configuration from environment or OpenAI defaults
         var microModel = Environment.GetEnvironmentVariable("OPENAI_MICRO_MODEL") ?? "gpt-5-nano";

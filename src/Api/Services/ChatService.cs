@@ -6,6 +6,65 @@ using Microsoft.Extensions.Options;
 namespace Api.Services;
 
 /// <summary>
+/// Parameters for search attempt execution
+/// </summary>
+internal sealed record SearchAttemptParams(
+    string InitialPhrase,
+    ChatRequest Request,
+    List<ChatMessage> History,
+    int MaxAttempts,
+    int Depth,
+    Func<string, Task> RecordStepAsync,
+    List<ModelUsageInfo> ModelUsage,
+    Func<ChatStreamUpdate, Task>? Progress,
+    List<string> Steps);
+
+/// <summary>
+/// Parameters for no-results handling
+/// </summary>
+internal sealed record NoResultsParams(
+    int Attempt,
+    int MaxAttempts,
+    string CurrentPhrase,
+    string UserMessage,
+    List<ChatMessage> History,
+    List<Source> LatestSources,
+    List<string> Steps,
+    int TotalTokens,
+    Func<ChatStreamUpdate, Task>? Progress,
+    Func<string, Task> RecordStepAsync);
+
+/// <summary>
+/// Parameters for decision action processing
+/// </summary>
+internal sealed record DecisionActionParams(
+    RefinementDecision Decision,
+    int Attempt,
+    int MaxAttempts,
+    string CurrentPhrase,
+    string UserMessage,
+    List<ChatMessage> History,
+    List<Source> LatestSources,
+    List<string> Steps,
+    int TotalTokens,
+    Func<ChatStreamUpdate, Task>? Progress,
+    Func<string, Task> RecordStepAsync);
+
+/// <summary>
+/// Parameters for building chat response
+/// </summary>
+internal sealed record BuildResponseParams(
+    string Answer,
+    string UserMessage,
+    List<ChatMessage> History,
+    List<string> Steps,
+    List<Source> Sources,
+    int Tokens,
+    bool IncludeStepsInHistory,
+    bool IncludeStepsInResponse,
+    List<ModelUsageInfo>? ModelUsage = null);
+
+/// <summary>
 /// Orchestrates multi-step chat interaction with model-agnostic LLM-driven refinement:
 /// 1. Digest user input -> refine phrase for embedding (micro/mini model)
 /// 2. Vector search for candidate chunks
@@ -68,10 +127,10 @@ public class ChatService : IChatService
             }
         }
 
-        var currentPhrase = await InitializeSearchPhrase(request.Message, history, ct, RecordStepAsync);
+        var currentPhrase = await InitializeSearchPhrase(request.Message, history, RecordStepAsync, ct);
         await RecordStepAsync($"Search depth level {depth} → {maxAttempts} retrieval attempt(s).");
 
-        var (finalAnswer, latestSources, totalTokens) = await ExecuteSearchAttempts(
+        var searchParams = new SearchAttemptParams(
             currentPhrase,
             request,
             history,
@@ -80,24 +139,31 @@ public class ChatService : IChatService
             RecordStepAsync,
             modelUsage,
             progress,
-            steps,
-            ct);
+            steps);
+
+        var (finalAnswer, latestSources, totalTokens, earlyResponse) = await ExecuteSearchAttempts(searchParams, ct);
+
+        // If an early response was generated (e.g., cannot answer), return it
+        if (earlyResponse != null)
+        {
+            return earlyResponse;
+        }
 
         if (finalAnswer == null)
         {
             return await CreateFallbackResponse(request.Message, history, steps, latestSources, totalTokens, progress);
         }
 
-        var success = BuildResponse(
-            answer: finalAnswer,
-            userMessage: request.Message,
-            history,
-            steps,
-            sources: latestSources,
-            tokens: totalTokens,
-            includeStepsInHistory: progress != null,
-            includeStepsInResponse: progress != null,
-            modelUsage: modelUsage);
+        var success = BuildResponse(new BuildResponseParams(
+            Answer: finalAnswer,
+            UserMessage: request.Message,
+            History: history,
+            Steps: steps,
+            Sources: latestSources,
+            Tokens: totalTokens,
+            IncludeStepsInHistory: progress != null,
+            IncludeStepsInResponse: progress != null,
+            ModelUsage: modelUsage));
 
         if (progress != null)
         {
@@ -111,21 +177,12 @@ public class ChatService : IChatService
         return success;
     }
 
-    private static ChatResponse BuildResponse(
-        string answer,
-        string userMessage,
-        List<ChatMessage> history,
-        List<string> steps,
-        List<Source> sources,
-        int tokens,
-        bool includeStepsInHistory,
-        bool includeStepsInResponse,
-        List<ModelUsageInfo>? modelUsage = null)
+    private static ChatResponse BuildResponse(BuildResponseParams buildParams)
     {
-        var files = BuildDocumentResults(sources);
-        var responseSteps = includeStepsInResponse ? new List<string>(steps) : [];
+        var files = BuildDocumentResults(buildParams.Sources);
+        var responseSteps = buildParams.IncludeStepsInResponse ? new List<string>(buildParams.Steps) : [];
 
-        if (includeStepsInResponse && files.Count > 0)
+        if (buildParams.IncludeStepsInResponse && files.Count > 0)
         {
             var previewNames = files
                 .Select(f => f.Filename)
@@ -139,12 +196,12 @@ public class ChatService : IChatService
             }
         }
 
-        var updatedHistory = new List<ChatMessage>(history)
+        var updatedHistory = new List<ChatMessage>(buildParams.History)
         {
-            new("user", userMessage)
+            new("user", buildParams.UserMessage)
         };
 
-        if (includeStepsInHistory)
+        if (buildParams.IncludeStepsInHistory)
         {
             foreach (var step in responseSteps)
             {
@@ -162,16 +219,16 @@ public class ChatService : IChatService
             updatedHistory.Add(new ChatMessage("assistant", sourceSummary));
         }
 
-        updatedHistory.Add(new ChatMessage("assistant", $"Answer:\n{answer}"));
+        updatedHistory.Add(new ChatMessage("assistant", $"Answer:\n{buildParams.Answer}"));
 
         return new ChatResponse(
-            Answer: answer,
+            Answer: buildParams.Answer,
             Steps: responseSteps,
             Files: files,
-            Sources: sources,
-            TokensUsed: tokens,
+            Sources: buildParams.Sources,
+            TokensUsed: buildParams.Tokens,
             History: updatedHistory,
-            ModelUsage: modelUsage
+            ModelUsage: buildParams.ModelUsage
         );
     }
 
@@ -236,8 +293,8 @@ public class ChatService : IChatService
     private async Task<string> InitializeSearchPhrase(
         string originalMessage,
         List<ChatMessage> history,
-        CancellationToken ct,
-        Func<string, Task> recordStepAsync)
+        Func<string, Task> recordStepAsync,
+        CancellationToken ct)
     {
         var currentPhrase = originalMessage.Trim();
         currentPhrase = await RefineQueryPhraseAsync(currentPhrase, history, ct);
@@ -245,92 +302,86 @@ public class ChatService : IChatService
         return currentPhrase;
     }
 
-    private async Task<(string? FinalAnswer, List<Source> LatestSources, int TotalTokens)> ExecuteSearchAttempts(
-        string initialPhrase,
-        ChatRequest request,
-        List<ChatMessage> history,
-        int maxAttempts,
-        int depth,
-        Func<string, Task> recordStepAsync,
-        List<ModelUsageInfo> modelUsage,
-        Func<ChatStreamUpdate, Task>? progress,
-        List<string> steps,
+    private async Task<(string? FinalAnswer, List<Source> LatestSources, int TotalTokens, ChatResponse? EarlyResponse)> ExecuteSearchAttempts(
+        SearchAttemptParams searchParams,
         CancellationToken ct)
     {
         var latestSources = new List<Source>();
-        string currentPhrase = initialPhrase;
+        string currentPhrase = searchParams.InitialPhrase;
         string? finalAnswer = null;
         int totalTokens = 0;
 
-        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        for (int attempt = 1; attempt <= searchParams.MaxAttempts; attempt++)
         {
             _logger.LogInformation("Chat attempt {Attempt} with phrase: {Phrase}", attempt, currentPhrase);
-            await recordStepAsync($"Attempt {attempt}: searching the index with \"{currentPhrase}\".");
+            await searchParams.RecordStepAsync($"Attempt {attempt}: searching the index with \"{currentPhrase}\".");
 
             var embedding = await _aiService.EmbedAsync(currentPhrase, ct);
             latestSources = await _searchService.SearchAsync(
                 embedding,
                 currentPhrase,
-                request.TopK,
-                request.ProviderType,
-                request.ProviderName,
-                depth,
+                searchParams.Request.TopK,
+                searchParams.Request.ProviderType,
+                searchParams.Request.ProviderName,
+                searchParams.Depth,
                 ct);
 
             if (latestSources.Count == 0)
             {
-                var noResultsResponse = await HandleNoResults(
+                var noResultsParams = new NoResultsParams(
                     attempt,
-                    maxAttempts,
+                    searchParams.MaxAttempts,
                     currentPhrase,
-                    request.Message,
-                    history,
+                    searchParams.Request.Message,
+                    searchParams.History,
                     latestSources,
-                    steps,
+                    searchParams.Steps,
                     totalTokens,
-                    progress,
-                    recordStepAsync,
-                    ct);
+                    searchParams.Progress,
+                    searchParams.RecordStepAsync);
+
+                var noResultsResponse = await HandleNoResults(noResultsParams, ct);
 
                 if (noResultsResponse != null)
                 {
-                    return (null, [], totalTokens);
+                    return (null, [], totalTokens, noResultsResponse);
                 }
 
-                currentPhrase = await RephraseForRetryAsync(currentPhrase, history, latestSources, ct);
-                await recordStepAsync($"Trying a new search phrase: \"{currentPhrase}\".");
+                currentPhrase = await RephraseForRetryAsync(currentPhrase, searchParams.History, latestSources, ct);
+                await searchParams.RecordStepAsync($"Trying a new search phrase: \"{currentPhrase}\".");
                 continue;
             }
 
             var docCount = latestSources.Select(s => s.DocId).Distinct().Count();
-            await recordStepAsync($"Found {latestSources.Count} chunks across {docCount} documents.");
+            await searchParams.RecordStepAsync($"Found {latestSources.Count} chunks across {docCount} documents.");
 
             var (decision, evalTokens) = await EvaluateWithToolsAsync(
                 currentPhrase,
                 latestSources.Select(s => s.Text).ToList(),
                 ct);
             totalTokens += evalTokens;
-            modelUsage.Add(new ModelUsageInfo("chat-model", "context_evaluation", evalTokens));
+            searchParams.ModelUsage.Add(new ModelUsageInfo("chat-model", "context_evaluation", evalTokens));
 
             _logger.LogInformation("Model decision: {Action} - {Reasoning}", decision.Action, decision.Reasoning);
 
-            var actionResult = await ProcessDecisionAction(
+            var decisionParams = new DecisionActionParams(
                 decision,
                 attempt,
-                maxAttempts,
+                searchParams.MaxAttempts,
                 currentPhrase,
-                request.Message,
-                history,
+                searchParams.Request.Message,
+                searchParams.History,
                 latestSources,
-                steps,
+                searchParams.Steps,
                 totalTokens,
-                progress,
-                recordStepAsync,
-                ct);
+                searchParams.Progress,
+                searchParams.RecordStepAsync);
+
+            var actionResult = await ProcessDecisionAction(decisionParams, ct);
 
             if (actionResult.ShouldReturn)
             {
-                return (null, latestSources, totalTokens);
+                return (null, latestSources, totalTokens, actionResult.EarlyResponse);
             }
 
             if (actionResult.ShouldContinue)
@@ -340,55 +391,46 @@ public class ChatService : IChatService
             }
 
             // Generate answer
-            await recordStepAsync("Generating answer from available context.");
+            await searchParams.RecordStepAsync("Generating answer from available context.");
             var (answer, answerTokens) = await GenerateAnswerAsync(
                 currentPhrase,
                 latestSources.Select(s => s.Text).ToList(),
-                history.Select(h => (h.Role, h.Content)).ToList(),
+                searchParams.History.Select(h => (h.Role, h.Content)).ToList(),
                 useLargeModel: true,
                 ct);
             totalTokens += answerTokens;
-            modelUsage.Add(new ModelUsageInfo("chat-model-large", "answer_generation", answerTokens));
+            searchParams.ModelUsage.Add(new ModelUsageInfo("chat-model-large", "answer_generation", answerTokens));
 
             finalAnswer = answer;
             break;
         }
 
-        return (finalAnswer, latestSources, totalTokens);
+        return (finalAnswer, latestSources, totalTokens, null);
     }
 
     private async Task<ChatResponse?> HandleNoResults(
-        int attempt,
-        int maxAttempts,
-        string currentPhrase,
-        string userMessage,
-        List<ChatMessage> history,
-        List<Source> latestSources,
-        List<string> steps,
-        int totalTokens,
-        Func<ChatStreamUpdate, Task>? progress,
-        Func<string, Task> recordStepAsync,
+        NoResultsParams noResultsParams,
         CancellationToken ct)
     {
-        _logger.LogInformation("No sources found on attempt {Attempt}", attempt);
-        await recordStepAsync("No matching passages came back.");
+        _logger.LogInformation("No sources found on attempt {Attempt}", noResultsParams.Attempt);
+        await noResultsParams.RecordStepAsync("No matching passages came back.");
 
-        if (attempt == maxAttempts)
+        if (noResultsParams.Attempt == noResultsParams.MaxAttempts)
         {
-            await recordStepAsync($"Still nothing after {maxAttempts} attempt(s). Handing control back to the user.");
-            var failure = BuildResponse(
-                answer: "I couldn't find anything relevant. Could you rephrase your question?",
-                userMessage: userMessage,
-                history,
-                steps,
-                sources: [],
-                tokens: totalTokens,
-                includeStepsInHistory: progress != null,
-                includeStepsInResponse: progress != null);
+            await noResultsParams.RecordStepAsync($"Still nothing after {noResultsParams.MaxAttempts} attempt(s). Handing control back to the user.");
+            var failure = BuildResponse(new BuildResponseParams(
+                Answer: "I couldn't find anything relevant. Could you rephrase your question?",
+                UserMessage: noResultsParams.UserMessage,
+                History: noResultsParams.History,
+                Steps: noResultsParams.Steps,
+                Sources: [],
+                Tokens: noResultsParams.TotalTokens,
+                IncludeStepsInHistory: noResultsParams.Progress != null,
+                IncludeStepsInResponse: noResultsParams.Progress != null));
 
-            if (progress != null)
+            if (noResultsParams.Progress != null)
             {
-                await progress(new ChatStreamUpdate(
+                await noResultsParams.Progress(new ChatStreamUpdate(
                     Type: StreamTypeFinal,
                     Message: null,
                     Files: failure.Files,
@@ -401,74 +443,64 @@ public class ChatService : IChatService
         return null;
     }
 
-    private async Task<(bool ShouldReturn, bool ShouldContinue, string? NewPhrase)> ProcessDecisionAction(
-        RefinementDecision decision,
-        int attempt,
-        int maxAttempts,
-        string currentPhrase,
-        string userMessage,
-        List<ChatMessage> history,
-        List<Source> latestSources,
-        List<string> steps,
-        int totalTokens,
-        Func<ChatStreamUpdate, Task>? progress,
-        Func<string, Task> recordStepAsync,
+    private async Task<(bool ShouldReturn, bool ShouldContinue, string? NewPhrase, ChatResponse? EarlyResponse)> ProcessDecisionAction(
+        DecisionActionParams decisionParams,
         CancellationToken ct)
     {
-        switch (decision.Action)
+        switch (decisionParams.Decision.Action)
         {
             case RefinementAction.AnswerReady:
-                await recordStepAsync($"Context evaluation: {decision.Reasoning}");
-                await recordStepAsync("Context looks solid — drafting the answer.");
-                return (false, false, null);
+                await decisionParams.RecordStepAsync($"Context evaluation: {decisionParams.Decision.Reasoning}");
+                await decisionParams.RecordStepAsync("Context looks solid — drafting the answer.");
+                return (false, false, null, null);
 
-            case RefinementAction.NeedsMoreContext when attempt < maxAttempts:
-                await recordStepAsync($"Model analysis: {decision.Reasoning}");
-                await recordStepAsync("Broadening the search for additional context.");
-                var newPhrase = await RephraseForRetryAsync(currentPhrase, history, latestSources, ct);
-                await recordStepAsync($"Trying alternative phrasing: \"{newPhrase}\".");
-                return (false, true, newPhrase);
+            case RefinementAction.NeedsMoreContext when decisionParams.Attempt < decisionParams.MaxAttempts:
+                await decisionParams.RecordStepAsync($"Model analysis: {decisionParams.Decision.Reasoning}");
+                await decisionParams.RecordStepAsync("Broadening the search for additional context.");
+                var newPhrase = await RephraseForRetryAsync(decisionParams.CurrentPhrase, decisionParams.History, decisionParams.LatestSources, ct);
+                await decisionParams.RecordStepAsync($"Trying alternative phrasing: \"{newPhrase}\".");
+                return (false, true, newPhrase, null);
 
-            case RefinementAction.RefineQuery when attempt < maxAttempts:
-                await recordStepAsync($"Model analysis: {decision.Reasoning}");
-                var refinedPhrase = decision.SuggestedQuery ?? await RephraseForRetryAsync(currentPhrase, history, latestSources, ct);
-                await recordStepAsync($"Switching to refined query: \"{refinedPhrase}\".");
-                return (false, true, refinedPhrase);
+            case RefinementAction.RefineQuery when decisionParams.Attempt < decisionParams.MaxAttempts:
+                await decisionParams.RecordStepAsync($"Model analysis: {decisionParams.Decision.Reasoning}");
+                var refinedPhrase = decisionParams.Decision.SuggestedQuery ?? await RephraseForRetryAsync(decisionParams.CurrentPhrase, decisionParams.History, decisionParams.LatestSources, ct);
+                await decisionParams.RecordStepAsync($"Switching to refined query: \"{refinedPhrase}\".");
+                return (false, true, refinedPhrase, null);
 
             case RefinementAction.CannotAnswer:
-                _logger.LogInformation("Model determined question cannot be answered: {Reason}", decision.CannotAnswerReason);
-                await recordStepAsync($"Analysis: {decision.Reasoning}");
-                await recordStepAsync("This question appears to be outside the scope of available documentation.");
+                _logger.LogInformation("Model determined question cannot be answered: {Reason}", decisionParams.Decision.CannotAnswerReason);
+                await decisionParams.RecordStepAsync($"Analysis: {decisionParams.Decision.Reasoning}");
+                await decisionParams.RecordStepAsync("This question appears to be outside the scope of available documentation.");
 
-                var cannotAnswerResponse = BuildResponse(
-                    answer: $"I cannot answer this question with the available documentation. {decision.Reasoning}",
-                    userMessage: userMessage,
-                    history,
-                    steps,
-                    sources: latestSources,
-                    tokens: totalTokens,
-                    includeStepsInHistory: progress != null,
-                    includeStepsInResponse: progress != null);
+                var cannotAnswerResponse = BuildResponse(new BuildResponseParams(
+                    Answer: $"I cannot answer this question with the available documentation. {decisionParams.Decision.Reasoning}",
+                    UserMessage: decisionParams.UserMessage,
+                    History: decisionParams.History,
+                    Steps: decisionParams.Steps,
+                    Sources: decisionParams.LatestSources,
+                    Tokens: decisionParams.TotalTokens,
+                    IncludeStepsInHistory: decisionParams.Progress != null,
+                    IncludeStepsInResponse: decisionParams.Progress != null));
 
-                if (progress != null)
+                if (decisionParams.Progress != null)
                 {
-                    await progress(new ChatStreamUpdate(
+                    await decisionParams.Progress(new ChatStreamUpdate(
                         Type: StreamTypeFinal,
                         Message: null,
                         Files: cannotAnswerResponse.Files,
                         Final: cannotAnswerResponse));
                 }
 
-                return (true, false, null);
+                return (true, false, null, cannotAnswerResponse);
 
             default:
-                await recordStepAsync($"Analysis: {decision.Reasoning}");
-                await recordStepAsync($"Reached attempt limit ({maxAttempts}). Answering with available context.");
-                return (false, false, null);
+                await decisionParams.RecordStepAsync($"Analysis: {decisionParams.Decision.Reasoning}");
+                await decisionParams.RecordStepAsync($"Reached attempt limit ({decisionParams.MaxAttempts}). Answering with available context.");
+                return (false, false, null, null);
         }
     }
 
-    private async Task<ChatResponse> CreateFallbackResponse(
+    private static async Task<ChatResponse> CreateFallbackResponse(
         string userMessage,
         List<ChatMessage> history,
         List<string> steps,
@@ -477,15 +509,15 @@ public class ChatService : IChatService
         Func<ChatStreamUpdate, Task>? progress)
     {
         steps.Add("I couldn't gather enough context to answer confidently.");
-        var fallback = BuildResponse(
-            answer: "I couldn't confidently answer. Please rephrase your question.",
-            userMessage: userMessage,
-            history,
-            steps,
-            sources: latestSources,
-            tokens: totalTokens,
-            includeStepsInHistory: progress != null,
-            includeStepsInResponse: progress != null);
+        var fallback = BuildResponse(new BuildResponseParams(
+            Answer: "I couldn't confidently answer. Please rephrase your question.",
+            UserMessage: userMessage,
+            History: history,
+            Steps: steps,
+            Sources: latestSources,
+            Tokens: totalTokens,
+            IncludeStepsInHistory: progress != null,
+            IncludeStepsInResponse: progress != null));
 
         if (progress != null)
         {

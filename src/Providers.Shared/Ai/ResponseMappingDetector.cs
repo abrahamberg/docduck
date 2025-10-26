@@ -289,6 +289,11 @@ public sealed class ResponseMappingDetector
             return;
         }
 
+        AddPropertyAndIndexParts(segment, bracketStart, parts);
+    }
+
+    private static void AddPropertyAndIndexParts(string segment, int bracketStart, List<PathPart> parts)
+    {
         var bracketEnd = segment.IndexOf(']');
         if (bracketEnd <= bracketStart)
         {

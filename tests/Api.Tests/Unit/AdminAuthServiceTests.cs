@@ -344,9 +344,10 @@ public class AdminAuthServiceTests
 
         // Act
         var token = service.IssueToken(userId);
-        service.TryParseToken(token, out var payload);
+        var success = service.TryParseToken(token, out var payload);
 
         // Assert
+        success.Should().BeTrue();
         var expectedExpiration = DateTimeOffset.UtcNow.AddMinutes(customLifetimeMinutes);
         payload.ExpiresAt.Should().BeCloseTo(expectedExpiration, TimeSpan.FromSeconds(5));
     }

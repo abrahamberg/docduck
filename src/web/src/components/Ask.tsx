@@ -480,7 +480,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
                         <Box sx={{ mt: 1, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
                           {response.steps.map((step, idx) => (
                             <Typography
-                              key={idx}
+                              key={`step-${idx}-${step.slice(0, 20)}`}
                               variant="body2"
                               sx={{
                                 fontSize: '0.875rem',
@@ -506,8 +506,8 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
                     {response.modelUsage && response.modelUsage.length > 0 && (
                       <Box sx={{ mt: 1 }}>
                         {response.modelUsage.map((usage, idx) => (
-                          <Typography key={idx} variant="caption" sx={{ display: 'block', opacity: 0.5, fontSize: '0.75rem' }}>
-                            • {usage.purpose.replace(/_/g, ' ')}: {usage.tokens} tokens
+                          <Typography key={`usage-${idx}-${usage.purpose}`} variant="caption" sx={{ display: 'block', opacity: 0.5, fontSize: '0.75rem' }}>
+                            • {usage.purpose.replaceAll('_', ' ')}: {usage.tokens} tokens
                           </Typography>
                         ))}
                       </Box>

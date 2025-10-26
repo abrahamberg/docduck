@@ -1207,7 +1207,7 @@ public static class AdminEndpointExtensions
     private static string FormatSuccessMessage(long elapsedMilliseconds, string responseText)
     {
         var preview = responseText.Length > 50
-            ? responseText.Substring(0, 50) + "..."
+            ? string.Concat(responseText.AsSpan(0, 50), "...")
             : responseText;
         return $"✓ Model responded in {elapsedMilliseconds}ms - \"{preview}\"";
     }

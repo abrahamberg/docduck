@@ -22,8 +22,7 @@ public static class MimeTypeHelper
             return null;
         }
 
-        return KnownMimeTypes.TryGetValue(extension.StartsWith('.') ? extension : $".{extension}", out var mime)
-            ? mime
-            : null;
+        var normalizedExtension = extension.StartsWith('.') ? extension : $".{extension}";
+        return KnownMimeTypes.TryGetValue(normalizedExtension, out var mime) ? mime : null;
     }
 }

@@ -18,11 +18,8 @@ import {
   Typography,
   IconButton,
   Popover,
-  Divider,
-  Tooltip,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
-import TuneIcon from '@mui/icons-material/Tune';
 import { createProvider, deleteProvider, listProviders, probeProvider, updateProvider } from '../api';
 import type { ProviderProbeResult, ProviderSettings } from '../types';
 

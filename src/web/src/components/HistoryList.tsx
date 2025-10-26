@@ -1,5 +1,5 @@
 import React from 'react';
-import { List, ListItemButton, ListItemText, Typography, Box, IconButton, Tooltip, Chip, Stack } from '@mui/material';
+import { List, ListItemButton, ListItemText, Typography, IconButton, Tooltip, Chip, Stack } from '@mui/material';
 import ReplayIcon from '@mui/icons-material/Replay';
 
 export interface HistoryItem {

@@ -68,10 +68,8 @@ public static class CurlImportService
         var headerPattern = @"(?:-H|--header)\s+['""]([^:]+):\s*([^'""]+)['""]";
         var matches = Regex.Matches(curlCommand, headerPattern);
 
-        foreach (Match match in matches)
+        foreach (var (key, value) in matches.Select(m => (m.Groups[1].Value.Trim(), m.Groups[2].Value.Trim())))
         {
-            var key = match.Groups[1].Value.Trim();
-            var value = match.Groups[2].Value.Trim();
             headers[key] = value;
         }
 

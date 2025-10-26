@@ -24,11 +24,21 @@ import {
   DialogActions,
   TextField,
   Snackbar,
-  InputAdornment,
 } from '@mui/material';
-import { Refresh as RefreshIcon, Edit as EditIcon, Add as AddIcon, Delete as DeleteIcon, Visibility, VisibilityOff } from '@mui/icons-material';
+import { Refresh as RefreshIcon, Edit as EditIcon, Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { getAiConfiguration, updateAiConfiguration, testModel, testEmbedding } from '../api';
 import type { AiConfigurationDto, AiModelAssignmentDto, AiEmbeddingModelAssignmentDto } from '../types';
+
+// Helper function to convert request template to string format
+function getRequestTemplateString(template: any): string | undefined {
+  if (typeof template === 'string') {
+    return template;
+  }
+  if (template) {
+    return JSON.stringify(template, null, 2);
+  }
+  return undefined;
+}
 
 interface ModelFormData {
   id: string;
@@ -63,10 +73,8 @@ export const AiModelsPage: React.FC = () => {
   // Model edit dialog state
   const [modelDialogOpen, setModelDialogOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<ModelFormData | null>(null);
-  const [originalModel, setOriginalModel] = useState<ModelFormData | null>(null);
   const [modelTouched, setModelTouched] = useState(false);
   const [modelApiKeyChanged, setModelApiKeyChanged] = useState(false);
-  const [showModelApiKey, setShowModelApiKey] = useState(false);
   const [testingModel, setTestingModel] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -74,13 +82,10 @@ export const AiModelsPage: React.FC = () => {
   // Embedding edit dialog state
   const [embeddingDialogOpen, setEmbeddingDialogOpen] = useState(false);
   const [editingEmbedding, setEditingEmbedding] = useState<EmbeddingFormData | null>(null);
-  const [originalEmbedding, setOriginalEmbedding] = useState<EmbeddingFormData | null>(null);
   const [embeddingTouched, setEmbeddingTouched] = useState(false);
   const [embeddingApiKeyChanged, setEmbeddingApiKeyChanged] = useState(false);
-  const [showEmbeddingApiKey, setShowEmbeddingApiKey] = useState(false);
   const [testingEmbedding, setTestingEmbedding] = useState(false);
   const [embeddingTestResult, setEmbeddingTestResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [embeddingFieldErrors, setEmbeddingFieldErrors] = useState<Record<string, string>>({});
 
   const loadConfig = async () => {
     try {
@@ -111,10 +116,9 @@ export const AiModelsPage: React.FC = () => {
       defaultParams: '{}',
     };
     setEditingModel(newModel);
-    setOriginalModel(newModel);
+    setEditingModel(newModel);
     setModelTouched(false);
     setModelApiKeyChanged(false);
-    setShowModelApiKey(false);
     setTestResult(null);
     setFieldErrors({});
     setModelDialogOpen(true);
@@ -127,11 +131,7 @@ export const AiModelsPage: React.FC = () => {
       modelId: model.modelId || '',
       url: model.url || '',
       headers: model.headers || {},
-      requestTemplate: typeof model.requestTemplate === 'string' 
-        ? model.requestTemplate 
-        : model.requestTemplate 
-          ? JSON.stringify(model.requestTemplate, null, 2)
-          : undefined,
+      requestTemplate: getRequestTemplateString(model.requestTemplate),
       responseMapping: model.responseMapping 
         ? JSON.stringify(model.responseMapping, null, 2)
         : undefined,
@@ -140,10 +140,8 @@ export const AiModelsPage: React.FC = () => {
         : '{}',
     };
     setEditingModel(modelData);
-    setOriginalModel(modelData);
     setModelTouched(false);
     setModelApiKeyChanged(false);
-    setShowModelApiKey(false);
     setTestResult(null);
     setFieldErrors({});
     setModelDialogOpen(true);
@@ -264,8 +262,7 @@ export const AiModelsPage: React.FC = () => {
       setConfig(saved);
       setSuccess(isNew ? 'Model added successfully' : 'Model updated successfully');
       
-      // Update original model and reset changed flags - stay in dialog for testing
-      setOriginalModel({ ...editingModel });
+      // Reset changed flags - stay in dialog for testing
       setModelTouched(false);
       setModelApiKeyChanged(false);
       
@@ -443,22 +440,9 @@ export const AiModelsPage: React.FC = () => {
       defaultParams: '{}',
       dimensions: 1536,
     });
-    setOriginalEmbedding({
-      id: '',
-      displayName: '',
-      modelId: '',
-      url: 'https://api.openai.com/v1/embeddings',
-      headers: { 'Authorization': 'Bearer YOUR_API_KEY' },
-      requestTemplate: '{\n  "model": "{MODEL_ID}",\n  "input": "{INPUT}",\n  "encoding_format": "float"\n}',
-      responseMapping: '{"embedding": "$.data[0].embedding"}',
-      defaultParams: '{}',
-      dimensions: 1536,
-    });
     setEmbeddingTouched(false);
     setEmbeddingApiKeyChanged(false);
-    setShowEmbeddingApiKey(false);
     setEmbeddingTestResult(null);
-    setEmbeddingFieldErrors({});
     setEmbeddingDialogOpen(true);
   };
 
@@ -469,11 +453,7 @@ export const AiModelsPage: React.FC = () => {
       modelId: embedding.modelId || '',
       url: embedding.url || '',
       headers: embedding.headers || {},
-      requestTemplate: typeof embedding.requestTemplate === 'string'
-        ? embedding.requestTemplate
-        : embedding.requestTemplate
-          ? JSON.stringify(embedding.requestTemplate, null, 2)
-          : undefined,
+      requestTemplate: getRequestTemplateString(embedding.requestTemplate),
       responseMapping: embedding.responseMapping
         ? JSON.stringify(embedding.responseMapping, null, 2)
         : undefined,
@@ -483,12 +463,9 @@ export const AiModelsPage: React.FC = () => {
       dimensions: embedding.dimensions || 1536,
     };
     setEditingEmbedding(embeddingData);
-    setOriginalEmbedding(embeddingData);
     setEmbeddingTouched(false);
     setEmbeddingApiKeyChanged(false);
-    setShowEmbeddingApiKey(false);
     setEmbeddingTestResult(null);
-    setEmbeddingFieldErrors({});
     setEmbeddingDialogOpen(true);
   };
 
@@ -550,8 +527,7 @@ export const AiModelsPage: React.FC = () => {
       setConfig(saved);
       setSuccess(isNew ? 'Embedding model added successfully' : 'Embedding model updated successfully');
       
-      // Update original and reset changed flags - stay in dialog for testing
-      setOriginalEmbedding({ ...editingEmbedding });
+      // Reset changed flags - stay in dialog for testing
       setEmbeddingTouched(false);
       setEmbeddingApiKeyChanged(false);
       

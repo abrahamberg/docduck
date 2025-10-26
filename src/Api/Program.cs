@@ -11,155 +11,17 @@ using System.Text.Json;
 using System.Globalization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+
 var builder = WebApplication.CreateBuilder(args);
 
-var envConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
-var configuredConnectionString = builder.Configuration["Database:ConnectionString"];
-var dbConnectionString = !string.IsNullOrWhiteSpace(envConnectionString)
-    ? envConnectionString
-    : configuredConnectionString ?? string.Empty;
-
-if (string.IsNullOrWhiteSpace(dbConnectionString))
-{
-    throw new InvalidOperationException("Database connection string is required. Set DB_CONNECTION_STRING or configure Database:ConnectionString in appsettings.");
-}
-
-builder.Services.Configure<DbOptions>(options =>
-{
-    options.ConnectionString = dbConnectionString;
-});
-
-var adminSecret = Environment.GetEnvironmentVariable("ADMIN_AUTH_SECRET") ?? builder.Configuration["Admin:Secret"];
-if (string.IsNullOrWhiteSpace(adminSecret))
-{
-    throw new InvalidOperationException("Admin authentication secret is required. Set ADMIN_AUTH_SECRET or Admin:Secret in configuration.");
-}
-
-builder.Services.Configure<AdminAuthOptions>(options =>
-{
-    options.Secret = adminSecret;
-
-    if (int.TryParse(Environment.GetEnvironmentVariable("ADMIN_TOKEN_LIFETIME_MINUTES"), out var envLifetime) && envLifetime > 0)
-    {
-        options.TokenLifetimeMinutes = envLifetime;
-    }
-    else if (int.TryParse(builder.Configuration["Admin:TokenLifetimeMinutes"], out var configLifetime) && configLifetime > 0)
-    {
-        options.TokenLifetimeMinutes = configLifetime;
-    }
-});
-
-builder.Services.Configure<SearchOptions>(options =>
-{
-    if (int.TryParse(Environment.GetEnvironmentVariable("DEFAULT_TOP_K"), out var topK))
-    {
-        options.DefaultTopK = topK;
-    }
-
-    if (int.TryParse(Environment.GetEnvironmentVariable("MAX_TOP_K"), out var maxTopK))
-    {
-        options.MaxTopK = maxTopK;
-    }
-
-    if (int.TryParse(Environment.GetEnvironmentVariable("MAX_SEARCH_DEPTH"), out var maxDepth))
-    {
-        options.MaxSearchDepth = Math.Max(1, maxDepth);
-    }
-
-    if (int.TryParse(Environment.GetEnvironmentVariable("DEFAULT_SEARCH_DEPTH"), out var defaultDepth))
-    {
-        options.DefaultSearchDepth = Math.Clamp(defaultDepth, 1, options.MaxSearchDepth);
-    }
-
-    if (bool.TryParse(Environment.GetEnvironmentVariable("ENABLE_LEXICAL_SEARCH"), out var enableLexical))
-    {
-        options.EnableLexicalSearch = enableLexical;
-    }
-
-    if (double.TryParse(Environment.GetEnvironmentVariable("LEXICAL_SCORE_WEIGHT"), NumberStyles.Float, CultureInfo.InvariantCulture, out var lexicalWeight))
-    {
-        options.LexicalScoreWeight = Math.Clamp(lexicalWeight, 0d, 1d);
-    }
-
-    if (int.TryParse(Environment.GetEnvironmentVariable("MAX_LEXICAL_RESULTS"), out var maxLexical))
-    {
-        options.MaxLexicalResults = Math.Max(1, maxLexical);
-    }
-
-    var lexicalConfig = Environment.GetEnvironmentVariable("LEXICAL_CONFIGURATION");
-    if (!string.IsNullOrWhiteSpace(lexicalConfig))
-    {
-        options.LexicalConfiguration = lexicalConfig;
-    }
-});
-
-builder.Services.AddSingleton(sp => new ProviderSchemaInitializer(dbConnectionString, sp.GetRequiredService<ILogger<ProviderSchemaInitializer>>()));
-builder.Services.AddSingleton(new ProviderSettingsStore(dbConnectionString));
-builder.Services.AddSingleton<ProviderFactory>();
-builder.Services.AddSingleton<ProviderConfigurationService>();
-builder.Services.AddSingleton<ProviderSettingsSeeder>();
-
-builder.Services.AddSingleton(new AiProviderConfigurationStore(dbConnectionString));
-builder.Services.AddSingleton<ModelAgnosticAiService>();
-builder.Services.AddSingleton<IModelAgnosticAiService>(sp => sp.GetRequiredService<ModelAgnosticAiService>());
-builder.Services.AddSingleton<AiConfigurationSeeder>();
-
-builder.Services.AddSingleton(sp => new AdminUserStore(dbConnectionString, sp.GetRequiredService<ILogger<AdminUserStore>>()));
-builder.Services.AddSingleton<AdminAuthService>();
-builder.Services.AddScoped<AdminAuthFilter>();
-
-builder.Services.AddSingleton<VectorSearchService>();
-builder.Services.AddSingleton<IVectorSearchService>(sp => sp.GetRequiredService<VectorSearchService>());
-builder.Services.AddSingleton<ChatService>();
-builder.Services.AddSingleton<IChatService>(sp => sp.GetRequiredService<ChatService>());
-builder.Services.AddSingleton<QueryHandler>();
-
-// Add CORS for development
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
-
-// Configure logging
-builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
-builder.Logging.SetMinimumLevel(LogLevel.Information);
+var dbConnectionString = ConfigureDatabase(builder);
+ConfigureAdminAuth(builder);
+RegisterServices(builder, dbConnectionString);
+ConfigureLogging(builder);
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-
-    var schemaInitializer = services.GetRequiredService<ProviderSchemaInitializer>();
-    await schemaInitializer.EnsureSchemaAsync();
-
-    var providerSeeder = services.GetRequiredService<ProviderSettingsSeeder>();
-    await providerSeeder.SeedFromEnvironmentAsync();
-
-    var providerConfig = services.GetRequiredService<ProviderConfigurationService>();
-    await providerConfig.ReloadAsync();
-    var snapshot = await providerConfig.GetSnapshotAsync();
-
-    var aiSeeder = services.GetRequiredService<AiConfigurationSeeder>();
-    await aiSeeder.SeedFromEnvironmentAsync();
-
-    var bootstrapAiService = services.GetRequiredService<IModelAgnosticAiService>();
-    await bootstrapAiService.ReloadAsync();
-    var bootstrapAiConfig = await bootstrapAiService.GetConfigurationAsync();
-
-    var adminUserStore = services.GetRequiredService<AdminUserStore>();
-    await adminUserStore.EnsureDefaultAdminAsync(CancellationToken.None);
-
-    var bootstrapLogger = services.GetRequiredService<ILogger<Program>>();
-    bootstrapLogger.LogInformation("Provider configurations loaded: {Count}", snapshot.Settings.Count);
-    bootstrapLogger.LogInformation("AI provider configured: {Configured}", bootstrapAiConfig is { Enabled: true });
-}
+await BootstrapServicesAsync(app);
 
 // Enable CORS
 app.UseCors();
@@ -172,40 +34,12 @@ var aiService = app.Services.GetRequiredService<IModelAgnosticAiService>();
 var aiConfig = await aiService.GetConfigurationAsync();
 var aiConfigured = aiConfig is { Enabled: true };
 
-// Global exception logging middleware: captures unhandled exceptions and logs request details
-app.Use(async (context, next) =>
-{
-    try
-    {
-        // Allow downstream to read the request body multiple times
-        context.Request.EnableBuffering();
-        await next();
-    }
-    catch (Exception ex)
-    {
-        // Try to read request body for debugging (reset position afterwards)
-        string body = string.Empty;
-        try
-        {
-            context.Request.Body.Seek(0, SeekOrigin.Begin);
-            using var reader = new StreamReader(context.Request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
-            body = await reader.ReadToEndAsync();
-            context.Request.Body.Seek(0, SeekOrigin.Begin);
-        }
-        catch (Exception readEx)
-        {
-            logger.LogDebug(readEx, "Failed to read request body for error logging");
-        }
-
-        logger.LogError(ex, "Unhandled exception processing {Method} {Path}. Request body: {Body}", context.Request.Method, context.Request.Path, body);
-        throw;
-    }
-});
+ConfigureExceptionMiddleware(app, logger, dbConnectionString);
 
 // Log configuration status
-logger.LogInformation("DocDuck Query API starting...");
-logger.LogInformation("AI provider configured: {Status}", aiConfigured ? "Enabled" : "Disabled/Missing");
-logger.LogInformation("DB Connection configured: {Configured}", !string.IsNullOrWhiteSpace(dbConnectionString));
+logger.LogInformation("DocDuck Query API starting - AI: {AiStatus}, DB: {DbConfigured}",
+    aiConfigured ? "Enabled" : "Disabled/Missing",
+    !string.IsNullOrWhiteSpace(dbConnectionString));
 
 // Health check endpoint
 app.MapGet("/health", async (IVectorSearchService searchService, IModelAgnosticAiService aiSvc, CancellationToken ct) =>
@@ -375,5 +209,202 @@ static List<Api.Models.DocumentResult> GroupChunksByDocument(List<Source> chunks
             );
         })
         .ToList();
+}
+
+static void ConfigureSearchOptions(SearchOptions options)
+{
+    if (int.TryParse(Environment.GetEnvironmentVariable("DEFAULT_TOP_K"), out var topK))
+    {
+        options.DefaultTopK = topK;
+    }
+
+    if (int.TryParse(Environment.GetEnvironmentVariable("MAX_TOP_K"), out var maxTopK))
+    {
+        options.MaxTopK = maxTopK;
+    }
+
+    if (int.TryParse(Environment.GetEnvironmentVariable("MAX_SEARCH_DEPTH"), out var maxDepth))
+    {
+        options.MaxSearchDepth = Math.Max(1, maxDepth);
+    }
+
+    if (int.TryParse(Environment.GetEnvironmentVariable("DEFAULT_SEARCH_DEPTH"), out var defaultDepth))
+    {
+        options.DefaultSearchDepth = Math.Clamp(defaultDepth, 1, options.MaxSearchDepth);
+    }
+
+    if (bool.TryParse(Environment.GetEnvironmentVariable("ENABLE_LEXICAL_SEARCH"), out var enableLexical))
+    {
+        options.EnableLexicalSearch = enableLexical;
+    }
+
+    if (double.TryParse(Environment.GetEnvironmentVariable("LEXICAL_SCORE_WEIGHT"), NumberStyles.Float, CultureInfo.InvariantCulture, out var lexicalWeight))
+    {
+        options.LexicalScoreWeight = Math.Clamp(lexicalWeight, 0d, 1d);
+    }
+
+    if (int.TryParse(Environment.GetEnvironmentVariable("MAX_LEXICAL_RESULTS"), out var maxLexical))
+    {
+        options.MaxLexicalResults = Math.Max(1, maxLexical);
+    }
+
+    var lexicalConfig = Environment.GetEnvironmentVariable("LEXICAL_CONFIGURATION");
+    if (!string.IsNullOrWhiteSpace(lexicalConfig))
+    {
+        options.LexicalConfiguration = lexicalConfig;
+    }
+}
+
+static string ConfigureDatabase(WebApplicationBuilder builder)
+{
+    var envConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+    var configuredConnectionString = builder.Configuration["Database:ConnectionString"];
+    var dbConnectionString = !string.IsNullOrWhiteSpace(envConnectionString)
+        ? envConnectionString
+        : configuredConnectionString ?? string.Empty;
+
+    if (string.IsNullOrWhiteSpace(dbConnectionString))
+    {
+        throw new InvalidOperationException("Database connection string is required. Set DB_CONNECTION_STRING or configure Database:ConnectionString in appsettings.");
+    }
+
+    builder.Services.Configure<DbOptions>(options =>
+    {
+        options.ConnectionString = dbConnectionString;
+    });
+
+    return dbConnectionString;
+}
+
+static void ConfigureAdminAuth(WebApplicationBuilder builder)
+{
+    var adminSecret = Environment.GetEnvironmentVariable("ADMIN_AUTH_SECRET") ?? builder.Configuration["Admin:Secret"];
+    if (string.IsNullOrWhiteSpace(adminSecret))
+    {
+        throw new InvalidOperationException("Admin authentication secret is required. Set ADMIN_AUTH_SECRET or Admin:Secret in configuration.");
+    }
+
+    builder.Services.Configure<AdminAuthOptions>(options =>
+    {
+        options.Secret = adminSecret;
+
+        if (int.TryParse(Environment.GetEnvironmentVariable("ADMIN_TOKEN_LIFETIME_MINUTES"), out var envLifetime) && envLifetime > 0)
+        {
+            options.TokenLifetimeMinutes = envLifetime;
+        }
+        else if (int.TryParse(builder.Configuration["Admin:TokenLifetimeMinutes"], out var configLifetime) && configLifetime > 0)
+        {
+            options.TokenLifetimeMinutes = configLifetime;
+        }
+    });
+}
+
+static void RegisterServices(WebApplicationBuilder builder, string dbConnectionString)
+{
+    builder.Services.Configure<SearchOptions>(options => ConfigureSearchOptions(options));
+
+    builder.Services.AddSingleton(sp => new ProviderSchemaInitializer(dbConnectionString, sp.GetRequiredService<ILogger<ProviderSchemaInitializer>>()));
+    builder.Services.AddSingleton(new ProviderSettingsStore(dbConnectionString));
+    builder.Services.AddSingleton<ProviderFactory>();
+    builder.Services.AddSingleton<ProviderConfigurationService>();
+    builder.Services.AddSingleton<ProviderSettingsSeeder>();
+
+    builder.Services.AddSingleton(new AiProviderConfigurationStore(dbConnectionString));
+    builder.Services.AddSingleton<ModelAgnosticAiService>();
+    builder.Services.AddSingleton<IModelAgnosticAiService>(sp => sp.GetRequiredService<ModelAgnosticAiService>());
+    builder.Services.AddSingleton<AiConfigurationSeeder>();
+
+    builder.Services.AddSingleton(sp => new AdminUserStore(dbConnectionString, sp.GetRequiredService<ILogger<AdminUserStore>>()));
+    builder.Services.AddSingleton<AdminAuthService>();
+    builder.Services.AddScoped<AdminAuthFilter>();
+
+    builder.Services.AddSingleton<VectorSearchService>();
+    builder.Services.AddSingleton<IVectorSearchService>(sp => sp.GetRequiredService<VectorSearchService>());
+    builder.Services.AddSingleton<ChatService>();
+    builder.Services.AddSingleton<IChatService>(sp => sp.GetRequiredService<ChatService>());
+    builder.Services.AddSingleton<QueryHandler>();
+
+    // Add CORS for development
+    builder.Services.AddCors(options =>
+    {
+        options.AddDefaultPolicy(policy =>
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        });
+    });
+}
+
+static void ConfigureLogging(WebApplicationBuilder builder)
+{
+    builder.Logging.ClearProviders();
+    builder.Logging.AddConsole();
+    builder.Logging.SetMinimumLevel(LogLevel.Information);
+}
+
+static async Task BootstrapServicesAsync(WebApplication app)
+{
+    using var scope = app.Services.CreateScope();
+    var services = scope.ServiceProvider;
+
+    var schemaInitializer = services.GetRequiredService<ProviderSchemaInitializer>();
+    await schemaInitializer.EnsureSchemaAsync();
+
+    var providerSeeder = services.GetRequiredService<ProviderSettingsSeeder>();
+    await providerSeeder.SeedFromEnvironmentAsync();
+
+    var providerConfig = services.GetRequiredService<ProviderConfigurationService>();
+    await providerConfig.ReloadAsync();
+    var snapshot = await providerConfig.GetSnapshotAsync();
+
+    var aiSeeder = services.GetRequiredService<AiConfigurationSeeder>();
+    await aiSeeder.SeedFromEnvironmentAsync();
+
+    var bootstrapAiService = services.GetRequiredService<IModelAgnosticAiService>();
+    await bootstrapAiService.ReloadAsync();
+    var bootstrapAiConfig = await bootstrapAiService.GetConfigurationAsync();
+
+    var adminUserStore = services.GetRequiredService<AdminUserStore>();
+    await adminUserStore.EnsureDefaultAdminAsync(CancellationToken.None);
+
+    var bootstrapLogger = services.GetRequiredService<ILogger<Program>>();
+    bootstrapLogger.LogInformation("Provider configurations loaded: {Count}", snapshot.Settings.Count);
+    bootstrapLogger.LogInformation("AI provider configured: {Configured}", bootstrapAiConfig is { Enabled: true });
+}
+
+static void ConfigureExceptionMiddleware(WebApplication app, ILogger logger, string dbConnectionString)
+{
+    // Global exception logging middleware: captures unhandled exceptions and logs request details
+    app.Use(async (context, next) =>
+    {
+        try
+        {
+            // Allow downstream to read the request body multiple times
+            context.Request.EnableBuffering();
+            await next();
+        }
+        catch (Exception ex)
+        {
+            // Try to read request body for debugging (reset position afterwards)
+            string body = string.Empty;
+            try
+            {
+                context.Request.Body.Seek(0, SeekOrigin.Begin);
+                using var reader = new StreamReader(context.Request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+                body = await reader.ReadToEndAsync();
+                context.Request.Body.Seek(0, SeekOrigin.Begin);
+            }
+            catch (Exception readEx)
+            {
+                logger.LogDebug(readEx, "Failed to read request body for error logging");
+            }
+
+            logger.LogError(ex, "Unhandled exception processing {Method} {Path}. Request body: {Body}", context.Request.Method, context.Request.Path, body);
+            
+            // Rethrow with context for error handling middleware
+            throw new InvalidOperationException($"Request failed: {context.Request.Method} {context.Request.Path}", ex);
+        }
+    });
 }
 
