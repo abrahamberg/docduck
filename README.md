@@ -1,17 +1,19 @@
 # DocDuck
 
-Multi-provider document indexing and AI-powered Retrieval-Augmented Generation (RAG) built with .NET 8, PostgreSQL + pgvector, and OpenAI.
+Multi-provider document indexing and AI-powered Retrieval-Augmented Generation (RAG) built with .NET 8, PostgreSQL + pgvector, and flexible AI model support.
 
-> Index your OneDrive, S3, and local knowledge; ask natural language questions; receive cited answers.
+> Index your OneDrive, S3, and local knowledge; ask natural language questions; receive cited answers using any AI provider.
 
 ## Highlights
 
 - 🔌 Extensible Providers: OneDrive (business & personal), S3, local filesystem (add more via a tiny interface)
+- 🤖 Model-Agnostic AI: OpenAI, Anthropic, Azure OpenAI, local models (Ollama), custom endpoints via flexible JSON config
 - 🧠 Smart Indexing: ETag change detection, orphan cleanup, optional full reindex
 - ✂️ Robust Text Extraction: DOCX, Markdown/Text, PDF*, ODT, RTF (pluggable)
 - 🧩 Flexible Chunking: Tunable size & overlap for quality vs cost balance
 - 🗄️ Vector Search: PostgreSQL + pgvector (IVFFlat) + lexical hybrid search
 - 💬 Unified Query API: /query with adaptive depth (1-5) and optional SSE streaming
+- 🎛️ Admin UI: Configure AI models, providers, test connections via web interface
 - 🧱 Clean Architecture: Focused services, pragmatic SOLID, modern C#
 - 🚀 Deployment Friendly: Docker, Kubernetes CronJob (indexer) + Deployment (API)
 
@@ -32,7 +34,7 @@ psql -h localhost -U postgres -d docduck -c "CREATE EXTENSION IF NOT EXISTS vect
 psql -h localhost -U postgres -d docduck -f sql/01-init-schema.sql
 
 # 2. Environment
-export OPENAI_API_KEY=sk-...
+export OPENAI_API_KEY=sk-...  # Used for initial seeding only
 export DB_CONNECTION_STRING="Host=localhost;Database=docduck;Username=postgres;Password=postgres;MinPoolSize=1;MaxPoolSize=5"
 export PROVIDER_LOCAL_ENABLED=true
 export PROVIDER_LOCAL_NAME=localdocs
@@ -59,12 +61,14 @@ Full detail: see **Docs → Quick Start**.
 | Topic | Link |
 |-------|------|
 | Quick Start | docs/guides/quickstart.md |
+| **AI Configuration** | **docs/guides/ai-configuration.md** |
 | Installation Paths | docs/guides/installation.md |
 | Configuration Reference | docs/guides/configuration.md |
 | Providers Overview | docs/providers/index.md |
 | API Usage | docs/guides/api-usage.md |
 | Indexer Operation | docs/guides/indexer.md |
 | Architecture | docs/developer/architecture.md |
+| AI Layer & Models | docs/developer/ai-layer.md |
 | Pipeline Internals | docs/developer/pipeline.md |
 | Provider Framework | docs/developer/provider-framework.md |
 | Data Schema | docs/database/schema.md |

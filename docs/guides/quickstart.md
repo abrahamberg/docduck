@@ -16,10 +16,16 @@ If you have Docker installed, you can be querying your docs in a few commands.
   cat > .env <<'EOF'
   OPENAI_API_KEY=sk-yourkey
   LOCAL_DOCS_PATH=./sample-docs
+  # Optional: override default models
+  # OPENAI_MICRO_MODEL=gpt-4o-mini
+  # OPENAI_MINI_MODEL=gpt-4o-mini
+  # OPENAI_FULL_MODEL=gpt-4o
+  # OPENAI_EMBEDDING_MODEL=text-embedding-3-small
   # Optional: change admin secret
   ADMIN_AUTH_SECRET=change-me-local-admin-secret
   EOF
   ```
+  **Note**: These variables seed the initial configuration. After first startup, configure AI models (including non-OpenAI providers) via the admin UI at http://localhost:8080/admin/ai
 3. Launch the stack:
   ```bash
   docker compose up --build -d postgres
@@ -44,7 +50,9 @@ Skip to [Next Steps](#next) or continue for the manual (.NET SDK) path below.
 
 - Docker (recommended) OR .NET 8 SDK if building locally
 - PostgreSQL 15+ with `pgvector` extension (1536-dim embeddings)
-- OpenAI API key (or Azure OpenAI compatible endpoint)
+- AI API key (OpenAI recommended for quick start, but any provider supported via admin UI)
+
+**Note**: The system is **model-agnostic**. While this guide uses OpenAI for initial setup, you can configure any AI provider (Anthropic, Azure OpenAI, local models, etc.) through the admin UI after first run.
 
 ## 1. Prepare PostgreSQL
 

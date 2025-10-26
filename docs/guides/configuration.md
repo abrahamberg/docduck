@@ -6,10 +6,16 @@ DocDuck is configured primarily via environment variables. Some values may also 
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `DB_CONNECTION_STRING` | PostgreSQL connection string incl. pooling settings | Yes |
-| `OPENAI_API_KEY` | OpenAI (or Azure OpenAI compatible) API key | Yes* |
-| `OPENAI_BASE_URL` | Override base URL (Azure / proxy) | No |
+| `OPENAI_API_KEY` | API key for AI provider (seeding only) | Yes* |
+| `OPENAI_BASE_URL` | Base URL for AI provider (seeding only) | No |
+| `OPENAI_MICRO_MODEL` | Model ID for micro tier (e.g., `gpt-4o-mini`) | No |
+| `OPENAI_MINI_MODEL` | Model ID for mini tier (e.g., `gpt-4o-mini`) | No |
+| `OPENAI_FULL_MODEL` | Model ID for full tier (e.g., `gpt-4o`) | No |
+| `OPENAI_EMBEDDING_MODEL` | Embedding model ID (e.g., `text-embedding-3-small`) | No |
 
-`*` Only required for indexing embeddings and answering queries.
+`*` Only required for initial seeding. After first run, configure AI models via admin UI with full flexibility (any provider, custom URLs, headers, templates).
+
+**Note**: Environment variables are used **only for initial database seeding**. All AI configuration is stored in the database and managed via the admin UI. The system supports any AI provider through flexible JSON-based configuration.
 
 ## Chunking & Indexer Behavior
 | Variable | Purpose | Default |

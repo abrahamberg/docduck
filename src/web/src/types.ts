@@ -83,6 +83,6 @@ export interface HealthStatus {
   timestamp: string;
   chunks: number;
   documents: number;
-  openAiKeyPresent: boolean;
+  aiKeyPresent: boolean;
   dbConnectionPresent: boolean;
 }

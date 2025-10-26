@@ -203,30 +203,25 @@ public sealed class ResponseMapping
 public static class DefaultRequestTemplates
 {
     /// <summary>
-    /// Standard OpenAI chat completions format.
+    /// Minimal OpenAI chat completions format.
+    /// Only includes required fields - additional parameters come from DefaultParams.
     /// </summary>
     public static readonly string OpenAiChat = """
     {
       "model": "{MODEL_ID}",
-      "messages": {MESSAGES},
-      "temperature": {TEMPERATURE},
-      "max_tokens": {MAX_TOKENS},
-      "stream": false
+      "messages": {MESSAGES}
     }
     """;
 
     /// <summary>
     /// OpenAI format with tools support.
+    /// Only includes required fields - additional parameters come from DefaultParams.
     /// </summary>
     public static readonly string OpenAiChatWithTools = """
     {
       "model": "{MODEL_ID}",
       "messages": {MESSAGES},
-      "temperature": {TEMPERATURE},
-      "max_tokens": {MAX_TOKENS},
-      "tools": {TOOLS},
-      "tool_choice": {TOOL_CHOICE},
-      "stream": false
+      "tools": {TOOLS}
     }
     """;
 

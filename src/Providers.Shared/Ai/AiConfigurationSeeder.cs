@@ -92,6 +92,8 @@ public sealed class AiConfigurationSeeder
             JsonDocument.Parse(JsonSerializer.Serialize(template));
 
         // Create full 3-tier OpenAI configuration
+        // Note: DefaultParams are empty - let OpenAI use its own defaults
+        // Users can override via UI if needed for their specific models
         var microModelAssignment = new AiModelAssignment
         {
             Id = "openai-micro",
@@ -105,10 +107,7 @@ public sealed class AiConfigurationSeeder
             },
             RequestTemplate = WrapTemplateAsJson(DefaultRequestTemplates.OpenAiChat),
             ResponseMapping = DefaultRequestTemplates.OpenAiResponseMapping,
-            DefaultParams = new Dictionary<string, JsonElement>
-            {
-                ["temperature"] = JsonDocument.Parse("0.0").RootElement.Clone()
-            },
+            DefaultParams = new Dictionary<string, JsonElement>(), // Empty - use model defaults
             MaxContextTokens = 128000,
             MaxOutputTokens = 16000,
             SupportsFunctionCalling = true,
@@ -129,10 +128,7 @@ public sealed class AiConfigurationSeeder
             },
             RequestTemplate = WrapTemplateAsJson(DefaultRequestTemplates.OpenAiChat),
             ResponseMapping = DefaultRequestTemplates.OpenAiResponseMapping,
-            DefaultParams = new Dictionary<string, JsonElement>
-            {
-                ["temperature"] = JsonDocument.Parse("0.0").RootElement.Clone()
-            },
+            DefaultParams = new Dictionary<string, JsonElement>(), // Empty - use model defaults
             MaxContextTokens = 128000,
             MaxOutputTokens = 16000,
             SupportsFunctionCalling = true,
@@ -153,10 +149,7 @@ public sealed class AiConfigurationSeeder
             },
             RequestTemplate = WrapTemplateAsJson(DefaultRequestTemplates.OpenAiChat),
             ResponseMapping = DefaultRequestTemplates.OpenAiResponseMapping,
-            DefaultParams = new Dictionary<string, JsonElement>
-            {
-                ["temperature"] = JsonDocument.Parse("0.0").RootElement.Clone()
-            },
+            DefaultParams = new Dictionary<string, JsonElement>(), // Empty - use model defaults
             MaxContextTokens = 200000,
             MaxOutputTokens = 100000,
             SupportsFunctionCalling = true,

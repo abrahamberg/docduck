@@ -34,16 +34,22 @@ interface ModelFormData {
   id: string;
   displayName: string;
   modelId: string;
-  baseUrl: string;
-  apiKey: string;
+  url: string;
+  headers: Record<string, string>;
+  requestTemplate?: string; // JSON as string for editing
+  responseMapping?: string; // JSON as string for editing
+  defaultParams?: string; // JSON as string for editing
 }
 
 interface EmbeddingFormData {
   id: string;
   displayName: string;
   modelId: string;
-  baseUrl: string;
-  apiKey: string;
+  url: string;
+  headers: Record<string, string>;
+  requestTemplate?: string;
+  responseMapping?: string;
+  defaultParams?: string;
   dimensions: number;
 }
 
@@ -98,8 +104,11 @@ export const AiModelsPage: React.FC = () => {
       id: '',
       displayName: '',
       modelId: '',
-      baseUrl: '',
-      apiKey: '',
+      url: 'https://api.openai.com/v1/chat/completions',
+      headers: { 'Authorization': 'Bearer YOUR_API_KEY' },
+      requestTemplate: '{\n  "model": "{MODEL_ID}",\n  "messages": {MESSAGES}\n}',
+      responseMapping: undefined,
+      defaultParams: '{}',
     };
     setEditingModel(newModel);
     setOriginalModel(newModel);
@@ -116,8 +125,19 @@ export const AiModelsPage: React.FC = () => {
       id: model.id,
       displayName: model.displayName || '',
       modelId: model.modelId || '',
-      baseUrl: model.baseUrl || '',
-      apiKey: model.apiKey || '',
+      url: model.url || '',
+      headers: model.headers || {},
+      requestTemplate: typeof model.requestTemplate === 'string' 
+        ? model.requestTemplate 
+        : model.requestTemplate 
+          ? JSON.stringify(model.requestTemplate, null, 2)
+          : undefined,
+      responseMapping: model.responseMapping 
+        ? JSON.stringify(model.responseMapping, null, 2)
+        : undefined,
+      defaultParams: model.defaultParams 
+        ? JSON.stringify(model.defaultParams, null, 2)
+        : '{}',
     };
     setEditingModel(modelData);
     setOriginalModel(modelData);
@@ -141,8 +161,33 @@ export const AiModelsPage: React.FC = () => {
     if (!editingModel?.modelId?.trim()) {
       errors.modelId = 'Model ID is required';
     }
-    if (editingModel?.baseUrl && !editingModel.baseUrl.match(/^https?:\/\/.+/)) {
-      errors.baseUrl = 'Invalid URL format';
+    if (!editingModel?.url?.trim()) {
+      errors.url = 'URL is required';
+    } else if (!editingModel.url.match(/^https?:\/\/.+/)) {
+      errors.url = 'Invalid URL format';
+    }
+    
+    // Validate JSON fields
+    if (editingModel?.requestTemplate) {
+      try {
+        JSON.parse(editingModel.requestTemplate);
+      } catch {
+        errors.requestTemplate = 'Invalid JSON';
+      }
+    }
+    if (editingModel?.responseMapping) {
+      try {
+        JSON.parse(editingModel.responseMapping);
+      } catch {
+        errors.responseMapping = 'Invalid JSON';
+      }
+    }
+    if (editingModel?.defaultParams) {
+      try {
+        JSON.parse(editingModel.defaultParams);
+      } catch {
+        errors.defaultParams = 'Invalid JSON';
+      }
     }
     
     setFieldErrors(errors);
@@ -156,18 +201,17 @@ export const AiModelsPage: React.FC = () => {
 
     const isNew = !config.modelRegistry?.some(m => m.id === editingModel.id);
     
-    // Prepare model data - only include apiKey if it was actually changed
+    // Parse JSON fields
     const modelData: any = {
       id: editingModel.id,
       displayName: editingModel.displayName,
       modelId: editingModel.modelId,
-      baseUrl: editingModel.baseUrl,
+      url: editingModel.url,
+      headers: editingModel.headers,
+      requestTemplate: editingModel.requestTemplate ? editingModel.requestTemplate : undefined,
+      responseMapping: editingModel.responseMapping ? JSON.parse(editingModel.responseMapping) : undefined,
+      defaultParams: editingModel.defaultParams ? JSON.parse(editingModel.defaultParams) : {},
     };
-    
-    // Only include API key if it was changed (not masked value)
-    if (modelApiKeyChanged || isNew) {
-      modelData.apiKey = editingModel.apiKey;
-    }
     
     let updatedConfig: AiConfigurationDto;
     
@@ -179,7 +223,6 @@ export const AiModelsPage: React.FC = () => {
           ...(config.modelRegistry || []),
           {
             ...modelData,
-            apiKey: editingModel.apiKey, // Always include for new models
             enabled: true,
             testStatus: 0, // Untested
             lastTestedAt: undefined,
@@ -393,16 +436,22 @@ export const AiModelsPage: React.FC = () => {
       id: '',
       displayName: '',
       modelId: '',
-      baseUrl: '',
-      apiKey: '',
+      url: 'https://api.openai.com/v1/embeddings',
+      headers: { 'Authorization': 'Bearer YOUR_API_KEY' },
+      requestTemplate: '{\n  "model": "{MODEL_ID}",\n  "input": "{INPUT}",\n  "encoding_format": "float"\n}',
+      responseMapping: '{"embedding": "$.data[0].embedding"}',
+      defaultParams: '{}',
       dimensions: 1536,
     });
     setOriginalEmbedding({
       id: '',
       displayName: '',
       modelId: '',
-      baseUrl: '',
-      apiKey: '',
+      url: 'https://api.openai.com/v1/embeddings',
+      headers: { 'Authorization': 'Bearer YOUR_API_KEY' },
+      requestTemplate: '{\n  "model": "{MODEL_ID}",\n  "input": "{INPUT}",\n  "encoding_format": "float"\n}',
+      responseMapping: '{"embedding": "$.data[0].embedding"}',
+      defaultParams: '{}',
       dimensions: 1536,
     });
     setEmbeddingTouched(false);
@@ -418,8 +467,19 @@ export const AiModelsPage: React.FC = () => {
       id: embedding.id,
       displayName: embedding.displayName || '',
       modelId: embedding.modelId || '',
-      baseUrl: embedding.baseUrl || '',
-      apiKey: embedding.apiKey || '',
+      url: embedding.url || '',
+      headers: embedding.headers || {},
+      requestTemplate: typeof embedding.requestTemplate === 'string'
+        ? embedding.requestTemplate
+        : embedding.requestTemplate
+          ? JSON.stringify(embedding.requestTemplate, null, 2)
+          : undefined,
+      responseMapping: embedding.responseMapping
+        ? JSON.stringify(embedding.responseMapping, null, 2)
+        : undefined,
+      defaultParams: embedding.defaultParams
+        ? JSON.stringify(embedding.defaultParams, null, 2)
+        : '{}',
       dimensions: embedding.dimensions || 1536,
     };
     setEditingEmbedding(embeddingData);
@@ -437,19 +497,18 @@ export const AiModelsPage: React.FC = () => {
 
     const isNew = !config.embeddingRegistry?.some(e => e.id === editingEmbedding.id);
     
-    // Prepare embedding data - only include apiKey if it was actually changed
+    // Parse JSON fields
     const embeddingData: any = {
       id: editingEmbedding.id,
       displayName: editingEmbedding.displayName,
       modelId: editingEmbedding.modelId,
-      baseUrl: editingEmbedding.baseUrl,
+      url: editingEmbedding.url,
+      headers: editingEmbedding.headers,
+      requestTemplate: editingEmbedding.requestTemplate ? editingEmbedding.requestTemplate : undefined,
+      responseMapping: editingEmbedding.responseMapping ? JSON.parse(editingEmbedding.responseMapping) : undefined,
+      defaultParams: editingEmbedding.defaultParams ? JSON.parse(editingEmbedding.defaultParams) : {},
       dimensions: editingEmbedding.dimensions,
     };
-    
-    // Only include API key if it was changed (not masked value)
-    if (embeddingApiKeyChanged || isNew) {
-      embeddingData.apiKey = editingEmbedding.apiKey;
-    }
     
     let updatedConfig: AiConfigurationDto;
     
@@ -460,12 +519,10 @@ export const AiModelsPage: React.FC = () => {
           ...(config.embeddingRegistry || []),
           {
             ...embeddingData,
-            apiKey: editingEmbedding.apiKey, // Always include for new embeddings
             enabled: true,
             testStatus: 0,
             lastTestedAt: undefined,
             lastTestMessage: undefined,
-            customHeaders: {},
             timeoutSeconds: 120,
           },
         ],
@@ -795,39 +852,69 @@ export const AiModelsPage: React.FC = () => {
               error={!!fieldErrors.modelId}
             />
             <TextField
-              label="Base URL"
-              value={editingModel?.baseUrl || ''}
-              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, baseUrl: e.target.value } : null); setModelTouched(true); }}
+              label="URL"
+              value={editingModel?.url || ''}
+              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, url: e.target.value } : null); setModelTouched(true); }}
               fullWidth
               size="small"
-              placeholder="https://api.openai.com/v1"
-              helperText={fieldErrors.baseUrl || "Leave empty for OpenAI default"}
-              error={!!fieldErrors.baseUrl}
+              placeholder="https://api.openai.com/v1/chat/completions"
+              helperText={fieldErrors.url || "Full endpoint URL"}
+              error={!!fieldErrors.url}
             />
             <TextField
-              label="API Key"
-              value={editingModel?.apiKey || ''}
+              label="Headers (JSON)"
+              value={JSON.stringify(editingModel?.headers || {}, null, 2)}
               onChange={(e) => { 
-                setEditingModel(editingModel ? { ...editingModel, apiKey: e.target.value } : null); 
-                setModelTouched(true);
-                setModelApiKeyChanged(true);
+                try {
+                  const headers = JSON.parse(e.target.value);
+                  setEditingModel(editingModel ? { ...editingModel, headers } : null);
+                  setModelTouched(true);
+                } catch {
+                  // Invalid JSON - let user continue typing
+                }
               }}
               fullWidth
+              multiline
+              rows={3}
               size="small"
-              type={showModelApiKey ? "text" : "password"}
-              placeholder="sk-..."
-              helperText={editingModel?.apiKey?.includes('...') ? "Masked - change only if updating key" : "Leave empty to use default from config"}
-              InputProps={{
-                endAdornment: (
-                  <IconButton
-                    size="small"
-                    onClick={() => setShowModelApiKey(!showModelApiKey)}
-                    edge="end"
-                  >
-                    {showModelApiKey ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                ),
-              }}
+              placeholder='{"Authorization": "Bearer sk-..."}'
+              helperText="HTTP headers as JSON object"
+            />
+            <TextField
+              label="Request Template (JSON)"
+              value={editingModel?.requestTemplate || ''}
+              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, requestTemplate: e.target.value } : null); setModelTouched(true); }}
+              fullWidth
+              multiline
+              rows={4}
+              size="small"
+              placeholder='{"model": "{MODEL_ID}", "messages": {MESSAGES}}'
+              helperText={fieldErrors.requestTemplate || "Template with {MODEL_ID}, {MESSAGES} placeholders"}
+              error={!!fieldErrors.requestTemplate}
+            />
+            <TextField
+              label="Response Mapping (JSON, optional)"
+              value={editingModel?.responseMapping || ''}
+              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, responseMapping: e.target.value } : null); setModelTouched(true); }}
+              fullWidth
+              multiline
+              rows={3}
+              size="small"
+              placeholder='{"contentPath": "choices[0].message.content"}'
+              helperText={fieldErrors.responseMapping || "JSON path mappings for response fields"}
+              error={!!fieldErrors.responseMapping}
+            />
+            <TextField
+              label="Default Parameters (JSON)"
+              value={editingModel?.defaultParams || '{}'}
+              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, defaultParams: e.target.value } : null); setModelTouched(true); }}
+              fullWidth
+              multiline
+              rows={3}
+              size="small"
+              placeholder='{}'
+              helperText={fieldErrors.defaultParams || "Model-specific parameters (e.g., temperature, top_p)"}
+              error={!!fieldErrors.defaultParams}
             />
             
             {editingModel?.id && config?.modelRegistry?.some(m => m.id === editingModel.id) && !modelTouched && (
@@ -929,41 +1016,77 @@ export const AiModelsPage: React.FC = () => {
               placeholder="e.g., text-embedding-3-small"
             />
             <TextField
-              label="Base URL"
-              value={editingEmbedding?.baseUrl || ''}
+              label="URL"
+              value={editingEmbedding?.url || ''}
               onChange={(e) => { 
-                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, baseUrl: e.target.value } : null); 
+                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, url: e.target.value } : null); 
                 setEmbeddingTouched(true);
               }}
               fullWidth
               size="small"
-              placeholder="https://api.openai.com/v1"
-              helperText="Leave empty for OpenAI default"
+              placeholder="https://api.openai.com/v1/embeddings"
+              helperText="Full endpoint URL"
             />
             <TextField
-              label="API Key"
-              value={editingEmbedding?.apiKey || ''}
+              label="Headers (JSON)"
+              value={JSON.stringify(editingEmbedding?.headers || {}, null, 2)}
               onChange={(e) => { 
-                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, apiKey: e.target.value } : null); 
-                setEmbeddingTouched(true);
-                setEmbeddingApiKeyChanged(true);
+                try {
+                  const headers = JSON.parse(e.target.value);
+                  setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, headers } : null);
+                  setEmbeddingTouched(true);
+                } catch {
+                  // Invalid JSON - let user continue typing
+                }
               }}
               fullWidth
+              multiline
+              rows={3}
               size="small"
-              type={showEmbeddingApiKey ? "text" : "password"}
-              placeholder="sk-..."
-              helperText={editingEmbedding?.apiKey?.includes('...') ? "Masked - change only if updating key" : "Leave empty to use default from config"}
-              InputProps={{
-                endAdornment: (
-                  <IconButton
-                    size="small"
-                    onClick={() => setShowEmbeddingApiKey(!showEmbeddingApiKey)}
-                    edge="end"
-                  >
-                    {showEmbeddingApiKey ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                ),
+              placeholder='{"Authorization": "Bearer sk-..."}'
+              helperText="HTTP headers as JSON object"
+            />
+            <TextField
+              label="Request Template (JSON)"
+              value={editingEmbedding?.requestTemplate || ''}
+              onChange={(e) => { 
+                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, requestTemplate: e.target.value } : null); 
+                setEmbeddingTouched(true);
               }}
+              fullWidth
+              multiline
+              rows={3}
+              size="small"
+              placeholder='{"model": "{MODEL_ID}", "input": "{INPUT}"}'
+              helperText="Template with {MODEL_ID}, {INPUT} placeholders"
+            />
+            <TextField
+              label="Response Mapping (JSON)"
+              value={editingEmbedding?.responseMapping || ''}
+              onChange={(e) => { 
+                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, responseMapping: e.target.value } : null); 
+                setEmbeddingTouched(true);
+              }}
+              fullWidth
+              multiline
+              rows={2}
+              size="small"
+              placeholder='{"embedding": "$.data[0].embedding"}'
+              helperText="JSON path mappings for response fields"
+            />
+            <TextField
+              label="Default Parameters (JSON)"
+              value={editingEmbedding?.defaultParams || '{}'}
+              onChange={(e) => { 
+                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, defaultParams: e.target.value } : null); 
+                setEmbeddingTouched(true);
+              }}
+              fullWidth
+              multiline
+              rows={2}
+              size="small"
+              placeholder='{}'
+              helperText="Model-specific parameters"
             />
             <TextField
               label="Dimensions"

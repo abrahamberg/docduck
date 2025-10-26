@@ -38,33 +38,48 @@ export interface AiModelAssignmentDto {
   id: string;
   displayName: string;
   modelId: string;
-  baseUrl: string;
-  apiKey: string;
+  url: string;
+  headers: Record<string, string>;
+  requestTemplate?: any; // JSON template as string or object
+  responseMapping?: any; // Response path mapping
+  defaultParams?: Record<string, any>; // Model-specific parameters as JSON
   maxContextTokens: number;
   maxOutputTokens: number;
   supportsFunctionCalling: boolean;
   costFactor: number;
   enabled: boolean;
-  customHeaders?: Record<string, string>;
   timeoutSeconds: number;
   testStatus?: number; // 0=Untested, 1=Passed, 2=Failed
   lastTestedAt?: string;
   lastTestMessage?: string;
+  
+  // Deprecated - for backward compatibility
+  baseUrl?: string;
+  apiKey?: string;
+  customHeaders?: Record<string, string>;
 }
 
 export interface AiEmbeddingModelAssignmentDto {
   id: string;
   displayName: string;
   modelId: string;
-  baseUrl: string;
-  apiKey: string;
+  url: string;
+  headers: Record<string, string>;
+  requestTemplate?: any;
+  responseMapping?: Record<string, string>;
+  defaultParams?: Record<string, any>;
   dimensions: number;
+  batchSize?: number;
   enabled: boolean;
-  customHeaders?: Record<string, string>;
   timeoutSeconds: number;
   testStatus?: number;
   lastTestedAt?: string;
   lastTestMessage?: string;
+  
+  // Deprecated - for backward compatibility
+  baseUrl?: string;
+  apiKey?: string;
+  customHeaders?: string[];
 }
 
 export interface AiConfigurationDto {

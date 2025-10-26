@@ -21,7 +21,7 @@ public sealed record AiModelAssignmentDto(
     string ModelId,
     string Url,
     Dictionary<string, string> Headers,
-    JsonElement RequestTemplate,
+    JsonElement? RequestTemplate,
     ResponseMappingDto? ResponseMapping,
     Dictionary<string, JsonElement> DefaultParams,
     int MaxContextTokens,
@@ -50,15 +50,17 @@ public sealed record AiEmbeddingModelAssignmentDto(
     string Id,
     string DisplayName,
     string ModelId,
-    string BaseUrl,
-    string ApiKey, // Will be masked in GET responses
+    string Url,
+    Dictionary<string, string> Headers,
+    JsonElement? RequestTemplate,
+    JsonElement? ResponseMapping,
+    Dictionary<string, JsonElement>? DefaultParams,
     int Dimensions,
     int BatchSize,
     bool Enabled,
     ModelTestStatus TestStatus,
     DateTimeOffset? LastTestedAt,
     string? LastTestMessage,
-    List<string> CustomHeaders,
     int TimeoutSeconds
 );
 
@@ -102,11 +104,11 @@ public static class AiConfigurationMapper
         return new AiConfigurationDto(
             Enabled: config.Enabled,
             DefaultSelectionStrategy: config.DefaultSelectionStrategy,
-            ModelRegistry: config.ModelRegistry.Select(m => ToDto(m, maskApiKey: true)).ToList(),
+            ModelRegistry: config.ModelRegistry.Select(m => ToDto(m, maskApiKey: false)).ToList(),
             MicroModelId: config.MicroModelId,
             MiniModelId: config.MiniModelId,
             FullModelId: config.FullModelId,
-            EmbeddingRegistry: config.EmbeddingRegistry.Select(m => ToDto(m, maskApiKey: true)).ToList(),
+            EmbeddingRegistry: config.EmbeddingRegistry.Select(m => ToDto(m, maskApiKey: false)).ToList(),
             ActiveEmbeddingModelId: config.ActiveEmbeddingModelId,
             LoadedAt: loadedAt
         );
@@ -129,7 +131,7 @@ public static class AiConfigurationMapper
             Headers: maskApiKey && !string.IsNullOrEmpty(apiKey)
                 ? new Dictionary<string, string>(model.Headers) { ["Authorization"] = $"Bearer {MaskApiKey(apiKey)}" }
                 : new Dictionary<string, string>(model.Headers),
-            RequestTemplate: model.RequestTemplate.RootElement.Clone(),
+            RequestTemplate: model.RequestTemplate?.RootElement.Clone(),
             ResponseMapping: model.ResponseMapping == null ? null : new ResponseMappingDto(
                 ContentPath: model.ResponseMapping.ContentPath,
                 RolePath: model.ResponseMapping.RolePath,
@@ -161,15 +163,17 @@ public static class AiConfigurationMapper
             Id: model.Id,
             DisplayName: model.DisplayName,
             ModelId: model.ModelId,
-            BaseUrl: model.BaseUrl,
-            ApiKey: maskApiKey ? MaskApiKey(model.ApiKey) : model.ApiKey,
+            Url: model.Url,
+            Headers: new Dictionary<string, string>(model.Headers),
+            RequestTemplate: model.RequestTemplate?.RootElement.Clone(),
+            ResponseMapping: JsonSerializer.SerializeToElement(model.ResponseMapping),
+            DefaultParams: model.DefaultParams?.ToDictionary(kv => kv.Key, kv => JsonSerializer.SerializeToElement(kv.Value)),
             Dimensions: model.Dimensions,
             BatchSize: model.BatchSize,
             Enabled: model.Enabled,
             TestStatus: model.TestStatus,
             LastTestedAt: model.LastTestedAt,
             LastTestMessage: model.LastTestMessage,
-            CustomHeaders: new List<string>(model.CustomHeaders),
             TimeoutSeconds: model.TimeoutSeconds
         );
     }
@@ -198,7 +202,9 @@ public static class AiConfigurationMapper
             ModelId = dto.ModelId,
             Url = dto.Url,
             Headers = new Dictionary<string, string>(dto.Headers),
-            RequestTemplate = JsonDocument.Parse(dto.RequestTemplate.GetRawText()),
+            RequestTemplate = dto.RequestTemplate.HasValue
+                ? JsonDocument.Parse(dto.RequestTemplate.Value.GetRawText())
+                : null,
             ResponseMapping = dto.ResponseMapping == null ? null : new ResponseMapping
             {
                 ContentPath = dto.ResponseMapping.ContentPath,
@@ -232,15 +238,23 @@ public static class AiConfigurationMapper
             Id = dto.Id,
             DisplayName = dto.DisplayName,
             ModelId = dto.ModelId,
-            BaseUrl = dto.BaseUrl,
-            ApiKey = dto.ApiKey,
+            Url = dto.Url,
+            Headers = new Dictionary<string, string>(dto.Headers),
+            RequestTemplate = dto.RequestTemplate.HasValue
+                ? JsonDocument.Parse(dto.RequestTemplate.Value.GetRawText())
+                : null,
+            ResponseMapping = dto.ResponseMapping.HasValue
+                ? JsonSerializer.Deserialize<Dictionary<string, string>>(dto.ResponseMapping.Value.GetRawText()) ?? new Dictionary<string, string>()
+                : new Dictionary<string, string>(),
+            DefaultParams = dto.DefaultParams?
+                .ToDictionary(kv => kv.Key, kv => JsonSerializer.Deserialize<object>(kv.Value.GetRawText()) ?? new object())
+                ?? new Dictionary<string, object>(),
             Dimensions = dto.Dimensions,
             BatchSize = dto.BatchSize,
             Enabled = dto.Enabled,
             TestStatus = dto.TestStatus,
             LastTestedAt = dto.LastTestedAt,
             LastTestMessage = dto.LastTestMessage,
-            CustomHeaders = new List<string>(dto.CustomHeaders),
             TimeoutSeconds = dto.TimeoutSeconds
         };
     }

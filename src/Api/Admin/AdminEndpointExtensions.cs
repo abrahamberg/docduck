@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DocDuck.Providers.Ai;
 using DocDuck.Providers.Configuration;
 using DocDuck.Providers.Providers;
@@ -284,9 +285,7 @@ public static class AdminEndpointExtensions
                     messages = new[]
                     {
                         new { role = "user", content = "Respond with just 'OK' to confirm you are working." }
-                    },
-                    max_tokens = 10,
-                    temperature = 0.0
+                    }
                 };
 
                 var jsonContent = new StringContent(
@@ -386,69 +385,98 @@ public static class AdminEndpointExtensions
             {
                 var timeout = TimeSpan.FromSeconds(120);
                 
-                // Use model's baseUrl or default - should end with /v1 or /v1/
-                var baseUrl = !string.IsNullOrWhiteSpace(model.BaseUrl) 
-                    ? model.BaseUrl.TrimEnd('/') 
-                    : "https://api.openai.com/v1";
-                
-                // Build full endpoint URL
-                var endpoint = $"{baseUrl}/chat/completions";
+                // Use new flexible Url property
+                if (string.IsNullOrWhiteSpace(model.Url))
+                {
+                    return Results.BadRequest(new { error = "Model URL is not configured." });
+                }
                 
                 using var http = new HttpClient
                 {
                     Timeout = timeout
                 };
 
-                // API key is optional - only add Authorization header if provided
-                if (!string.IsNullOrWhiteSpace(model.ApiKey))
+                // Add headers from Headers dictionary
+                if (model.Headers != null)
                 {
-                    http.DefaultRequestHeaders.Authorization = 
-                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", model.ApiKey);
+                    foreach (var (key, value) in model.Headers)
+                    {
+                        if (key.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = value.Split(' ', 2, StringSplitOptions.TrimEntries);
+                            if (parts.Length == 2)
+                            {
+                                http.DefaultRequestHeaders.Authorization = 
+                                    new System.Net.Http.Headers.AuthenticationHeaderValue(parts[0], parts[1]);
+                            }
+                        }
+                        else if (!key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
+                        {
+                            http.DefaultRequestHeaders.TryAddWithoutValidation(key, value);
+                        }
+                    }
                 }
 
                 // Test with function calling to verify model capabilities
-                var testPayload = new
+                // Build request from template + DefaultParams
+                var basePayload = new JsonObject
                 {
-                    model = model.ModelId,
-                    messages = new[]
+                    ["model"] = model.ModelId,
+                    ["messages"] = new JsonArray
                     {
-                        new { role = "system", content = "You are a helpful assistant with access to functions." },
-                        new { role = "user", content = "What is the weather in San Francisco?" }
+                        new JsonObject { ["role"] = "system", ["content"] = "You are a helpful assistant with access to functions." },
+                        new JsonObject { ["role"] = "user", ["content"] = "What is the weather in San Francisco?" }
                     },
-                    tools = new[]
+                    ["tools"] = new JsonArray
                     {
-                        new
+                        new JsonObject
                         {
-                            type = "function",
-                            function = new
+                            ["type"] = "function",
+                            ["function"] = new JsonObject
                             {
-                                name = "get_weather",
-                                description = "Get the current weather for a location",
-                                parameters = new
+                                ["name"] = "get_weather",
+                                ["description"] = "Get the current weather for a location",
+                                ["parameters"] = new JsonObject
                                 {
-                                    type = "object",
-                                    properties = new
+                                    ["type"] = "object",
+                                    ["properties"] = new JsonObject
                                     {
-                                        location = new { type = "string", description = "The city and state, e.g. San Francisco, CA" }
+                                        ["location"] = new JsonObject
+                                        {
+                                            ["type"] = "string",
+                                            ["description"] = "The city and state, e.g. San Francisco, CA"
+                                        }
                                     },
-                                    required = new[] { "location" }
+                                    ["required"] = new JsonArray { "location" }
                                 }
                             }
                         }
-                    },
-                    max_tokens = 100,
-                    temperature = 0.0
+                    }
                 };
 
+                // Merge DefaultParams from model config
+                if (model.DefaultParams != null)
+                {
+                    foreach (var (key, value) in model.DefaultParams)
+                    {
+                        if (!basePayload.ContainsKey(key))
+                        {
+                            basePayload[key] = System.Text.Json.Nodes.JsonNode.Parse(value.GetRawText());
+                        }
+                    }
+                }
+
+                var testPayload = basePayload.ToJsonString();
+
                 var jsonContent = new StringContent(
-                    JsonSerializer.Serialize(testPayload),
+                    testPayload,
                     System.Text.Encoding.UTF8,
                     "application/json");
 
-                logger.LogInformation("Testing saved model {ModelId} ({Model}) at {Endpoint}", 
-                    model.Id, model.ModelId, endpoint);
+                logger.LogInformation("Testing saved model {ModelId} ({Model}) at {Url}", 
+                    model.Id, model.ModelId, model.Url);
 
-                using var response = await http.PostAsync(endpoint, jsonContent, ct);
+                using var response = await http.PostAsync(model.Url, jsonContent, ct);
                 var body = await response.Content.ReadAsStringAsync(ct);
                 sw.Stop();
 
@@ -624,24 +652,36 @@ public static class AdminEndpointExtensions
             {
                 var timeout = TimeSpan.FromSeconds(120);
                 
-                // Use embedding's baseUrl or default - should end with /v1 or /v1/
-                var baseUrl = !string.IsNullOrWhiteSpace(embedding.BaseUrl) 
-                    ? embedding.BaseUrl.TrimEnd('/') 
-                    : "https://api.openai.com/v1";
-                
-                // Build full endpoint URL
-                var endpoint = $"{baseUrl}/embeddings";
+                // Use new flexible Url property
+                if (string.IsNullOrWhiteSpace(embedding.Url))
+                {
+                    return Results.BadRequest(new { error = "Embedding model URL is not configured." });
+                }
                 
                 using var http = new HttpClient
                 {
                     Timeout = timeout
                 };
 
-                // API key is optional - only add Authorization header if provided
-                if (!string.IsNullOrWhiteSpace(embedding.ApiKey))
+                // Add headers from Headers dictionary
+                if (embedding.Headers != null)
                 {
-                    http.DefaultRequestHeaders.Authorization = 
-                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", embedding.ApiKey);
+                    foreach (var (key, value) in embedding.Headers)
+                    {
+                        if (key.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = value.Split(' ', 2, StringSplitOptions.TrimEntries);
+                            if (parts.Length == 2)
+                            {
+                                http.DefaultRequestHeaders.Authorization = 
+                                    new System.Net.Http.Headers.AuthenticationHeaderValue(parts[0], parts[1]);
+                            }
+                        }
+                        else if (!key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
+                        {
+                            http.DefaultRequestHeaders.TryAddWithoutValidation(key, value);
+                        }
+                    }
                 }
 
                 // Test embedding with simple text
@@ -657,10 +697,10 @@ public static class AdminEndpointExtensions
                     System.Text.Encoding.UTF8,
                     "application/json");
 
-                logger.LogInformation("Testing saved embedding model {ModelId} ({Model}) at {Endpoint}", 
-                    embedding.Id, embedding.ModelId, endpoint);
+                logger.LogInformation("Testing saved embedding model {ModelId} ({Model}) at {Url}", 
+                    embedding.Id, embedding.ModelId, embedding.Url);
 
-                using var response = await http.PostAsync(endpoint, jsonContent, ct);
+                using var response = await http.PostAsync(embedding.Url, jsonContent, ct);
                 var body = await response.Content.ReadAsStringAsync(ct);
                 sw.Stop();
 

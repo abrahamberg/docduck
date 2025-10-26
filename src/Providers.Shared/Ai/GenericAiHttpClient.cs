@@ -103,14 +103,11 @@ public sealed class GenericAiHttpClient : IDisposable
         // Use template-based request if configured
         if (_model.RequestTemplate != null)
         {
-            var effectiveTemp = temperature ?? _model.GetDefaultTemperature();
-            var effectiveMaxTokens = maxTokens ?? _model.MaxOutputTokens;
-
             var context = new TemplateContext(
                 ModelId: _model.ModelId,
                 Messages: messages,
-                Temperature: effectiveTemp,
-                MaxTokens: effectiveMaxTokens,
+                Temperature: temperature,
+                MaxTokens: maxTokens,
                 Tools: tools,
                 ToolChoice: toolChoice
             );
@@ -118,7 +115,10 @@ public sealed class GenericAiHttpClient : IDisposable
             // Template is stored as a JSON string value, so deserialize it first
             var templateString = _model.RequestTemplate.RootElement.GetString() 
                 ?? _model.RequestTemplate.RootElement.GetRawText();
-            json = TemplateSubstitutionService.Substitute(templateString, context);
+            var substituted = TemplateSubstitutionService.Substitute(templateString, context);
+            
+            // Merge in DefaultParams from model configuration
+            json = MergeDefaultParams(substituted, _model.DefaultParams);
             endpoint = string.Empty; // Url already includes full path
         }
         else
@@ -526,6 +526,37 @@ public sealed class GenericAiHttpClient : IDisposable
         }
 
         return results.ToArray();
+    }
+
+    /// <summary>
+    /// Merge DefaultParams into a request JSON string.
+    /// This allows model-specific parameters to be added without hardcoding them in templates.
+    /// </summary>
+    private static string MergeDefaultParams(string requestJson, Dictionary<string, JsonElement>? defaultParams)
+    {
+        if (defaultParams == null || defaultParams.Count == 0)
+        {
+            return requestJson;
+        }
+
+        using var doc = JsonDocument.Parse(requestJson);
+        var obj = JsonSerializer.Deserialize<JsonObject>(requestJson);
+        
+        if (obj == null)
+        {
+            return requestJson;
+        }
+
+        // Add DefaultParams, but don't override if already present
+        foreach (var (key, value) in defaultParams)
+        {
+            if (!obj.ContainsKey(key))
+            {
+                obj[key] = JsonNode.Parse(value.GetRawText());
+            }
+        }
+
+        return obj.ToJsonString();
     }
 
     public void Dispose()

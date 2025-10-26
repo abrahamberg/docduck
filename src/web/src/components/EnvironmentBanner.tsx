@@ -11,7 +11,7 @@ export const EnvironmentBanner: React.FC<Props> = ({ health, loading }) => {
   if (!health) return null;
 
   const warnings: string[] = [];
-  if (!health.openAiKeyPresent) warnings.push('OpenAI key missing');
+  if (!health.aiKeyPresent) warnings.push('AI API key missing');
   if (!health.dbConnectionPresent) warnings.push('DB connection missing');
   if (health.documents === 0) warnings.push('No documents indexed');
 

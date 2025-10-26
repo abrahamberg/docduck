@@ -95,9 +95,45 @@ By default, generate code that is clean, small, and obvious; apply SOLID where i
 ## Documentation policy (repo hygiene)
 - Keep only a concise `README.md` in the repository root. All other documentation must be placed under `docs/`.
 - Prefer updating existing canonical docs over creating new top-level files. Avoid duplicated content.
-- Place how-to guides under `docs/guides/` (e.g., `quickstart.md`, `authentication.md`, `developer-guide.md`).
-- Place database docs under `docs/database/` (e.g., `pgvector.md`, `pgvector-quickref.md`).
-- Put ephemeral or auto-generated implementation summaries under `docs/reports/` (e.g., `api-implementation.md`, `pgvector-implementation.md`). If the information has no long-term value, do not generate a new file; integrate the useful bits into existing guides instead.
+- Place how-to guides under `docs/guides/` (e.g., `quickstart.md`, `ai-configuration.md`, `api-usage.md`).
+- Place database docs under `docs/database/` (e.g., `schema.md`).
+- Put ephemeral or auto-generated implementation summaries under `docs/reports/` (e.g., `api-implementation.md`). If the information has no long-term value, do not generate a new file; integrate the useful bits into existing guides instead.
+
+## AI Configuration (Model-Agnostic Architecture)
+- The system uses **flexible JSON-based configuration** for all AI models (chat and embedding)
+- **Never hardcode AI provider names** (e.g., "OpenAI") in new code - use generic terms like "AI provider", "AI model", "AI API key"
+- Environment variables (`OPENAI_API_KEY`, etc.) are **only for initial database seeding** - all runtime config comes from database
+- Each model has: `Url`, `Headers` (dict), `RequestTemplate` (JSON with placeholders), `ResponseMapping` (JSONPath), `DefaultParams` (JSON)
+- Template placeholders: `{MODEL_ID}`, `{MESSAGES}`, `{INPUT}` - replaced at runtime
+- **No model-specific parameters in code** - all parameters go in `DefaultParams` JSON (temperature, max_tokens, etc.)
+- Use `max_completion_tokens` for newer OpenAI models, not `max_tokens`
+- Response parsing via JSONPath expressions in `ResponseMapping`
+- Admin UI manages all AI configuration - editable JSON fields for headers, templates, parameters
+- Support any AI provider: OpenAI, Anthropic, Azure OpenAI, local Ollama, custom endpoints
+- API keys stored **unmasked** in database `headers` column for operational use
+- Health checks use generic `aiKeyPresent` not provider-specific names
+
+## AI Configuration Code Patterns
+**DO:**
+```csharp
+// Generic, provider-agnostic
+var config = await aiService.GetConfigurationAsync();
+var hasKey = !string.IsNullOrWhiteSpace(config.EmbeddingModel?.Headers["Authorization"]);
+
+// Flexible template substitution
+var request = template.Replace("{MODEL_ID}", modelId).Replace("{INPUT}", input);
+
+// JSONPath response extraction
+var content = responseMapping.ContentPath; // e.g., "$.choices[0].message.content"
+```
+
+**DON'T:**
+```csharp
+// Provider-specific hardcoding
+var openAiKey = config.OpenAiApiKey; // ❌ Too specific
+var request = new { model = modelId, temperature = 0.7 }; // ❌ Hardcoded params
+if (provider == "openai") { ... } // ❌ Avoid provider checks
+```
 
 ## How to run services for manual testing
 
