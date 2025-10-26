@@ -9,7 +9,7 @@ namespace DocDuck.Providers.Ai;
 public sealed class AiConfigurationSeeder
 {
     private const string AuthorizationHeader = "Authorization";
-    
+
     private readonly AiProviderConfigurationStore _store;
     private readonly ILogger<AiConfigurationSeeder> _logger;
 
@@ -35,19 +35,19 @@ public sealed class AiConfigurationSeeder
 
         var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         var baseUrl = Environment.GetEnvironmentVariable("OPENAI_BASE_URL") ?? "https://api.openai.com/v1";
-        
+
         // Model configuration from environment or OpenAI defaults
         var microModel = Environment.GetEnvironmentVariable("OPENAI_MICRO_MODEL") ?? "gpt-5-nano";
         var miniModel = Environment.GetEnvironmentVariable("OPENAI_MINI_MODEL") ?? "gpt-5-mini";
         var fullModel = Environment.GetEnvironmentVariable("OPENAI_FULL_MODEL") ?? "gpt-5";
-        
+
         var embeddingModel = Environment.GetEnvironmentVariable("OPENAI_EMBEDDING_MODEL") ?? "text-embedding-3-small";
         var embeddingDimensions = int.TryParse(Environment.GetEnvironmentVariable("OPENAI_EMBEDDING_DIMENSIONS"), out var dims) ? dims : 1536;
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
             _logger.LogWarning("OPENAI_API_KEY not set. AI configuration will be disabled until configured via admin API");
-            
+
             // Create disabled config as placeholder with empty registries
             var placeholderEmbedding = new AiEmbeddingModelAssignment
             {
@@ -71,7 +71,7 @@ public sealed class AiConfigurationSeeder
                 Dimensions = embeddingDimensions,
                 Enabled = false
             };
-            
+
             var disabledConfig = new AiProviderConfiguration
             {
                 Enabled = false,
@@ -116,7 +116,7 @@ public sealed class AiConfigurationSeeder
             CostFactor = 0.1,
             Enabled = true
         };
-        
+
         var miniModelAssignment = new AiModelAssignment
         {
             Id = "openai-mini",
@@ -137,7 +137,7 @@ public sealed class AiConfigurationSeeder
             CostFactor = 1.0,
             Enabled = true
         };
-        
+
         var fullModelAssignment = new AiModelAssignment
         {
             Id = "openai-full",
@@ -158,7 +158,7 @@ public sealed class AiConfigurationSeeder
             CostFactor = 10.0,
             Enabled = true
         };
-        
+
         var embeddingModelAssignment = new AiEmbeddingModelAssignment
         {
             Id = "openai-embedding",
@@ -184,20 +184,20 @@ public sealed class AiConfigurationSeeder
             Dimensions = embeddingDimensions,
             Enabled = true
         };
-        
+
         var config = new AiProviderConfiguration
         {
             Enabled = true,
             DefaultSelectionStrategy = ModelSelectionStrategy.Standard,
-            
+
             // Registry: all available models
             ModelRegistry = new List<AiModelAssignment> { microModelAssignment, miniModelAssignment, fullModelAssignment },
-            
+
             // Tier assignments by ID
             MicroModelId = "openai-micro",
             MiniModelId = "openai-mini",
             FullModelId = "openai-full",
-            
+
             // Embedding registry and active selection
             EmbeddingRegistry = new List<AiEmbeddingModelAssignment> { embeddingModelAssignment },
             ActiveEmbeddingModelId = "openai-embedding"
@@ -205,7 +205,7 @@ public sealed class AiConfigurationSeeder
 
         await _store.UpsertAsync(config, ct);
         _logger.LogInformation(
-            "Seeded full 3-tier AI configuration (Micro: {Micro}, Mini: {Mini}, Full: {Full}, Embedding: {Embedding})", 
+            "Seeded full 3-tier AI configuration (Micro: {Micro}, Mini: {Mini}, Full: {Full}, Embedding: {Embedding})",
             microModel, miniModel, fullModel, embeddingModel);
     }
 }

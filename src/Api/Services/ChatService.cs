@@ -16,13 +16,13 @@ namespace Api.Services;
 ///    - cannot_answer: Question is fundamentally unanswerable
 /// 4. Based on decision, either answer or refine and retry (attempts scale with search depth)
 /// 5. Produce final answer or ask user to rephrase.
-/// 
+///
 /// Uses function calling for structured, reliable decision-making across any OpenAI-compatible model.
 /// </summary>
 public class ChatService
 {
     private const string SystemRole = "system";
-    
+
     private readonly VectorSearchService _searchService;
     private readonly ModelAgnosticAiService _aiService;
     private readonly ILogger<ChatService> _logger;
@@ -47,7 +47,7 @@ public class ChatService
     {
         var history = request.History ?? new List<ChatMessage>();
         var depth = Math.Clamp(request.SearchDepth ?? _searchOptions.DefaultSearchDepth, 1, _searchOptions.MaxSearchDepth);
-        
+
         // Depth-based attempt logic:
         // depth=1: 1 attempt (simple, no retry)
         // depth=2-3: 2 attempts (smart with one refinement)
@@ -60,7 +60,7 @@ public class ChatService
             4 => 3,
             _ => 4  // depth 5
         };
-        
+
         var steps = new List<string>();
         var modelUsage = new List<ModelUsageInfo>();
 
@@ -143,8 +143,8 @@ public class ChatService
 
             // Use tool-based evaluation for structured decision making
             var (decision, evalTokens) = await EvaluateWithToolsAsync(
-                currentPhrase, 
-                latestSources.Select(s => s.Text).ToList(), 
+                currentPhrase,
+                latestSources.Select(s => s.Text).ToList(),
                 ct);
             totalTokens += evalTokens;
             modelUsage.Add(new ModelUsageInfo("chat-model", "context_evaluation", evalTokens));
@@ -177,7 +177,7 @@ public class ChatService
                     _logger.LogInformation("Model determined question cannot be answered: {Reason}", decision.CannotAnswerReason);
                     await RecordStepAsync($"Analysis: {decision.Reasoning}");
                     await RecordStepAsync("This question appears to be outside the scope of available documentation.");
-                    
+
                     var cannotAnswerResponse = BuildResponse(
                         answer: $"I cannot answer this question with the available documentation. {decision.Reasoning}",
                         userMessage: request.Message,
@@ -313,8 +313,8 @@ public class ChatService
         if (files.Count > 0)
         {
             var fileList = string.Join(", ", files.Take(3).Select(f => f.Filename));
-            var sourceSummary = files.Count <= 3 
-                ? $"[Found in: {fileList}]" 
+            var sourceSummary = files.Count <= 3
+                ? $"[Found in: {fileList}]"
                 : $"[Found in: {fileList}, and {files.Count - 3} more]";
             updatedHistory.Add(new ChatMessage("assistant", sourceSummary));
         }
@@ -408,7 +408,7 @@ public class ChatService
             ct: ct);
 
         var refined = result.Content?.Trim();
-        
+
         if (string.IsNullOrWhiteSpace(refined))
         {
             _logger.LogWarning("Query refinement returned empty content for input: {Input}. Tool calls: {ToolCalls}. Falling back to original.",
@@ -470,7 +470,7 @@ public class ChatService
             ct: ct);
 
         var rephrased = result.Content?.Trim();
-        
+
         if (string.IsNullOrWhiteSpace(rephrased))
         {
             _logger.LogWarning("Query rephrase returned empty content for input: {Input}. Tool calls: {ToolCalls}. Falling back to previous.",
@@ -491,13 +491,13 @@ public class ChatService
 
         var systemPrompt = """
             You are an expert evaluator determining if retrieved document chunks can answer a user's question.
-            
+
             Evaluate the context and choose ONE action:
             - answer_ready: Context is sufficient to answer confidently
             - needs_more_context: Context is related but incomplete (need broader/different search)
             - refine_query: Context is off-topic or irrelevant (need better search phrase)
             - cannot_answer: Question is fundamentally unanswerable with this knowledge base
-            
+
             Be decisive. Choose the action that best reflects the context quality.
             """;
 

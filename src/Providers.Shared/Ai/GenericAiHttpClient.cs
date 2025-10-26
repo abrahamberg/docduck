@@ -15,7 +15,7 @@ public sealed class GenericAiHttpClient : IDisposable
     private const string FunctionType = "function";
     private const string AuthorizationHeader = "Authorization";
     private const string ContentTypeHeader = "Content-Type";
-    
+
     private readonly HttpClient _httpClient;
     private readonly AiModelAssignment _model;
     private readonly ILogger? _logger;
@@ -36,27 +36,7 @@ public sealed class GenericAiHttpClient : IDisposable
             Timeout = TimeSpan.FromSeconds(model.TimeoutSeconds)
         };
 
-        // Set headers from Headers dictionary
-        foreach (var (key, value) in model.Headers)
-        {
-            if (key.Equals(AuthorizationHeader, StringComparison.OrdinalIgnoreCase))
-            {
-                var parts = value.Split(' ', 2, StringSplitOptions.TrimEntries);
-                if (parts.Length == 2)
-                {
-                    _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(parts[0], parts[1]);
-                }
-            }
-            else if (key.Equals(ContentTypeHeader, StringComparison.OrdinalIgnoreCase))
-            {
-                // Content-Type is set per-request, skip here
-                continue;
-            }
-            else
-            {
-                _httpClient.DefaultRequestHeaders.TryAddWithoutValidation(key, value);
-            }
-        }
+        HttpClientConfigurator.ConfigureHeaders(_httpClient, model.Headers);
     }
 
     /// <summary>
@@ -78,118 +58,12 @@ public sealed class GenericAiHttpClient : IDisposable
             throw new ArgumentException("At least one message is required", nameof(messages));
         }
 
-        string json;
-        string endpoint;
+        var requestBuilder = new ChatRequestBuilder(_model);
+        var (json, endpoint) = requestBuilder.BuildRequest(messages, temperature, maxTokens, tools, toolChoice);
 
-        // Use template-based request if configured
-        if (_model.RequestTemplate != null)
+        if (tools != null && tools.Count > 0 && !_model.SupportsFunctionCalling)
         {
-            var context = new TemplateContext(
-                ModelId: _model.ModelId,
-                Messages: messages,
-                Temperature: temperature,
-                MaxTokens: maxTokens,
-                Tools: tools,
-                ToolChoice: toolChoice
-            );
-
-            // Template is stored as a JSON string value, so deserialize it first
-            var templateString = _model.RequestTemplate.RootElement.GetString() 
-                ?? _model.RequestTemplate.RootElement.GetRawText();
-            var substituted = TemplateSubstitutionService.Substitute(templateString, context);
-            
-            // Parse, add tools if needed, then serialize
-            using var doc = JsonDocument.Parse(substituted);
-            var payload = JsonSerializer.Deserialize<JsonObject>(doc.RootElement.GetRawText()) 
-                ?? new JsonObject();
-            
-            // Add tools if provided and supported
-            if (tools != null && tools.Count > 0)
-            {
-                if (!_model.SupportsFunctionCalling)
-                {
-                    _logger?.LogWarning("Model {Model} does not support function calling, ignoring tools", _model.ModelId);
-                }
-                else
-                {
-                    payload["tools"] = new JsonArray(tools.Select(t => new JsonObject
-                    {
-                        ["type"] = FunctionType,
-                        ["function"] = new JsonObject
-                        {
-                            ["name"] = t.Name,
-                            ["description"] = t.Description,
-                            ["parameters"] = JsonNode.Parse(t.ParametersJson)
-                        }
-                    }).ToArray());
-
-                    if (!string.IsNullOrWhiteSpace(toolChoice))
-                    {
-                        payload["tool_choice"] = toolChoice;
-                    }
-                }
-            }
-            
-            // Merge in DefaultParams from model configuration
-            json = MergeDefaultParams(payload.ToJsonString(), _model.DefaultParams);
-            endpoint = string.Empty; // Url already includes full path
-        }
-        else
-        {
-            // Fall back to OpenAI-compatible format
-            var payload = new JsonObject
-            {
-                ["model"] = _model.ModelId,
-                ["messages"] = new JsonArray(messages.Select(m => new JsonObject
-                {
-                    ["role"] = m.Role,
-                    ["content"] = m.Content
-                }).ToArray())
-            };
-
-            if (temperature.HasValue)
-            {
-                payload["temperature"] = temperature.Value;
-            }
-
-            if (maxTokens.HasValue)
-            {
-                payload["max_tokens"] = maxTokens.Value;
-            }
-            else
-            {
-                payload["max_tokens"] = _model.MaxOutputTokens;
-            }
-
-            // Add tools if provided and supported
-            if (tools != null && tools.Count > 0)
-            {
-                if (!_model.SupportsFunctionCalling)
-                {
-                    _logger?.LogWarning("Model {Model} does not support function calling, ignoring tools", _model.ModelId);
-                }
-                else
-                {
-                    payload["tools"] = new JsonArray(tools.Select(t => new JsonObject
-                    {
-                        ["type"] = FunctionType,
-                        ["function"] = new JsonObject
-                        {
-                            ["name"] = t.Name,
-                            ["description"] = t.Description,
-                            ["parameters"] = JsonNode.Parse(t.ParametersJson)
-                        }
-                    }).ToArray());
-
-                    if (!string.IsNullOrWhiteSpace(toolChoice))
-                    {
-                        payload["tool_choice"] = toolChoice;
-                    }
-                }
-            }
-
-            json = payload.ToJsonString();
-            endpoint = "chat/completions";
+            _logger?.LogWarning("Model {Model} does not support function calling, ignoring tools", _model.ModelId);
         }
 
         _logger?.LogDebug("Chat completion request to {Model}: {Payload}", _model.ModelId, json);
@@ -201,14 +75,14 @@ public sealed class GenericAiHttpClient : IDisposable
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger?.LogError("Chat completion failed for {Model} (status {Status}): {Body}", 
+            _logger?.LogError("Chat completion failed for {Model} (status {Status}): {Body}",
                 _model.ModelId, (int)response.StatusCode, responseBody);
             throw new HttpRequestException($"Chat completion failed with status {(int)response.StatusCode}: {responseBody}");
         }
 
         _logger?.LogDebug("Chat completion response from {Model}: {Response}", _model.ModelId, responseBody);
 
-        return ParseChatCompletionResponse(responseBody);
+        return JsonResponseParser.ParseChatCompletion(responseBody, _model.ResponseMapping);
     }
 
     /// <summary>
@@ -243,71 +117,12 @@ public sealed class GenericAiHttpClient : IDisposable
             return Array.Empty<float[]>();
         }
 
-        // Create a temporary client for embedding endpoint
-        using var embedClient = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(embeddingModel.TimeoutSeconds)
-        };
+        using var embedClient = CreateEmbeddingHttpClient(embeddingModel);
 
-        // Apply headers (including Authorization)
-        foreach (var header in embeddingModel.Headers)
-        {
-            if (header.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
-            {
-                var authParts = header.Value.Split(' ', 2, StringSplitOptions.TrimEntries);
-                if (authParts.Length == 2)
-                {
-                    embedClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(authParts[0], authParts[1]);
-                }
-            }
-            else
-            {
-                embedClient.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
-            }
-        }
+        var json = EmbeddingRequestBuilder.BuildRequest(embeddingModel, textList);
 
-        // Build request body using template or default structure
-        string json;
-        if (embeddingModel.RequestTemplate != null)
-        {
-            // Extract template string (it's wrapped as JSON string)
-            var templateString = embeddingModel.RequestTemplate.RootElement.GetString() 
-                ?? embeddingModel.RequestTemplate.RootElement.GetRawText();
-
-            // For batch embedding, we need to serialize the input array
-            var inputJson = JsonSerializer.Serialize(textList);
-
-            // Replace placeholders
-            // Important: The template should have {INPUT} without quotes, or "{INPUT}" with quotes
-            // If it has quotes, we need to replace the whole thing including quotes
-            if (templateString.Contains("\"{INPUT}\""))
-            {
-                json = templateString
-                    .Replace("{MODEL_ID}", embeddingModel.ModelId)
-                    .Replace("\"{INPUT}\"", inputJson); // Replace quoted placeholder with raw JSON
-            }
-            else
-            {
-                json = templateString
-                    .Replace("{MODEL_ID}", embeddingModel.ModelId)
-                    .Replace("{INPUT}", inputJson); // Replace unquoted placeholder with raw JSON
-            }
-
-            _logger?.LogDebug("Embedding request JSON for {Model}: {Json}", 
-                embeddingModel.ModelId, json);
-        }
-        else
-        {
-            // Fallback to default OpenAI structure
-            var payload = new JsonObject
-            {
-                ["model"] = embeddingModel.ModelId,
-                ["input"] = new JsonArray(textList.Select(t => JsonValue.Create(t)).ToArray())
-            };
-            json = payload.ToJsonString();
-            _logger?.LogDebug("Using default embedding request for {Model} with {Count} texts", 
-                embeddingModel.ModelId, textList.Count);
-        }
+        _logger?.LogDebug("Embedding request JSON for {Model}: {Json}",
+            embeddingModel.ModelId, json);
 
         using var content = new StringContent(json, Encoding.UTF8, "application/json");
         using var response = await embedClient.PostAsync(embeddingModel.Url, content, ct);
@@ -321,265 +136,43 @@ public sealed class GenericAiHttpClient : IDisposable
             throw new HttpRequestException($"Embedding failed with status {(int)response.StatusCode}: {responseBody}\n\nRequest JSON was: {json}");
         }
 
-        return ParseEmbeddingResponseWithMapping(responseBody, embeddingModel.ResponseMapping);
+        return JsonResponseParser.ParseEmbeddingResponse(responseBody, embeddingModel.ResponseMapping);
     }
 
+    private static HttpClient CreateEmbeddingHttpClient(AiEmbeddingModelAssignment embeddingModel)
+    {
+        var client = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(embeddingModel.TimeoutSeconds)
+        };
+
+        HttpClientConfigurator.ConfigureHeaders(client, embeddingModel.Headers);
+
+        return client;
+    }
+
+    [Obsolete("Use JsonResponseParser.ParseChatCompletion instead")]
     private ChatCompletionResult ParseChatCompletionResponse(string json)
     {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        // Use ResponseMapping if configured, otherwise use default OpenAI paths
-        var mapping = _model.ResponseMapping ?? ResponseMapping.OpenAiDefault();
-
-        var role = ExtractJsonPath(root, mapping.RolePath) ?? "assistant";
-        var content = ExtractJsonPath(root, mapping.ContentPath) ?? string.Empty;
-        var toolCalls = ExtractToolCallsWithMapping(root, mapping.ToolCallsPath);
-
-        var (promptTokens, completionTokens, totalTokens) = ExtractUsageWithMapping(root, mapping);
-
-        return new ChatCompletionResult(
-            Role: role,
-            Content: content,
-            ToolCalls: toolCalls,
-            PromptTokens: promptTokens,
-            CompletionTokens: completionTokens,
-            TotalTokens: totalTokens
-        );
+        return JsonResponseParser.ParseChatCompletion(json, _model.ResponseMapping);
     }
 
+    [Obsolete("Use JsonResponseParser.ExtractJsonPath instead")]
     private static string? ExtractJsonPath(JsonElement root, string path)
     {
-        var current = root;
-        var parts = path.Split('.');
-
-        foreach (var part in parts)
-        {
-            // Handle array indexing like "choices[0]"
-            if (part.Contains('['))
-            {
-                var bracketStart = part.IndexOf('[');
-                var bracketEnd = part.IndexOf(']');
-                
-                if (bracketStart == -1 || bracketEnd == -1 || bracketEnd <= bracketStart)
-                {
-                    return null;
-                }
-
-                var propertyName = part.Substring(0, bracketStart);
-                var indexStr = part.Substring(bracketStart + 1, bracketEnd - bracketStart - 1);
-                
-                if (!int.TryParse(indexStr, out var index))
-                {
-                    return null;
-                }
-
-                if (!current.TryGetProperty(propertyName, out var arrayProp) || arrayProp.ValueKind != JsonValueKind.Array)
-                {
-                    return null;
-                }
-
-                var array = arrayProp.EnumerateArray().ToArray();
-                if (index >= array.Length)
-                {
-                    return null;
-                }
-
-                current = array[index];
-            }
-            else
-            {
-                if (!current.TryGetProperty(part, out var prop))
-                {
-                    return null;
-                }
-                current = prop;
-            }
-        }
-
-        return current.ValueKind == JsonValueKind.String ? current.GetString() : current.GetRawText();
+        return JsonResponseParser.ExtractJsonPath(root, path);
     }
 
-    private static List<ToolCall> ExtractToolCallsWithMapping(JsonElement root, string? toolCallsPath)
-    {
-        var toolCalls = new List<ToolCall>();
-
-        if (string.IsNullOrWhiteSpace(toolCallsPath))
-        {
-            return toolCalls;
-        }
-
-        var toolCallsJson = ExtractJsonPath(root, toolCallsPath);
-        if (string.IsNullOrWhiteSpace(toolCallsJson))
-        {
-            return toolCalls;
-        }
-
-        try
-        {
-            using var toolCallsDoc = JsonDocument.Parse(toolCallsJson);
-            if (toolCallsDoc.RootElement.ValueKind != JsonValueKind.Array)
-            {
-                return toolCalls;
-            }
-
-            foreach (var tc in toolCallsDoc.RootElement.EnumerateArray())
-            {
-                var id = tc.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? string.Empty : string.Empty;
-                var function = tc.GetProperty(FunctionType);
-                var name = function.GetProperty("name").GetString() ?? string.Empty;
-                var args = function.TryGetProperty("arguments", out var argsProp) && argsProp.ValueKind == JsonValueKind.String
-                    ? argsProp.GetString() ?? "{}"
-                    : "{}";
-
-                toolCalls.Add(new ToolCall(id, name, args));
-            }
-        }
-        catch (JsonException)
-        {
-            // Failed to parse tool calls, return empty list
-        }
-
-        return toolCalls;
-    }
-
-    private static (int PromptTokens, int CompletionTokens, int TotalTokens) ExtractUsageWithMapping(JsonElement root, ResponseMapping mapping)
-    {
-        var promptTokens = 0;
-        var completionTokens = 0;
-        var totalTokens = 0;
-
-        if (!string.IsNullOrWhiteSpace(mapping.UsagePromptTokensPath))
-        {
-            var promptTokensStr = ExtractJsonPath(root, mapping.UsagePromptTokensPath);
-            if (int.TryParse(promptTokensStr, out var pt))
-            {
-                promptTokens = pt;
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(mapping.UsageCompletionTokensPath))
-        {
-            var completionTokensStr = ExtractJsonPath(root, mapping.UsageCompletionTokensPath);
-            if (int.TryParse(completionTokensStr, out var ct))
-            {
-                completionTokens = ct;
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(mapping.UsageTotalTokensPath))
-        {
-            var totalTokensStr = ExtractJsonPath(root, mapping.UsageTotalTokensPath);
-            if (int.TryParse(totalTokensStr, out var tt))
-            {
-                totalTokens = tt;
-            }
-        }
-
-        // If total not provided, calculate from prompt + completion
-        if (totalTokens == 0 && (promptTokens > 0 || completionTokens > 0))
-        {
-            totalTokens = promptTokens + completionTokens;
-        }
-
-        return (promptTokens, completionTokens, totalTokens);
-    }
-
+    [Obsolete("Use JsonResponseParser.ParseEmbeddingResponse instead")]
     private static float[][] ParseEmbeddingResponseWithMapping(string json, Dictionary<string, string>? responseMapping)
     {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        // If no mapping provided, use default OpenAI structure
-        if (responseMapping == null || !responseMapping.TryGetValue("embedding", out var embeddingPath))
-        {
-            embeddingPath = "$.data[0].embedding";
-        }
-
-        var results = new List<float[]>();
-
-        // Handle array of embeddings (batch response)
-        // For OpenAI: $.data[*].embedding means iterate over data array
-        if (embeddingPath.StartsWith("$.data[") || embeddingPath.StartsWith("data["))
-        {
-            var dataPath = embeddingPath.Contains("data[*]") || embeddingPath.Contains("data[0]")
-                ? "data"
-                : embeddingPath.Split('.')[0].TrimStart('$', '.');
-
-            if (root.TryGetProperty(dataPath, out var dataArray) && dataArray.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in dataArray.EnumerateArray())
-                {
-                    if (item.TryGetProperty("embedding", out var embeddingElement))
-                    {
-                        var vector = new List<float>();
-                        foreach (var value in embeddingElement.EnumerateArray())
-                        {
-                            vector.Add((float)value.GetDouble());
-                        }
-                        results.Add(vector.ToArray());
-                    }
-                }
-            }
-        }
-
-        return results.ToArray();
+        return JsonResponseParser.ParseEmbeddingResponse(json, responseMapping);
     }
 
-    [Obsolete("Use ParseEmbeddingResponseWithMapping instead")]
+    [Obsolete("Use JsonResponseParser.ParseEmbeddingResponse instead")]
     private static float[][] ParseEmbeddingResponse(string json)
     {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        var data = root.GetProperty("data");
-        var results = new List<float[]>();
-
-        foreach (var item in data.EnumerateArray())
-        {
-            var embedding = item.GetProperty("embedding");
-            var vector = new List<float>();
-
-            foreach (var value in embedding.EnumerateArray())
-            {
-                vector.Add((float)value.GetDouble());
-            }
-
-            results.Add(vector.ToArray());
-        }
-
-        return results.ToArray();
-    }
-
-    /// <summary>
-    /// Merge DefaultParams into a request JSON string.
-    /// This allows model-specific parameters to be added without hardcoding them in templates.
-    /// </summary>
-    private static string MergeDefaultParams(string requestJson, Dictionary<string, JsonElement>? defaultParams)
-    {
-        if (defaultParams == null || defaultParams.Count == 0)
-        {
-            return requestJson;
-        }
-
-        using var doc = JsonDocument.Parse(requestJson);
-        var obj = JsonSerializer.Deserialize<JsonObject>(requestJson);
-        
-        if (obj == null)
-        {
-            return requestJson;
-        }
-
-        // Add DefaultParams, but don't override if already present
-        foreach (var (key, value) in defaultParams)
-        {
-            if (!obj.ContainsKey(key))
-            {
-                obj[key] = JsonNode.Parse(value.GetRawText());
-            }
-        }
-
-        return obj.ToJsonString();
+        return JsonResponseParser.ParseEmbeddingResponse(json, null);
     }
 
     public void Dispose()

@@ -1,4 +1,5 @@
 using Api.Admin;
+using Api.Handlers;
 using Api.Models;
 using Api.Options;
 using Api.Services;
@@ -108,6 +109,7 @@ builder.Services.AddScoped<AdminAuthFilter>();
 
 builder.Services.AddSingleton<VectorSearchService>();
 builder.Services.AddSingleton<ChatService>();
+builder.Services.AddSingleton<QueryHandler>();
 
 // Add CORS for development
 builder.Services.AddCors(options =>
@@ -211,7 +213,7 @@ app.MapGet("/health", async (VectorSearchService searchService, ModelAgnosticAiS
         var docCount = await searchService.GetDocumentCountAsync(ct);
 
         var config = await aiSvc.GetConfigurationAsync(ct);
-        var aiKeyPresent = config is { Enabled: true, EmbeddingModel: not null } 
+        var aiKeyPresent = config is { Enabled: true, EmbeddingModel: not null }
             && config.EmbeddingModel.Headers.TryGetValue("Authorization", out var authHeader)
             && !string.IsNullOrWhiteSpace(authHeader);
         var dbConnectionPresent = !string.IsNullOrWhiteSpace(dbConnectionString);
@@ -239,7 +241,7 @@ app.MapGet("/providers", async (VectorSearchService searchService, CancellationT
     try
     {
         var providers = await searchService.GetProvidersAsync(ct);
-        
+
         return Results.Ok(new
         {
             providers,
@@ -262,144 +264,10 @@ app.MapGet("/providers", async (VectorSearchService searchService, CancellationT
 app.MapPost("/query", async (
     HttpContext httpContext,
     QueryRequest request,
-    ModelAgnosticAiService aiSvc,
-    VectorSearchService searchService,
-    ChatService chatService,
-    IOptions<SearchOptions> searchOptions,
-    ILogger<Program> endpointLogger,
+    QueryHandler queryHandler,
     CancellationToken ct) =>
 {
-    if (string.IsNullOrWhiteSpace(request.Question))
-    {
-        return Results.BadRequest(new { error = "Question is required" });
-    }
-
-    var depth = Math.Clamp(request.SearchDepth ?? searchOptions.Value.DefaultSearchDepth, 1, searchOptions.Value.MaxSearchDepth);
-    
-    logger.LogInformation("Processing query: {Question} (Depth: {Depth}, Stream: {Stream}, Provider: {Type}/{Name})", 
-        request.Question, depth, request.StreamSteps, request.ProviderType ?? "all", request.ProviderName ?? "all");
-
-    try
-    {
-        // Depth=1: Use simple single-shot flow (fast, no refinement)
-        if (depth == 1)
-        {
-            var questionEmbedding = await aiSvc.EmbedAsync(request.Question, ct);
-            var sources = await searchService.SearchAsync(
-                questionEmbedding, 
-                request.Question,
-                request.TopK, 
-                request.ProviderType, 
-                request.ProviderName, 
-                depth,
-                ct);
-
-            if (sources.Count == 0)
-            {
-                return Results.Ok(new QueryResponse(
-                    Answer: "I couldn't find any relevant information in the indexed documents.",
-                    Sources: new List<Source>(),
-                    TokensUsed: 0
-                ));
-            }
-
-            // Build simple answer using CompleteChatAsync
-            var contextChunks = sources.Select(s => s.Text).ToList();
-            var contextText = string.Join("\n\n", contextChunks.Select((chunk, i) => $"[{i + 1}] {chunk}"));
-            
-            var systemPrompt = "You are a helpful assistant. Answer the user's question based on the provided context. If the context doesn't contain relevant information, say so.";
-            var userPrompt = $"Context:\n{contextText}\n\nQuestion: {request.Question}";
-            
-            var messages = new List<ChatMessagePayload> { new("system", systemPrompt) };
-            if (request.History != null)
-            {
-                messages.AddRange(request.History.Select(h => new ChatMessagePayload(h.Role, h.Content)));
-            }
-            messages.Add(new ChatMessagePayload("user", userPrompt));
-            
-            var result = await aiSvc.CompleteChatAsync(
-                messages,
-                TaskComplexity.Simple,
-                null, // default strategy
-                null, // default options
-                ct);
-
-            var response = new QueryResponse(
-                Answer: result.Content,
-                Sources: sources,
-                TokensUsed: result.TotalTokens
-            );
-
-            logger.LogInformation("Simple query completed ({Tokens} tokens)", result.TotalTokens);
-            return Results.Ok(response);
-        }
-
-        // Depth > 1: Use intelligent multi-attempt flow via ChatService
-        var chatRequest = new ChatRequest(
-            Message: request.Question,
-            History: request.History,
-            TopK: request.TopK,
-            ProviderType: request.ProviderType,
-            ProviderName: request.ProviderName,
-            StreamSteps: request.StreamSteps,
-            SearchDepth: depth
-        );
-
-        if (request.StreamSteps)
-        {
-            // Streaming mode: Send SSE events
-            httpContext.Response.StatusCode = StatusCodes.Status200OK;
-            httpContext.Response.ContentType = "text/event-stream";
-            httpContext.Response.Headers.CacheControl = "no-cache";
-            httpContext.Response.Headers["X-Accel-Buffering"] = "no";
-
-            var streamJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-
-            async Task WriteUpdateAsync(ChatStreamUpdate update)
-            {
-                var payload = JsonSerializer.Serialize(update, streamJsonOptions);
-                logger.LogDebug("Sending stream update: {Type}, payload length: {Length}", update.Type, payload.Length);
-                if (update.Type == "final" && update.Final != null)
-                {
-                    logger.LogDebug("Final answer preview: {Answer}", update.Final.Answer.Length > 100 ? update.Final.Answer.Substring(0, 100) + "..." : update.Final.Answer);
-                }
-                await httpContext.Response.WriteAsync($"data: {payload}\n\n", ct);
-                await httpContext.Response.Body.FlushAsync(ct);
-            }
-
-            await chatService.ProcessAsync(chatRequest, WriteUpdateAsync, ct);
-            return Results.Empty;
-        }
-        else
-        {
-            // Non-streaming mode: Return complete response
-            var chatResponse = await chatService.ProcessAsync(chatRequest, null, ct);
-            var queryResponse = QueryResponse.FromChatResponse(chatResponse);
-            
-            logger.LogInformation("Smart query completed ({Tokens} tokens)", queryResponse.TokensUsed);
-            return Results.Ok(queryResponse);
-        }
-    }
-    catch (Exception ex)
-    {
-        endpointLogger.LogError(ex, "Error processing query");
-
-        if (request.StreamSteps && httpContext.Response.HasStarted)
-        {
-            var streamJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-            var errorUpdate = new ChatStreamUpdate(
-                Type: "error",
-                Message: "An error occurred processing your query.",
-                Files: null,
-                Final: null);
-            var payload = JsonSerializer.Serialize(errorUpdate, streamJsonOptions);
-            await httpContext.Response.WriteAsync($"data: {payload}\n\n", ct);
-            await httpContext.Response.Body.FlushAsync(ct);
-            return Results.Empty;
-        }
-
-        return Results.Problem("An error occurred processing your query");
-    }
+    return await queryHandler.HandleQueryAsync(httpContext, request, ct);
 });
 
 // Lightweight document search endpoint: return up to 5 most relevant documents (grouped by doc_id)
@@ -428,7 +296,8 @@ app.MapPost("/docsearch", async (
         // Group by document and pick the best (smallest) distance per document
         var docs = chunks
             .GroupBy(c => c.DocId)
-            .Select(g => new {
+            .Select(g => new
+            {
                 DocId = g.Key,
                 Filename = g.First().Filename,
                 ProviderType = g.First().ProviderType,
@@ -437,7 +306,8 @@ app.MapPost("/docsearch", async (
             })
             .OrderBy(x => x.BestDistance)
             .Take(5)
-                .Select(x => {
+                .Select(x =>
+                {
                     // pick the first chunk text for the document to show as snippet
                     var chunkText = chunks.FirstOrDefault(c => c.DocId == x.DocId)?.Text ?? string.Empty;
                     return new Api.Models.DocumentResult(

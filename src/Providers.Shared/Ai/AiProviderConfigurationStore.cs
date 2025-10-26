@@ -54,116 +54,12 @@ public sealed class AiProviderConfigurationStore
 
     private static async Task LoadChatModelsAsync(NpgsqlConnection conn, AiProviderConfiguration config, CancellationToken ct)
     {
-        const string chatSql = @"
-            SELECT provider_id, settings, test_status, last_tested_at, last_test_message,
-                   url, headers, request_template, response_mapping, default_params
-            FROM ai_provider_settings 
-            WHERE provider_type = 'chat'";
-
-        await using var chatCmd = new NpgsqlCommand(chatSql, conn);
-        await using var reader = await chatCmd.ExecuteReaderAsync(ct);
-        
-        while (await reader.ReadAsync(ct))
-        {
-            var providerId = reader.GetString(0);
-            using var payload = await reader.GetFieldValueAsync<JsonDocument>(1, ct);
-            var model = payload.RootElement.Deserialize<AiModelAssignment>(Configuration.ConfigurationJson.Default);
-            
-            if (model != null)
-            {
-                model.Id = providerId;
-                model.TestStatus = Enum.Parse<ModelTestStatus>(reader.GetString(2));
-                model.LastTestedAt = await reader.IsDBNullAsync(3, ct) ? null : await reader.GetFieldValueAsync<DateTimeOffset>(3, ct);
-                model.LastTestMessage = await reader.IsDBNullAsync(4, ct) ? null : reader.GetString(4);
-                
-                // Load new flexible columns
-                if (!await reader.IsDBNullAsync(5, ct))
-                    model.Url = reader.GetString(5);
-                
-                if (!await reader.IsDBNullAsync(6, ct))
-                {
-                    using var headersDoc = await reader.GetFieldValueAsync<JsonDocument>(6, ct);
-                    model.Headers = headersDoc.RootElement.Deserialize<Dictionary<string, string>>(Configuration.ConfigurationJson.Default) ?? new Dictionary<string, string>();
-                }
-                
-                if (!await reader.IsDBNullAsync(7, ct))
-                {
-                    var templateDoc = await reader.GetFieldValueAsync<JsonDocument>(7, ct);
-                    model.RequestTemplate = templateDoc;
-                }
-                
-                if (!await reader.IsDBNullAsync(8, ct))
-                {
-                    using var mappingDoc = await reader.GetFieldValueAsync<JsonDocument>(8, ct);
-                    model.ResponseMapping = mappingDoc.RootElement.Deserialize<ResponseMapping>(Configuration.ConfigurationJson.Default);
-                }
-                
-                if (!await reader.IsDBNullAsync(9, ct))
-                {
-                    using var paramsDoc = await reader.GetFieldValueAsync<JsonDocument>(9, ct);
-                    model.DefaultParams = paramsDoc.RootElement.Deserialize<Dictionary<string, JsonElement>>(Configuration.ConfigurationJson.Default) ?? new Dictionary<string, JsonElement>();
-                }
-                
-                config.ModelRegistry.Add(model);
-            }
-        }
+        await AiModelLoader.LoadChatModelsAsync(conn, config, ct);
     }
 
     private static async Task LoadEmbeddingModelsAsync(NpgsqlConnection conn, AiProviderConfiguration config, CancellationToken ct)
     {
-        const string embeddingSql = @"
-            SELECT provider_id, url, headers, request_template, response_mapping, default_params, settings, test_status, last_tested_at, last_test_message 
-            FROM ai_provider_settings 
-            WHERE provider_type = 'embedding'";
-
-        await using var embeddingCmd = new NpgsqlCommand(embeddingSql, conn);
-        await using var reader = await embeddingCmd.ExecuteReaderAsync(ct);
-        
-        while (await reader.ReadAsync(ct))
-        {
-            var providerId = reader.GetString(0);
-            var url = reader.GetString(1);
-            
-            using var headersDoc = await reader.GetFieldValueAsync<JsonDocument>(2, ct);
-            var headers = headersDoc.RootElement.Deserialize<Dictionary<string, string>>(Configuration.ConfigurationJson.Default) 
-                ?? new Dictionary<string, string>();
-
-            JsonDocument? requestTemplate = null;
-            if (!await reader.IsDBNullAsync(3, ct))
-            {
-                var templateDoc = await reader.GetFieldValueAsync<JsonDocument>(3, ct);
-                if (templateDoc.RootElement.ValueKind != JsonValueKind.Null)
-                {
-                    requestTemplate = templateDoc;
-                }
-            }
-
-            using var responseMappingDoc = await reader.GetFieldValueAsync<JsonDocument>(4, ct);
-            var responseMapping = responseMappingDoc.RootElement.Deserialize<Dictionary<string, string>>(Configuration.ConfigurationJson.Default) 
-                ?? new Dictionary<string, string>();
-
-            using var defaultParamsDoc = await reader.GetFieldValueAsync<JsonDocument>(5, ct);
-            var defaultParams = defaultParamsDoc.RootElement.Deserialize<Dictionary<string, object>>(Configuration.ConfigurationJson.Default) 
-                ?? new Dictionary<string, object>();
-
-            using var settingsPayload = await reader.GetFieldValueAsync<JsonDocument>(6, ct);
-            var settings = settingsPayload.RootElement.Deserialize<AiEmbeddingModelAssignment>(Configuration.ConfigurationJson.Default);
-            
-            if (settings != null)
-            {
-                settings.Id = providerId;
-                settings.Url = url;
-                settings.Headers = headers;
-                settings.RequestTemplate = requestTemplate;
-                settings.ResponseMapping = responseMapping;
-                settings.DefaultParams = defaultParams;
-                settings.TestStatus = Enum.Parse<ModelTestStatus>(reader.GetString(7));
-                settings.LastTestedAt = await reader.IsDBNullAsync(8, ct) ? null : await reader.GetFieldValueAsync<DateTimeOffset>(8, ct);
-                settings.LastTestMessage = await reader.IsDBNullAsync(9, ct) ? null : reader.GetString(9);
-                
-                config.EmbeddingRegistry.Add(settings);
-            }
-        }
+        await AiModelLoader.LoadEmbeddingModelsAsync(conn, config, ct);
     }
 
     public async Task UpsertAsync(AiProviderConfiguration config, CancellationToken ct = default)

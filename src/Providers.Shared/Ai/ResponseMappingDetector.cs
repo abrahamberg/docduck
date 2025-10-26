@@ -10,7 +10,7 @@ public sealed class ResponseMappingDetector
 {
     private const string ContentProperty = "content";
     private const string UsageProperty = "usage";
-    
+
     private readonly ILogger<ResponseMappingDetector>? _logger;
 
     public ResponseMappingDetector(ILogger<ResponseMappingDetector>? logger = null)
