@@ -95,7 +95,7 @@ public class VectorSearchService : IVectorSearchService
         CancellationToken ct)
     {
         var sql = @"
-            SELECT 
+            SELECT
                 doc_id,
                 filename,
                 provider_type,
@@ -440,7 +440,7 @@ public class VectorSearchService : IVectorSearchService
         await conn.OpenAsync(ct);
 
         const string sql = @"
-            SELECT 
+            SELECT
                 provider_type,
                 provider_name,
                 is_enabled,
