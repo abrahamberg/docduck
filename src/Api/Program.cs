@@ -401,7 +401,7 @@ static void ConfigureExceptionMiddleware(WebApplication app, ILogger logger, str
             }
 
             logger.LogError(ex, "Unhandled exception processing {Method} {Path}. Request body: {Body}", context.Request.Method, context.Request.Path, body);
-            
+
             // Rethrow with context for error handling middleware
             throw new InvalidOperationException($"Request failed: {context.Request.Method} {context.Request.Path}", ex);
         }

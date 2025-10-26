@@ -25,9 +25,18 @@ import {
   TextField,
   Snackbar,
 } from '@mui/material';
-import { Refresh as RefreshIcon, Edit as EditIcon, Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import {
+  Refresh as RefreshIcon,
+  Edit as EditIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+} from '@mui/icons-material';
 import { getAiConfiguration, updateAiConfiguration, testModel, testEmbedding } from '../api';
-import type { AiConfigurationDto, AiModelAssignmentDto, AiEmbeddingModelAssignmentDto } from '../types';
+import type {
+  AiConfigurationDto,
+  AiModelAssignmentDto,
+  AiEmbeddingModelAssignmentDto,
+} from '../types';
 
 // Helper function to convert request template to string format
 function getRequestTemplateString(template: any): string | undefined {
@@ -69,7 +78,7 @@ export const AiModelsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
+
   // Model edit dialog state
   const [modelDialogOpen, setModelDialogOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<ModelFormData | null>(null);
@@ -85,7 +94,10 @@ export const AiModelsPage: React.FC = () => {
   const [embeddingTouched, setEmbeddingTouched] = useState(false);
   const [embeddingApiKeyChanged, setEmbeddingApiKeyChanged] = useState(false);
   const [testingEmbedding, setTestingEmbedding] = useState(false);
-  const [embeddingTestResult, setEmbeddingTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [embeddingTestResult, setEmbeddingTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
 
   const loadConfig = async () => {
     try {
@@ -110,7 +122,7 @@ export const AiModelsPage: React.FC = () => {
       displayName: '',
       modelId: '',
       url: 'https://api.openai.com/v1/chat/completions',
-      headers: { 'Authorization': 'Bearer YOUR_API_KEY' },
+      headers: { Authorization: 'Bearer YOUR_API_KEY' },
       requestTemplate: '{\n  "model": "{MODEL_ID}",\n  "messages": {MESSAGES}\n}',
       responseMapping: undefined,
       defaultParams: '{}',
@@ -132,12 +144,10 @@ export const AiModelsPage: React.FC = () => {
       url: model.url || '',
       headers: model.headers || {},
       requestTemplate: getRequestTemplateString(model.requestTemplate),
-      responseMapping: model.responseMapping 
+      responseMapping: model.responseMapping
         ? JSON.stringify(model.responseMapping, null, 2)
         : undefined,
-      defaultParams: model.defaultParams 
-        ? JSON.stringify(model.defaultParams, null, 2)
-        : '{}',
+      defaultParams: model.defaultParams ? JSON.stringify(model.defaultParams, null, 2) : '{}',
     };
     setEditingModel(modelData);
     setModelTouched(false);
@@ -149,7 +159,7 @@ export const AiModelsPage: React.FC = () => {
 
   const validateModelForm = (): boolean => {
     const errors: Record<string, string> = {};
-    
+
     if (!editingModel?.id?.trim()) {
       errors.id = 'ID is required';
     }
@@ -164,7 +174,7 @@ export const AiModelsPage: React.FC = () => {
     } else if (!editingModel.url.match(/^https?:\/\/.+/)) {
       errors.url = 'Invalid URL format';
     }
-    
+
     // Validate JSON fields
     if (editingModel?.requestTemplate) {
       try {
@@ -187,7 +197,7 @@ export const AiModelsPage: React.FC = () => {
         errors.defaultParams = 'Invalid JSON';
       }
     }
-    
+
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -197,8 +207,8 @@ export const AiModelsPage: React.FC = () => {
 
     console.log('Saving model:', editingModel);
 
-    const isNew = !config.modelRegistry?.some(m => m.id === editingModel.id);
-    
+    const isNew = !config.modelRegistry?.some((m) => m.id === editingModel.id);
+
     // Parse JSON fields
     const modelData: any = {
       id: editingModel.id,
@@ -207,12 +217,14 @@ export const AiModelsPage: React.FC = () => {
       url: editingModel.url,
       headers: editingModel.headers,
       requestTemplate: editingModel.requestTemplate ? editingModel.requestTemplate : undefined,
-      responseMapping: editingModel.responseMapping ? JSON.parse(editingModel.responseMapping) : undefined,
+      responseMapping: editingModel.responseMapping
+        ? JSON.parse(editingModel.responseMapping)
+        : undefined,
       defaultParams: editingModel.defaultParams ? JSON.parse(editingModel.defaultParams) : {},
     };
-    
+
     let updatedConfig: AiConfigurationDto;
-    
+
     if (isNew) {
       // Add new model
       updatedConfig = {
@@ -238,7 +250,7 @@ export const AiModelsPage: React.FC = () => {
       // Update existing model - preserve existing values if not changed
       updatedConfig = {
         ...config,
-        modelRegistry: config.modelRegistry?.map(m =>
+        modelRegistry: config.modelRegistry?.map((m) =>
           m.id === editingModel.id
             ? {
                 ...m, // Keep existing fields
@@ -261,11 +273,11 @@ export const AiModelsPage: React.FC = () => {
       console.log('Saved successfully:', saved);
       setConfig(saved);
       setSuccess(isNew ? 'Model added successfully' : 'Model updated successfully');
-      
+
       // Reset changed flags - stay in dialog for testing
       setModelTouched(false);
       setModelApiKeyChanged(false);
-      
+
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error('Save error:', err);
@@ -278,39 +290,41 @@ export const AiModelsPage: React.FC = () => {
 
   const handleTestModelInDialog = async () => {
     if (!editingModel || !config) return;
-    
+
     console.log('Testing model:', editingModel.id);
-    
+
     try {
       setTestingModel(true);
       setTestResult(null);
-      
+
       // Use API function which handles auth token automatically
       console.log('Calling testModel...');
       const result = await testModel(editingModel.id);
       console.log('Test result:', result);
       setTestResult(result);
-      
+
       // Update config with test result AND save to database
       const updatedConfig = {
         ...config,
-        modelRegistry: config.modelRegistry?.map(m =>
+        modelRegistry: config.modelRegistry?.map((m) =>
           m.id === editingModel.id
-            ? { 
-                ...m, 
+            ? {
+                ...m,
                 testStatus: result.success ? 1 : 2,
                 lastTestedAt: new Date().toISOString(),
-                lastTestMessage: result.message 
+                lastTestMessage: result.message,
               }
             : m
         ),
       };
-      
+
       setConfig(updatedConfig);
-      
+
       // Save to database
       await updateAiConfiguration(updatedConfig);
-      setSuccess(result.success ? 'Model tested successfully - status saved' : 'Test failed - status saved');
+      setSuccess(
+        result.success ? 'Model tested successfully - status saved' : 'Test failed - status saved'
+      );
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error('Test error:', err);
@@ -327,39 +341,43 @@ export const AiModelsPage: React.FC = () => {
 
   const handleTestEmbeddingInDialog = async () => {
     if (!editingEmbedding || !config) return;
-    
+
     console.log('Testing embedding:', editingEmbedding.id);
-    
+
     try {
       setTestingEmbedding(true);
       setEmbeddingTestResult(null);
-      
+
       // Use API function which handles auth token automatically
       console.log('Calling testEmbedding...');
       const result = await testEmbedding(editingEmbedding.id);
       console.log('Test result:', result);
       setEmbeddingTestResult(result);
-      
+
       // Update config with test result AND save to database
       const updatedConfig = {
         ...config,
-        embeddingRegistry: config.embeddingRegistry?.map(e =>
+        embeddingRegistry: config.embeddingRegistry?.map((e) =>
           e.id === editingEmbedding.id
-            ? { 
-                ...e, 
+            ? {
+                ...e,
                 testStatus: result.success ? 1 : 2,
                 lastTestedAt: new Date().toISOString(),
-                lastTestMessage: result.message 
+                lastTestMessage: result.message,
               }
             : e
         ),
       };
-      
+
       setConfig(updatedConfig);
-      
+
       // Save to database
       await updateAiConfiguration(updatedConfig);
-      setSuccess(result.success ? 'Embedding tested successfully - status saved' : 'Test failed - status saved');
+      setSuccess(
+        result.success
+          ? 'Embedding tested successfully - status saved'
+          : 'Test failed - status saved'
+      );
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error('Embedding test error:', err);
@@ -377,19 +395,19 @@ export const AiModelsPage: React.FC = () => {
   const handleDeleteModel = async (modelId: string) => {
     if (!config) return;
     if (!confirm('Are you sure you want to delete this model?')) return;
-    
+
     try {
       setSaving(true);
-      
+
       const updatedConfig = {
         ...config,
-        modelRegistry: config.modelRegistry?.filter(m => m.id !== modelId),
+        modelRegistry: config.modelRegistry?.filter((m) => m.id !== modelId),
         // Clear tier assignments if this model was assigned
         microModelId: config.microModelId === modelId ? null : config.microModelId,
         miniModelId: config.miniModelId === modelId ? null : config.miniModelId,
         fullModelId: config.fullModelId === modelId ? null : config.fullModelId,
       };
-      
+
       const saved = await updateAiConfiguration(updatedConfig);
       setConfig(saved);
       setSuccess('Model deleted successfully');
@@ -405,17 +423,18 @@ export const AiModelsPage: React.FC = () => {
   const handleDeleteEmbedding = async (embeddingId: string) => {
     if (!config) return;
     if (!confirm('Are you sure you want to delete this embedding model?')) return;
-    
+
     try {
       setSaving(true);
-      
+
       const updatedConfig = {
         ...config,
-        embeddingRegistry: config.embeddingRegistry?.filter(e => e.id !== embeddingId),
+        embeddingRegistry: config.embeddingRegistry?.filter((e) => e.id !== embeddingId),
         // Clear active embedding if this was it
-        activeEmbeddingModelId: config.activeEmbeddingModelId === embeddingId ? null : config.activeEmbeddingModelId,
+        activeEmbeddingModelId:
+          config.activeEmbeddingModelId === embeddingId ? null : config.activeEmbeddingModelId,
       };
-      
+
       const saved = await updateAiConfiguration(updatedConfig);
       setConfig(saved);
       setSuccess('Embedding model deleted successfully');
@@ -434,8 +453,9 @@ export const AiModelsPage: React.FC = () => {
       displayName: '',
       modelId: '',
       url: 'https://api.openai.com/v1/embeddings',
-      headers: { 'Authorization': 'Bearer YOUR_API_KEY' },
-      requestTemplate: '{\n  "model": "{MODEL_ID}",\n  "input": "{INPUT}",\n  "encoding_format": "float"\n}',
+      headers: { Authorization: 'Bearer YOUR_API_KEY' },
+      requestTemplate:
+        '{\n  "model": "{MODEL_ID}",\n  "input": "{INPUT}",\n  "encoding_format": "float"\n}',
       responseMapping: '{"embedding": "$.data[0].embedding"}',
       defaultParams: '{}',
       dimensions: 1536,
@@ -472,8 +492,8 @@ export const AiModelsPage: React.FC = () => {
   const handleSaveEmbedding = async () => {
     if (!config || !editingEmbedding) return;
 
-    const isNew = !config.embeddingRegistry?.some(e => e.id === editingEmbedding.id);
-    
+    const isNew = !config.embeddingRegistry?.some((e) => e.id === editingEmbedding.id);
+
     // Parse JSON fields
     const embeddingData: any = {
       id: editingEmbedding.id,
@@ -481,14 +501,20 @@ export const AiModelsPage: React.FC = () => {
       modelId: editingEmbedding.modelId,
       url: editingEmbedding.url,
       headers: editingEmbedding.headers,
-      requestTemplate: editingEmbedding.requestTemplate ? editingEmbedding.requestTemplate : undefined,
-      responseMapping: editingEmbedding.responseMapping ? JSON.parse(editingEmbedding.responseMapping) : undefined,
-      defaultParams: editingEmbedding.defaultParams ? JSON.parse(editingEmbedding.defaultParams) : {},
+      requestTemplate: editingEmbedding.requestTemplate
+        ? editingEmbedding.requestTemplate
+        : undefined,
+      responseMapping: editingEmbedding.responseMapping
+        ? JSON.parse(editingEmbedding.responseMapping)
+        : undefined,
+      defaultParams: editingEmbedding.defaultParams
+        ? JSON.parse(editingEmbedding.defaultParams)
+        : {},
       dimensions: editingEmbedding.dimensions,
     };
-    
+
     let updatedConfig: AiConfigurationDto;
-    
+
     if (isNew) {
       updatedConfig = {
         ...config,
@@ -507,7 +533,7 @@ export const AiModelsPage: React.FC = () => {
     } else {
       updatedConfig = {
         ...config,
-        embeddingRegistry: config.embeddingRegistry?.map(e =>
+        embeddingRegistry: config.embeddingRegistry?.map((e) =>
           e.id === editingEmbedding.id
             ? {
                 ...e, // Keep existing fields
@@ -525,12 +551,14 @@ export const AiModelsPage: React.FC = () => {
       setError(null);
       const saved = await updateAiConfiguration(updatedConfig);
       setConfig(saved);
-      setSuccess(isNew ? 'Embedding model added successfully' : 'Embedding model updated successfully');
-      
+      setSuccess(
+        isNew ? 'Embedding model added successfully' : 'Embedding model updated successfully'
+      );
+
       // Reset changed flags - stay in dialog for testing
       setEmbeddingTouched(false);
       setEmbeddingApiKeyChanged(false);
-      
+
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save embedding model');
@@ -633,7 +661,9 @@ export const AiModelsPage: React.FC = () => {
               </Typography>
               <Select
                 value={config.microModelId || ''}
-                onChange={(e) => setConfig({ ...config, microModelId: e.target.value || undefined })}
+                onChange={(e) =>
+                  setConfig({ ...config, microModelId: e.target.value || undefined })
+                }
                 fullWidth
                 size="small"
               >
@@ -687,7 +717,9 @@ export const AiModelsPage: React.FC = () => {
               </Typography>
               <Select
                 value={config.activeEmbeddingModelId || ''}
-                onChange={(e) => setConfig({ ...config, activeEmbeddingModelId: e.target.value || undefined })}
+                onChange={(e) =>
+                  setConfig({ ...config, activeEmbeddingModelId: e.target.value || undefined })
+                }
                 fullWidth
                 size="small"
               >
@@ -736,7 +768,11 @@ export const AiModelsPage: React.FC = () => {
                       <IconButton size="small" onClick={() => handleEditModel(model)}>
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteModel(model.id)} color="error">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteModel(model.id)}
+                        color="error"
+                      >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </TableCell>
@@ -781,7 +817,11 @@ export const AiModelsPage: React.FC = () => {
                       <IconButton size="small" onClick={() => handleEditEmbedding(embedding)}>
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteEmbedding(embedding.id)} color="error">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteEmbedding(embedding.id)}
+                        color="error"
+                      >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </TableCell>
@@ -794,53 +834,76 @@ export const AiModelsPage: React.FC = () => {
       </Paper>
 
       {/* Model Edit Dialog */}
-      <Dialog open={modelDialogOpen} onClose={() => setModelDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingModel?.id && config?.modelRegistry?.some(m => m.id === editingModel.id) ? 'Edit Model' : 'Add Model'}</DialogTitle>
+      <Dialog
+        open={modelDialogOpen}
+        onClose={() => setModelDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {editingModel?.id && config?.modelRegistry?.some((m) => m.id === editingModel.id)
+            ? 'Edit Model'
+            : 'Add Model'}
+        </DialogTitle>
         <DialogContent>
           <Box display="flex" flexDirection="column" gap={2} mt={1}>
             <TextField
               label="ID"
               value={editingModel?.id || ''}
-              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, id: e.target.value } : null); setModelTouched(true); }}
-              disabled={!!config?.modelRegistry?.some(m => m.id === editingModel?.id)}
+              onChange={(e) => {
+                setEditingModel(editingModel ? { ...editingModel, id: e.target.value } : null);
+                setModelTouched(true);
+              }}
+              disabled={!!config?.modelRegistry?.some((m) => m.id === editingModel?.id)}
               fullWidth
               size="small"
-              helperText={fieldErrors.id || "Unique identifier (e.g., openai-gpt4o-mini)"}
+              helperText={fieldErrors.id || 'Unique identifier (e.g., openai-gpt4o-mini)'}
               error={!!fieldErrors.id}
             />
             <TextField
               label="Display Name"
               value={editingModel?.displayName || ''}
-              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, displayName: e.target.value } : null); setModelTouched(true); }}
+              onChange={(e) => {
+                setEditingModel(
+                  editingModel ? { ...editingModel, displayName: e.target.value } : null
+                );
+                setModelTouched(true);
+              }}
               fullWidth
               size="small"
-              helperText={fieldErrors.displayName || "Human-readable name"}
+              helperText={fieldErrors.displayName || 'Human-readable name'}
               error={!!fieldErrors.displayName}
             />
             <TextField
               label="Model ID"
               value={editingModel?.modelId || ''}
-              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, modelId: e.target.value } : null); setModelTouched(true); }}
+              onChange={(e) => {
+                setEditingModel(editingModel ? { ...editingModel, modelId: e.target.value } : null);
+                setModelTouched(true);
+              }}
               fullWidth
               size="small"
               placeholder="e.g., gpt-4o-mini"
-              helperText={fieldErrors.modelId || "OpenAI model identifier"}
+              helperText={fieldErrors.modelId || 'OpenAI model identifier'}
               error={!!fieldErrors.modelId}
             />
             <TextField
               label="URL"
               value={editingModel?.url || ''}
-              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, url: e.target.value } : null); setModelTouched(true); }}
+              onChange={(e) => {
+                setEditingModel(editingModel ? { ...editingModel, url: e.target.value } : null);
+                setModelTouched(true);
+              }}
               fullWidth
               size="small"
               placeholder="https://api.openai.com/v1/chat/completions"
-              helperText={fieldErrors.url || "Full endpoint URL"}
+              helperText={fieldErrors.url || 'Full endpoint URL'}
               error={!!fieldErrors.url}
             />
             <TextField
               label="Headers (JSON)"
               value={JSON.stringify(editingModel?.headers || {}, null, 2)}
-              onChange={(e) => { 
+              onChange={(e) => {
                 try {
                   const headers = JSON.parse(e.target.value);
                   setEditingModel(editingModel ? { ...editingModel, headers } : null);
@@ -859,63 +922,87 @@ export const AiModelsPage: React.FC = () => {
             <TextField
               label="Request Template (JSON)"
               value={editingModel?.requestTemplate || ''}
-              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, requestTemplate: e.target.value } : null); setModelTouched(true); }}
+              onChange={(e) => {
+                setEditingModel(
+                  editingModel ? { ...editingModel, requestTemplate: e.target.value } : null
+                );
+                setModelTouched(true);
+              }}
               fullWidth
               multiline
               rows={4}
               size="small"
               placeholder='{"model": "{MODEL_ID}", "messages": {MESSAGES}}'
-              helperText={fieldErrors.requestTemplate || "Template with {MODEL_ID}, {MESSAGES} placeholders"}
+              helperText={
+                fieldErrors.requestTemplate || 'Template with {MODEL_ID}, {MESSAGES} placeholders'
+              }
               error={!!fieldErrors.requestTemplate}
             />
             <TextField
               label="Response Mapping (JSON, optional)"
               value={editingModel?.responseMapping || ''}
-              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, responseMapping: e.target.value } : null); setModelTouched(true); }}
+              onChange={(e) => {
+                setEditingModel(
+                  editingModel ? { ...editingModel, responseMapping: e.target.value } : null
+                );
+                setModelTouched(true);
+              }}
               fullWidth
               multiline
               rows={3}
               size="small"
               placeholder='{"contentPath": "choices[0].message.content"}'
-              helperText={fieldErrors.responseMapping || "JSON path mappings for response fields"}
+              helperText={fieldErrors.responseMapping || 'JSON path mappings for response fields'}
               error={!!fieldErrors.responseMapping}
             />
             <TextField
               label="Default Parameters (JSON)"
               value={editingModel?.defaultParams || '{}'}
-              onChange={(e) => { setEditingModel(editingModel ? { ...editingModel, defaultParams: e.target.value } : null); setModelTouched(true); }}
+              onChange={(e) => {
+                setEditingModel(
+                  editingModel ? { ...editingModel, defaultParams: e.target.value } : null
+                );
+                setModelTouched(true);
+              }}
               fullWidth
               multiline
               rows={3}
               size="small"
-              placeholder='{}'
-              helperText={fieldErrors.defaultParams || "Model-specific parameters (e.g., temperature, top_p)"}
+              placeholder="{}"
+              helperText={
+                fieldErrors.defaultParams || 'Model-specific parameters (e.g., temperature, top_p)'
+              }
               error={!!fieldErrors.defaultParams}
             />
-            
-            {editingModel?.id && config?.modelRegistry?.some(m => m.id === editingModel.id) && !modelTouched && (
-              <Box>
-                <Button 
-                  variant="outlined" 
-                  onClick={handleTestModelInDialog} 
-                  disabled={testingModel}
-                  fullWidth
-                >
-                  {testingModel ? 'Testing...' : 'Test Model'}
-                </Button>
-                {testResult && (
-                  <Alert severity={testResult.success ? 'success' : 'error'} sx={{ mt: 1 }}>
-                    {testResult.message}
-                  </Alert>
-                )}
-              </Box>
-            )}
+
+            {editingModel?.id &&
+              config?.modelRegistry?.some((m) => m.id === editingModel.id) &&
+              !modelTouched && (
+                <Box>
+                  <Button
+                    variant="outlined"
+                    onClick={handleTestModelInDialog}
+                    disabled={testingModel}
+                    fullWidth
+                  >
+                    {testingModel ? 'Testing...' : 'Test Model'}
+                  </Button>
+                  {testResult && (
+                    <Alert severity={testResult.success ? 'success' : 'error'} sx={{ mt: 1 }}>
+                      {testResult.message}
+                    </Alert>
+                  )}
+                </Box>
+              )}
           </Box>
         </DialogContent>
         <DialogActions>
-          {editingModel?.id && config?.modelRegistry?.some(m => m.id === editingModel.id) && (
-            <Button 
-              onClick={() => { handleDeleteModel(editingModel.id); setModelDialogOpen(false); }} 
+          {editingModel?.id && config?.modelRegistry?.some((m) => m.id === editingModel.id) && (
+            <Button
+              onClick={() => {
+                handleDeleteModel(editingModel.id);
+                setModelDialogOpen(false);
+              }}
               color="error"
               disabled={saving}
             >
@@ -924,9 +1011,9 @@ export const AiModelsPage: React.FC = () => {
           )}
           <Box sx={{ flex: 1 }} />
           <Button onClick={() => setModelDialogOpen(false)}>Close</Button>
-          <Button 
-            onClick={handleSaveModel} 
-            variant="contained" 
+          <Button
+            onClick={handleSaveModel}
+            variant="contained"
             disabled={saving || !editingModel?.id || !editingModel?.modelId}
           >
             {saving ? 'Saving...' : 'Save'}
@@ -935,37 +1022,53 @@ export const AiModelsPage: React.FC = () => {
       </Dialog>
 
       {/* Snackbar for Success/Error Messages */}
-      <Snackbar 
-        open={!!success} 
-        autoHideDuration={3000} 
+      <Snackbar
+        open={!!success}
+        autoHideDuration={3000}
         onClose={() => setSuccess(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>
+        <Alert severity="success" onClose={() => setSuccess(null)}>
+          {success}
+        </Alert>
       </Snackbar>
-      
-      <Snackbar 
-        open={!!error} 
-        autoHideDuration={5000} 
+
+      <Snackbar
+        open={!!error}
+        autoHideDuration={5000}
         onClose={() => setError(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
       </Snackbar>
 
       {/* Embedding Edit Dialog */}
-      <Dialog open={embeddingDialogOpen} onClose={() => setEmbeddingDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingEmbedding?.id && config?.embeddingRegistry?.some(e => e.id === editingEmbedding.id) ? 'Edit Embedding Model' : 'Add Embedding Model'}</DialogTitle>
+      <Dialog
+        open={embeddingDialogOpen}
+        onClose={() => setEmbeddingDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {editingEmbedding?.id &&
+          config?.embeddingRegistry?.some((e) => e.id === editingEmbedding.id)
+            ? 'Edit Embedding Model'
+            : 'Add Embedding Model'}
+        </DialogTitle>
         <DialogContent>
           <Box display="flex" flexDirection="column" gap={2} mt={1}>
             <TextField
               label="ID"
               value={editingEmbedding?.id || ''}
-              onChange={(e) => { 
-                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, id: e.target.value } : null); 
+              onChange={(e) => {
+                setEditingEmbedding(
+                  editingEmbedding ? { ...editingEmbedding, id: e.target.value } : null
+                );
                 setEmbeddingTouched(true);
               }}
-              disabled={!!config?.embeddingRegistry?.some(e => e.id === editingEmbedding?.id)}
+              disabled={!!config?.embeddingRegistry?.some((e) => e.id === editingEmbedding?.id)}
               fullWidth
               size="small"
               helperText="Unique identifier (e.g., openai-text-embedding-3-small)"
@@ -973,8 +1076,10 @@ export const AiModelsPage: React.FC = () => {
             <TextField
               label="Display Name"
               value={editingEmbedding?.displayName || ''}
-              onChange={(e) => { 
-                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, displayName: e.target.value } : null); 
+              onChange={(e) => {
+                setEditingEmbedding(
+                  editingEmbedding ? { ...editingEmbedding, displayName: e.target.value } : null
+                );
                 setEmbeddingTouched(true);
               }}
               fullWidth
@@ -983,8 +1088,10 @@ export const AiModelsPage: React.FC = () => {
             <TextField
               label="Model ID"
               value={editingEmbedding?.modelId || ''}
-              onChange={(e) => { 
-                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, modelId: e.target.value } : null); 
+              onChange={(e) => {
+                setEditingEmbedding(
+                  editingEmbedding ? { ...editingEmbedding, modelId: e.target.value } : null
+                );
                 setEmbeddingTouched(true);
               }}
               fullWidth
@@ -994,8 +1101,10 @@ export const AiModelsPage: React.FC = () => {
             <TextField
               label="URL"
               value={editingEmbedding?.url || ''}
-              onChange={(e) => { 
-                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, url: e.target.value } : null); 
+              onChange={(e) => {
+                setEditingEmbedding(
+                  editingEmbedding ? { ...editingEmbedding, url: e.target.value } : null
+                );
                 setEmbeddingTouched(true);
               }}
               fullWidth
@@ -1006,7 +1115,7 @@ export const AiModelsPage: React.FC = () => {
             <TextField
               label="Headers (JSON)"
               value={JSON.stringify(editingEmbedding?.headers || {}, null, 2)}
-              onChange={(e) => { 
+              onChange={(e) => {
                 try {
                   const headers = JSON.parse(e.target.value);
                   setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, headers } : null);
@@ -1025,8 +1134,10 @@ export const AiModelsPage: React.FC = () => {
             <TextField
               label="Request Template (JSON)"
               value={editingEmbedding?.requestTemplate || ''}
-              onChange={(e) => { 
-                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, requestTemplate: e.target.value } : null); 
+              onChange={(e) => {
+                setEditingEmbedding(
+                  editingEmbedding ? { ...editingEmbedding, requestTemplate: e.target.value } : null
+                );
                 setEmbeddingTouched(true);
               }}
               fullWidth
@@ -1039,8 +1150,10 @@ export const AiModelsPage: React.FC = () => {
             <TextField
               label="Response Mapping (JSON)"
               value={editingEmbedding?.responseMapping || ''}
-              onChange={(e) => { 
-                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, responseMapping: e.target.value } : null); 
+              onChange={(e) => {
+                setEditingEmbedding(
+                  editingEmbedding ? { ...editingEmbedding, responseMapping: e.target.value } : null
+                );
                 setEmbeddingTouched(true);
               }}
               fullWidth
@@ -1053,22 +1166,28 @@ export const AiModelsPage: React.FC = () => {
             <TextField
               label="Default Parameters (JSON)"
               value={editingEmbedding?.defaultParams || '{}'}
-              onChange={(e) => { 
-                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, defaultParams: e.target.value } : null); 
+              onChange={(e) => {
+                setEditingEmbedding(
+                  editingEmbedding ? { ...editingEmbedding, defaultParams: e.target.value } : null
+                );
                 setEmbeddingTouched(true);
               }}
               fullWidth
               multiline
               rows={2}
               size="small"
-              placeholder='{}'
+              placeholder="{}"
               helperText="Model-specific parameters"
             />
             <TextField
               label="Dimensions"
               value={editingEmbedding?.dimensions || 1536}
-              onChange={(e) => { 
-                setEditingEmbedding(editingEmbedding ? { ...editingEmbedding, dimensions: parseInt(e.target.value) || 1536 } : null); 
+              onChange={(e) => {
+                setEditingEmbedding(
+                  editingEmbedding
+                    ? { ...editingEmbedding, dimensions: parseInt(e.target.value) || 1536 }
+                    : null
+                );
                 setEmbeddingTouched(true);
               }}
               fullWidth
@@ -1076,41 +1195,50 @@ export const AiModelsPage: React.FC = () => {
               type="number"
               helperText="Vector dimensions (e.g., 1536 for ada-002)"
             />
-            
-            {editingEmbedding?.id && config?.embeddingRegistry?.some(e => e.id === editingEmbedding.id) && !embeddingTouched && (
-              <Box>
-                <Button 
-                  variant="outlined" 
-                  onClick={handleTestEmbeddingInDialog} 
-                  disabled={testingEmbedding}
-                  fullWidth
-                >
-                  {testingEmbedding ? 'Testing...' : 'Test Embedding'}
-                </Button>
-                {embeddingTestResult && (
-                  <Alert severity={embeddingTestResult.success ? 'success' : 'error'} sx={{ mt: 1 }}>
-                    {embeddingTestResult.message}
-                  </Alert>
-                )}
-              </Box>
-            )}
+
+            {editingEmbedding?.id &&
+              config?.embeddingRegistry?.some((e) => e.id === editingEmbedding.id) &&
+              !embeddingTouched && (
+                <Box>
+                  <Button
+                    variant="outlined"
+                    onClick={handleTestEmbeddingInDialog}
+                    disabled={testingEmbedding}
+                    fullWidth
+                  >
+                    {testingEmbedding ? 'Testing...' : 'Test Embedding'}
+                  </Button>
+                  {embeddingTestResult && (
+                    <Alert
+                      severity={embeddingTestResult.success ? 'success' : 'error'}
+                      sx={{ mt: 1 }}
+                    >
+                      {embeddingTestResult.message}
+                    </Alert>
+                  )}
+                </Box>
+              )}
           </Box>
         </DialogContent>
         <DialogActions>
-          {editingEmbedding?.id && config?.embeddingRegistry?.some(e => e.id === editingEmbedding.id) && (
-            <Button 
-              onClick={() => { handleDeleteEmbedding(editingEmbedding.id); setEmbeddingDialogOpen(false); }} 
-              color="error"
-              disabled={saving}
-            >
-              Delete
-            </Button>
-          )}
+          {editingEmbedding?.id &&
+            config?.embeddingRegistry?.some((e) => e.id === editingEmbedding.id) && (
+              <Button
+                onClick={() => {
+                  handleDeleteEmbedding(editingEmbedding.id);
+                  setEmbeddingDialogOpen(false);
+                }}
+                color="error"
+                disabled={saving}
+              >
+                Delete
+              </Button>
+            )}
           <Box sx={{ flex: 1 }} />
           <Button onClick={() => setEmbeddingDialogOpen(false)}>Close</Button>
-          <Button 
-            onClick={handleSaveEmbedding} 
-            variant="contained" 
+          <Button
+            onClick={handleSaveEmbedding}
+            variant="contained"
             disabled={saving || !editingEmbedding?.id || !editingEmbedding?.modelId}
           >
             {saving ? 'Saving...' : 'Save'}

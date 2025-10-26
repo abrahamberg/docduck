@@ -3,7 +3,22 @@ import { QueryResponse, DocumentResult, ChatStreamUpdate } from '../types';
 import { postQuery, postQueryStream, postDocSearch } from '../api';
 import { SourceList } from './SourceList';
 import { DocSearchResults } from './DocSearchResults';
-import { Box, Stack, TextField, Button, Card, Typography, CircularProgress, Switch, FormControlLabel, Slider, IconButton, Popover, Divider, Collapse } from '@mui/material';
+import {
+  Box,
+  Stack,
+  TextField,
+  Button,
+  Card,
+  Typography,
+  CircularProgress,
+  Switch,
+  FormControlLabel,
+  Slider,
+  IconButton,
+  Popover,
+  Divider,
+  Collapse,
+} from '@mui/material';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
@@ -18,7 +33,9 @@ interface Props {
 
 export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => {
   const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; id: string }>>([]);
+  const [messages, setMessages] = useState<
+    Array<{ role: 'user' | 'assistant'; content: string; id: string }>
+  >([]);
   const [response, setResponse] = useState<QueryResponse | null>(null);
   const [streamingAnswer, setStreamingAnswer] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -41,16 +58,16 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
     setDocResults(null);
     try {
       const userMessage = { role: 'user' as const, content: question, id: `user-${Date.now()}` };
-      setMessages(prev => [...prev, userMessage]);
+      setMessages((prev) => [...prev, userMessage]);
       setQuestion(''); // Clear immediately for better UX
-      
-      const queryRequest = { 
-        question, 
-        providerNames, 
-        topK, 
+
+      const queryRequest = {
+        question,
+        providerNames,
+        topK,
         searchDepth,
         streamSteps: streamMode,
-        history: messages.map(m => ({ role: m.role, content: m.content }))
+        history: messages.map((m) => ({ role: m.role, content: m.content })),
       };
 
       if (streamMode) {
@@ -60,7 +77,10 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
         // Non-stream mode: Get final answer directly
         const resp = await postQuery(queryRequest);
         setResponse(resp);
-        setMessages(prev => [...prev, { role: 'assistant' as const, content: resp.answer, id: `assistant-${Date.now()}` }]);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant' as const, content: resp.answer, id: `assistant-${Date.now()}` },
+        ]);
       }
     } catch (e: any) {
       setError(e.message || 'Error');
@@ -90,7 +110,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
 
   const handleStreamUpdate = useCallback((update: ChatStreamUpdate) => {
     if (update.type === 'step' && update.message) {
-      setStreamingAnswer(prev => prev + update.message + '\n');
+      setStreamingAnswer((prev) => prev + update.message + '\n');
     } else if (update.type === 'final' && update.final) {
       const final = update.final;
       const qResp: QueryResponse = {
@@ -179,7 +199,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
         <Box sx={{ width: '100%', maxWidth: 680, mb: 3 }}>
           <TextField
             value={question}
-            onChange={e => setQuestion(e.target.value)}
+            onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search your documents or ask a question..."
             fullWidth
@@ -209,7 +229,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
             startIcon={<SearchIcon />}
             disabled={loading || !question.trim()}
             onClick={submit}
-            sx={{ 
+            sx={{
               borderRadius: 3,
               px: 4,
               py: 1.2,
@@ -225,7 +245,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
             startIcon={<DescriptionOutlinedIcon />}
             disabled={loading || !question.trim()}
             onClick={docSearch}
-            sx={{ 
+            sx={{
               borderRadius: 3,
               px: 4,
               py: 1.2,
@@ -243,9 +263,9 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
           >
             Doc Search
           </Button>
-          <IconButton 
-            size="small" 
-            onClick={(e) => setSettingsAnchor(e.currentTarget)} 
+          <IconButton
+            size="small"
+            onClick={(e) => setSettingsAnchor(e.currentTarget)}
             aria-label="settings"
             sx={{
               bgcolor: 'background.paper',
@@ -258,9 +278,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
           </IconButton>
         </Stack>
 
-        {loading && (
-          <CircularProgress size={32} sx={{ mb: 2 }} />
-        )}
+        {loading && <CircularProgress size={32} sx={{ mb: 2 }} />}
 
         {error && (
           <Typography color="error" variant="body2" sx={{ mb: 2 }}>
@@ -271,10 +289,10 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
         {/* Example prompts */}
         {!loading && (
           <Stack spacing={1.5} sx={{ maxWidth: 520, width: '100%' }}>
-            <Typography 
-              variant="caption" 
-              sx={{ 
-                textAlign: 'center', 
+            <Typography
+              variant="caption"
+              sx={{
+                textAlign: 'center',
                 mb: 0.5,
                 color: 'text.secondary',
                 fontWeight: 500,
@@ -282,7 +300,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
             >
               Try asking:
             </Typography>
-            {examplePrompts.map(p => (
+            {examplePrompts.map((p) => (
               <Button
                 key={p}
                 variant="outlined"
@@ -319,11 +337,20 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
         >
           <Stack spacing={1}>
             <FormControlLabel
-              control={<Switch size="small" checked={streamMode} onChange={(_, v) => setStreamMode(v)} disabled={loading} />}
+              control={
+                <Switch
+                  size="small"
+                  checked={streamMode}
+                  onChange={(_, v) => setStreamMode(v)}
+                  disabled={loading}
+                />
+              }
               label="Show thinking"
             />
             <Divider sx={{ my: 1 }} />
-            <Typography variant="caption" sx={{ fontWeight: 600 }}>Search depth: {searchDepth}</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>
+              Search depth: {searchDepth}
+            </Typography>
             <Slider
               size="small"
               min={1}
@@ -331,9 +358,9 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
               step={1}
               marks
               value={searchDepth}
-              onChange={(_e, v) => { 
-                if (Array.isArray(v)) return; 
-                setSearchDepth(v); 
+              onChange={(_e, v) => {
+                if (Array.isArray(v)) return;
+                setSearchDepth(v);
               }}
             />
           </Stack>
@@ -351,7 +378,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
           display: 'flex',
           justifyContent: 'center',
           py: 2,
-          borderBottom: theme => `1px solid ${theme.palette.divider}`,
+          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
         }}
       >
         <Button
@@ -399,7 +426,10 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
           {messages.map((m) => {
             const isAssistant = m.role === 'assistant';
             return (
-              <Box key={m.id} sx={{ display: 'flex', justifyContent: isAssistant ? 'flex-start' : 'flex-end' }}>
+              <Box
+                key={m.id}
+                sx={{ display: 'flex', justifyContent: isAssistant ? 'flex-start' : 'flex-end' }}
+              >
                 <Card
                   elevation={0}
                   variant="outlined"
@@ -410,7 +440,8 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
                     bgcolor: isAssistant ? 'background.paper' : 'primary.dark',
                     color: isAssistant ? 'text.primary' : 'primary.contrastText',
                     borderRadius: 3,
-                    borderColor: theme => isAssistant ? theme.palette.divider : theme.palette.primary.dark,
+                    borderColor: (theme) =>
+                      isAssistant ? theme.palette.divider : theme.palette.primary.dark,
                   }}
                 >
                   <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
@@ -439,7 +470,11 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
                   borderRadius: 3,
                 }}
               >
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: 'block', mb: 1 }}
+                >
                   Thinking...
                 </Typography>
                 <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
@@ -462,17 +497,24 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
                     mb: 2,
                   }}
                 >
-                  <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, mb: 2 }}>
+                  <Typography
+                    variant="body1"
+                    sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, mb: 2 }}
+                  >
                     {response.answer}
                   </Typography>
-                  
+
                   {response.steps && response.steps.length > 0 && (
                     <Box sx={{ mt: 2, mb: 2 }}>
                       <Button
                         size="small"
                         onClick={() => setShowThinking(!showThinking)}
                         endIcon={showThinking ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                        sx={{ textTransform: 'none', color: 'text.secondary', fontSize: '0.875rem' }}
+                        sx={{
+                          textTransform: 'none',
+                          color: 'text.secondary',
+                          fontSize: '0.875rem',
+                        }}
                       >
                         {showThinking ? 'Hide' : 'Show'} thinking ({response.steps.length} steps)
                       </Button>
@@ -496,17 +538,27 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
                       </Collapse>
                     </Box>
                   )}
-                  
+
                   <SourceList sources={response.sources} />
-                  
-                  <Box sx={{ mt: 2, pt: 2, borderTop: theme => `1px solid ${theme.palette.divider}` }}>
+
+                  <Box
+                    sx={{
+                      mt: 2,
+                      pt: 2,
+                      borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+                    }}
+                  >
                     <Typography variant="caption" sx={{ display: 'block', opacity: 0.6, mb: 0.5 }}>
                       Total tokens: {response.tokensUsed}
                     </Typography>
                     {response.modelUsage && response.modelUsage.length > 0 && (
                       <Box sx={{ mt: 1 }}>
                         {response.modelUsage.map((usage, idx) => (
-                          <Typography key={`usage-${idx}-${usage.purpose}`} variant="caption" sx={{ display: 'block', opacity: 0.5, fontSize: '0.75rem' }}>
+                          <Typography
+                            key={`usage-${idx}-${usage.purpose}`}
+                            variant="caption"
+                            sx={{ display: 'block', opacity: 0.5, fontSize: '0.75rem' }}
+                          >
                             • {usage.purpose.replaceAll('_', ' ')}: {usage.tokens} tokens
                           </Typography>
                         ))}
@@ -549,7 +601,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
           left: 0,
           right: 0,
           bgcolor: 'background.default',
-          borderTop: theme => `1px solid ${theme.palette.divider}`,
+          borderTop: (theme) => `1px solid ${theme.palette.divider}`,
           py: 2,
           px: { xs: 2, sm: 4 },
           zIndex: 100,
@@ -566,7 +618,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
             <TextField
               value={question}
-              onChange={e => setQuestion(e.target.value)}
+              onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Send a message..."
               multiline
@@ -578,7 +630,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
                 '& .MuiOutlinedInput-root': {
                   borderRadius: 3,
                   backgroundColor: 'background.paper',
-                }
+                },
               }}
             />
             <IconButton
@@ -590,7 +642,11 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
               <SettingsOutlinedIcon fontSize="small" />
             </IconButton>
           </Box>
-          <Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ justifyContent: 'space-between', alignItems: 'center' }}
+          >
             <Stack direction="row" spacing={1}>
               <Button
                 variant="contained"
@@ -635,11 +691,20 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
       >
         <Stack spacing={1}>
           <FormControlLabel
-            control={<Switch size="small" checked={streamMode} onChange={(_, v) => setStreamMode(v)} disabled={loading} />}
+            control={
+              <Switch
+                size="small"
+                checked={streamMode}
+                onChange={(_, v) => setStreamMode(v)}
+                disabled={loading}
+              />
+            }
             label="Show thinking"
           />
           <Divider sx={{ my: 1 }} />
-          <Typography variant="caption" sx={{ fontWeight: 600 }}>Search depth: {searchDepth}</Typography>
+          <Typography variant="caption" sx={{ fontWeight: 600 }}>
+            Search depth: {searchDepth}
+          </Typography>
           <Slider
             size="small"
             min={1}
@@ -647,9 +712,9 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
             step={1}
             marks
             value={searchDepth}
-            onChange={(_e, v) => { 
-              if (Array.isArray(v)) return; 
-              setSearchDepth(v); 
+            onChange={(_e, v) => {
+              if (Array.isArray(v)) return;
+              setSearchDepth(v);
             }}
           />
         </Stack>

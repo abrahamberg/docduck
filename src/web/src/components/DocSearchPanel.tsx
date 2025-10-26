@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
 import { DocumentResult } from '../types';
 import { postDocSearch } from '../api';
-import { Box, Stack, TextField, Button, Card, CardContent, Typography, CircularProgress, Tooltip } from '@mui/material';
+import {
+  Box,
+  Stack,
+  TextField,
+  Button,
+  Card,
+  CardContent,
+  Typography,
+  CircularProgress,
+  Tooltip,
+} from '@mui/material';
 import { DocSearchResults } from './DocSearchResults';
 
 interface Props {
@@ -36,7 +46,7 @@ export const DocSearchPanel: React.FC<Props> = ({ providerNames }) => {
         <Stack spacing={2}>
           <TextField
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={(e) => setQuery(e.target.value)}
             placeholder="Search for documents…"
             multiline
             minRows={1}
@@ -46,21 +56,39 @@ export const DocSearchPanel: React.FC<Props> = ({ providerNames }) => {
           <Stack direction="row" spacing={1}>
             <Tooltip title="Search documents">
               <span>
-                <Button variant="contained" disabled={loading || !query.trim()} onClick={doSearch}>Search</Button>
+                <Button variant="contained" disabled={loading || !query.trim()} onClick={doSearch}>
+                  Search
+                </Button>
               </span>
             </Tooltip>
             <Tooltip title="Clear">
               <span>
-                <Button variant="outlined" color="inherit" disabled={loading && !results} onClick={() => { setQuery(''); setResults(null); }}>Clear</Button>
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  disabled={loading && !results}
+                  onClick={() => {
+                    setQuery('');
+                    setResults(null);
+                  }}
+                >
+                  Clear
+                </Button>
               </span>
             </Tooltip>
             {loading && <CircularProgress size={24} />}
           </Stack>
-          {error && <Typography color="error" variant="body2">{error}</Typography>}
+          {error && (
+            <Typography color="error" variant="body2">
+              {error}
+            </Typography>
+          )}
           {results && (
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="h6" gutterBottom>Document Search Results</Typography>
+                <Typography variant="h6" gutterBottom>
+                  Document Search Results
+                </Typography>
                 <DocSearchResults results={results} />
               </CardContent>
             </Card>

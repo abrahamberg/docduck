@@ -20,7 +20,13 @@ import {
   Popover,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { createProvider, deleteProvider, listProviders, probeProvider, updateProvider } from '../api';
+import {
+  createProvider,
+  deleteProvider,
+  listProviders,
+  probeProvider,
+  updateProvider,
+} from '../api';
 import type { ProviderProbeResult, ProviderSettings } from '../types';
 
 type ProviderTemplate = {
@@ -66,7 +72,8 @@ const providerTemplates: ProviderTemplate[] = [
   {
     type: 'onedrive',
     label: 'Microsoft OneDrive',
-    description: 'Use Microsoft Graph credentials to index a OneDrive or SharePoint document library.',
+    description:
+      'Use Microsoft Graph credentials to index a OneDrive or SharePoint document library.',
     defaultName: 'OneDrive',
     defaultEnabled: true,
     defaults: {
@@ -84,7 +91,8 @@ const providerTemplates: ProviderTemplate[] = [
 
 const defaultTemplate = providerTemplates[0];
 
-const stringifySettings = (settings: Record<string, unknown>): string => JSON.stringify(settings, null, 2);
+const stringifySettings = (settings: Record<string, unknown>): string =>
+  JSON.stringify(settings, null, 2);
 
 const parseSettings = (value: string): Record<string, unknown> | null => {
   try {
@@ -99,13 +107,18 @@ const parseSettings = (value: string): Record<string, unknown> | null => {
   return null;
 };
 
-const buildTemplatePayload = (template: ProviderTemplate, name: string, enabled: boolean): Record<string, unknown> => ({
+const buildTemplatePayload = (
+  template: ProviderTemplate,
+  name: string,
+  enabled: boolean
+): Record<string, unknown> => ({
   enabled,
   name,
   ...template.defaults,
 });
 
-const findTemplate = (type: string): ProviderTemplate => providerTemplates.find(template => template.type === type) ?? defaultTemplate;
+const findTemplate = (type: string): ProviderTemplate =>
+  providerTemplates.find((template) => template.type === type) ?? defaultTemplate;
 
 const toPositiveInteger = (raw: string): number | undefined | null => {
   const trimmed = raw.trim();
@@ -144,7 +157,13 @@ export const ProvidersPage: React.FC = () => {
   const [createName, setCreateName] = useState(defaultTemplate.defaultName);
   const [createEnabled, setCreateEnabled] = useState(defaultTemplate.defaultEnabled);
   const [createSettingsJson, setCreateSettingsJson] = useState(
-    stringifySettings(buildTemplatePayload(defaultTemplate, defaultTemplate.defaultName, defaultTemplate.defaultEnabled))
+    stringifySettings(
+      buildTemplatePayload(
+        defaultTemplate,
+        defaultTemplate.defaultName,
+        defaultTemplate.defaultEnabled
+      )
+    )
   );
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSaving, setCreateSaving] = useState(false);
@@ -310,7 +329,9 @@ export const ProvidersPage: React.FC = () => {
     }
   }, [dialogOpen, autoProbeRequested, selectedProvider]);
 
-  const handleSettingsChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleSettingsChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     setSettingsJson(event.target.value);
     setFormError(null);
     setProbeResult(null);
@@ -326,7 +347,11 @@ export const ProvidersPage: React.FC = () => {
     setCreateType(template.type);
     setCreateName(template.defaultName);
     setCreateEnabled(template.defaultEnabled);
-    setCreateSettingsJson(stringifySettings(buildTemplatePayload(template, template.defaultName, template.defaultEnabled)));
+    setCreateSettingsJson(
+      stringifySettings(
+        buildTemplatePayload(template, template.defaultName, template.defaultEnabled)
+      )
+    );
     setCreateError(null);
     setCreateSaving(false);
   };
@@ -348,7 +373,11 @@ export const ProvidersPage: React.FC = () => {
     setCreateType(template.type);
     setCreateName(template.defaultName);
     setCreateEnabled(template.defaultEnabled);
-    setCreateSettingsJson(stringifySettings(buildTemplatePayload(template, template.defaultName, template.defaultEnabled)));
+    setCreateSettingsJson(
+      stringifySettings(
+        buildTemplatePayload(template, template.defaultName, template.defaultEnabled)
+      )
+    );
     setCreateError(null);
   };
 
@@ -356,12 +385,12 @@ export const ProvidersPage: React.FC = () => {
     const nextName = event.target.value;
     setCreateName(nextName);
     setCreateError(null);
-    setCreateSettingsJson(current => {
+    setCreateSettingsJson((current) => {
       const parsed = parseSettings(current);
       if (!parsed) {
         return current;
       }
-      
+
       return stringifySettings({ ...parsed, name: nextName });
     });
   };
@@ -370,7 +399,7 @@ export const ProvidersPage: React.FC = () => {
     const enabled = event.target.checked;
     setCreateEnabled(enabled);
     setCreateError(null);
-    setCreateSettingsJson(current => {
+    setCreateSettingsJson((current) => {
       const parsed = parseSettings(current);
       if (!parsed) {
         return current;
@@ -380,7 +409,9 @@ export const ProvidersPage: React.FC = () => {
     });
   };
 
-  const handleCreateSettingsChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleCreateSettingsChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     setCreateSettingsJson(event.target.value);
     setCreateError(null);
   };
@@ -389,7 +420,11 @@ export const ProvidersPage: React.FC = () => {
     const template = findTemplate(createType);
     setCreateName(template.defaultName);
     setCreateEnabled(template.defaultEnabled);
-    setCreateSettingsJson(stringifySettings(buildTemplatePayload(template, template.defaultName, template.defaultEnabled)));
+    setCreateSettingsJson(
+      stringifySettings(
+        buildTemplatePayload(template, template.defaultName, template.defaultEnabled)
+      )
+    );
     setCreateError(null);
   };
 
@@ -406,7 +441,11 @@ export const ProvidersPage: React.FC = () => {
       return;
     }
 
-    const payload: Record<string, unknown> = { ...parsed, name: trimmedName, enabled: createEnabled };
+    const payload: Record<string, unknown> = {
+      ...parsed,
+      name: trimmedName,
+      enabled: createEnabled,
+    };
 
     try {
       setCreateSaving(true);
@@ -432,7 +471,8 @@ export const ProvidersPage: React.FC = () => {
     setFormError(null);
   };
 
-  const createNameError = createDialogOpen && createName.trim().length === 0 ? 'Provider name is required.' : null;
+  const createNameError =
+    createDialogOpen && createName.trim().length === 0 ? 'Provider name is required.' : null;
   const createDisabled = createSaving || Boolean(createNameError);
 
   if (loading) {
@@ -445,9 +485,21 @@ export const ProvidersPage: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1.5 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600 }}>Providers</Typography>
-        <Button variant="contained" onClick={openCreateDialog}>Add Provider</Button>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 1.5,
+        }}
+      >
+        <Typography variant="h5" sx={{ fontWeight: 600 }}>
+          Providers
+        </Typography>
+        <Button variant="contained" onClick={openCreateDialog}>
+          Add Provider
+        </Button>
       </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {providers.length === 0 && (
@@ -455,8 +507,11 @@ export const ProvidersPage: React.FC = () => {
             <Typography>No providers have been registered yet.</Typography>
           </Paper>
         )}
-        {providers.map(provider => (
-          <Paper key={`${provider.providerType}:${provider.providerName}`} sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        {providers.map((provider) => (
+          <Paper
+            key={`${provider.providerType}:${provider.providerName}`}
+            sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}
+          >
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                 {provider.providerName} ({provider.providerType})
@@ -492,7 +547,7 @@ export const ProvidersPage: React.FC = () => {
             onChange={handleCreateTypeChange}
             SelectProps={{ native: true }}
           >
-            {providerTemplates.map(template => (
+            {providerTemplates.map((template) => (
               <option key={template.type} value={template.type}>
                 {template.label}
               </option>
@@ -505,7 +560,9 @@ export const ProvidersPage: React.FC = () => {
             label="Provider Name"
             value={createName}
             onChange={handleCreateNameChange}
-            helperText={createNameError ?? 'Unique friendly name; stored as the provider settings "name".'}
+            helperText={
+              createNameError ?? 'Unique friendly name; stored as the provider settings "name".'
+            }
             error={Boolean(createNameError)}
             autoFocus
           />
@@ -525,9 +582,13 @@ export const ProvidersPage: React.FC = () => {
           {createError && <Alert severity="error">{createError}</Alert>}
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
-          <Button onClick={handleCreateReset} disabled={createSaving}>Reset Template</Button>
+          <Button onClick={handleCreateReset} disabled={createSaving}>
+            Reset Template
+          </Button>
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button onClick={closeCreateDialog} disabled={createSaving}>Cancel</Button>
+            <Button onClick={closeCreateDialog} disabled={createSaving}>
+              Cancel
+            </Button>
             <Button variant="contained" onClick={handleCreateProvider} disabled={createDisabled}>
               {createSaving ? 'Creating…' : 'Create'}
             </Button>
@@ -556,7 +617,9 @@ export const ProvidersPage: React.FC = () => {
             minRows={12}
             InputProps={{ sx: { fontFamily: 'monospace', fontSize: '0.875rem' } }}
             error={Boolean(formError)}
-            helperText={formError ?? 'Update the provider configuration payload and save to persist changes.'}
+            helperText={
+              formError ?? 'Update the provider configuration payload and save to persist changes.'
+            }
           />
           {probeResult && (
             <Alert severity={probeResult.success ? 'success' : 'warning'}>
@@ -572,29 +635,40 @@ export const ProvidersPage: React.FC = () => {
                     {doc.filename}
                   </Typography>
                   <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                    {doc.mimeType ?? 'unknown mime type'} · {doc.sizeBytes ? `${doc.sizeBytes} bytes` : 'size unknown'} · bytes read: {doc.bytesRead}
+                    {doc.mimeType ?? 'unknown mime type'} ·{' '}
+                    {doc.sizeBytes ? `${doc.sizeBytes} bytes` : 'size unknown'} · bytes read:{' '}
+                    {doc.bytesRead}
                   </Typography>
                 </Paper>
               ))}
             </Box>
           ) : null}
         </DialogContent>
-          <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
+        <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Button color="error" onClick={handleDelete} disabled={deleting || saving || probing}>
               {deleting ? 'Deleting…' : 'Delete'}
             </Button>
           </Box>
-          <Button onClick={closeDialog} disabled={saving || deleting}>Cancel</Button>
+          <Button onClick={closeDialog} disabled={saving || deleting}>
+            Cancel
+          </Button>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <ButtonGroup variant="outlined" size="small" aria-label="check connectivity group" sx={{ ml: 0.5 }}>
+            <ButtonGroup
+              variant="outlined"
+              size="small"
+              aria-label="check connectivity group"
+              sx={{ ml: 0.5 }}
+            >
               <Button onClick={handleProbe} disabled={saving || deleting || probing}>
                 {probing ? 'Checking…' : 'Check connectivity'}
               </Button>
               <IconButton
                 aria-label="check-opts"
                 size="small"
-                onClick={(e: React.MouseEvent<HTMLElement>) => setAnchorProbeOptions(e.currentTarget)}
+                onClick={(e: React.MouseEvent<HTMLElement>) =>
+                  setAnchorProbeOptions(e.currentTarget)
+                }
                 disabled={saving || deleting}
                 title="Check connectivity options"
                 sx={{ borderLeft: '1px solid rgba(0,0,0,0.12)' }}
@@ -611,8 +685,12 @@ export const ProvidersPage: React.FC = () => {
               sx={{ p: 1 }}
             >
               <Box sx={{ p: 2, width: 320, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Check connectivity options</Typography>
-                <Typography variant="body2" sx={{ opacity: 0.7 }}>These options apply only to the connectivity check.</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  Check connectivity options
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                  These options apply only to the connectivity check.
+                </Typography>
                 <Stack direction="row" spacing={1} sx={{ pt: 1 }}>
                   <TextField
                     label="Max Documents"
@@ -634,7 +712,9 @@ export const ProvidersPage: React.FC = () => {
                   />
                 </Stack>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 1 }}>
-                  <Button size="small" onClick={() => setAnchorProbeOptions(null)}>Done</Button>
+                  <Button size="small" onClick={() => setAnchorProbeOptions(null)}>
+                    Done
+                  </Button>
                 </Box>
               </Box>
             </Popover>
