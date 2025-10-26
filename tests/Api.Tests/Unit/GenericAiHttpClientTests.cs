@@ -308,7 +308,7 @@ public class GenericAiHttpClientTests
             UsageTotalTokensPath = "usage.total_tokens"
         };
 
-        var (promptTokens, completionTokens, totalTokens) = 
+        var (promptTokens, completionTokens, totalTokens) =
             TestableGenericAiHttpClient.TestExtractUsageWithMapping(doc.RootElement, mapping);
 
         Assert.Equal(100, promptTokens);
@@ -358,7 +358,7 @@ public class GenericAiHttpClientTests
         };
 
         var result = TestableGenericAiHttpClient.TestMergeDefaultParams(requestJson, defaultParams);
-        
+
         using var doc = JsonDocument.Parse(result);
         Assert.True(doc.RootElement.TryGetProperty("temperature", out var temp));
         Assert.Equal(0.7, temp.GetDouble(), precision: 2);
@@ -376,7 +376,7 @@ public class GenericAiHttpClientTests
         };
 
         var result = TestableGenericAiHttpClient.TestMergeDefaultParams(requestJson, defaultParams);
-        
+
         using var doc = JsonDocument.Parse(result);
         Assert.True(doc.RootElement.TryGetProperty("temperature", out var temp));
         Assert.Equal(0.9, temp.GetDouble(), precision: 2);  // Should keep original value
@@ -411,7 +411,7 @@ internal static class TestableGenericAiHttpClient
             {
                 var bracketStart = part.IndexOf('[');
                 var bracketEnd = part.IndexOf(']');
-                
+
                 if (bracketStart == -1 || bracketEnd == -1 || bracketEnd <= bracketStart)
                 {
                     return null;
@@ -419,7 +419,7 @@ internal static class TestableGenericAiHttpClient
 
                 var propertyName = part.Substring(0, bracketStart);
                 var indexStr = part.Substring(bracketStart + 1, bracketEnd - bracketStart - 1);
-                
+
                 if (!int.TryParse(indexStr, out var index))
                 {
                     return null;
@@ -495,7 +495,7 @@ internal static class TestableGenericAiHttpClient
     }
 
     public static (int PromptTokens, int CompletionTokens, int TotalTokens) TestExtractUsageWithMapping(
-        JsonElement root, 
+        JsonElement root,
         ResponseMapping mapping)
     {
         var promptTokens = 0;

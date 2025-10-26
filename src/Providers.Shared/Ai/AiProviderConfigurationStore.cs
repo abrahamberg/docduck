@@ -126,8 +126,8 @@ public sealed class AiProviderConfigurationStore
                 @url, @headers, @request_template, @response_mapping, @default_params, now()
             )
             ON CONFLICT (provider_id)
-            DO UPDATE SET 
-                settings = EXCLUDED.settings, 
+            DO UPDATE SET
+                settings = EXCLUDED.settings,
                 test_status = EXCLUDED.test_status,
                 last_tested_at = EXCLUDED.last_tested_at,
                 last_test_message = EXCLUDED.last_test_message,
@@ -148,22 +148,22 @@ public sealed class AiProviderConfigurationStore
 
             // Store new flexible columns
             cmd.Parameters.AddWithValue("url", (object?)model.Url ?? DBNull.Value);
-            
+
             if (model.Headers != null)
                 cmd.Parameters.Add("headers", NpgsqlTypes.NpgsqlDbType.Jsonb).Value = JsonSerializer.Serialize(model.Headers, Configuration.ConfigurationJson.Default);
             else
                 cmd.Parameters.AddWithValue("headers", DBNull.Value);
-            
+
             if (model.RequestTemplate != null)
                 cmd.Parameters.Add("request_template", NpgsqlTypes.NpgsqlDbType.Jsonb).Value = model.RequestTemplate.RootElement.GetRawText();
             else
                 cmd.Parameters.AddWithValue("request_template", DBNull.Value);
-            
+
             if (model.ResponseMapping != null)
                 cmd.Parameters.Add("response_mapping", NpgsqlTypes.NpgsqlDbType.Jsonb).Value = JsonSerializer.Serialize(model.ResponseMapping, Configuration.ConfigurationJson.Default);
             else
                 cmd.Parameters.AddWithValue("response_mapping", DBNull.Value);
-            
+
             if (model.DefaultParams != null)
                 cmd.Parameters.Add("default_params", NpgsqlTypes.NpgsqlDbType.Jsonb).Value = JsonSerializer.Serialize(model.DefaultParams, Configuration.ConfigurationJson.Default);
             else
@@ -195,7 +195,7 @@ public sealed class AiProviderConfigurationStore
             INSERT INTO ai_provider_settings(provider_id, provider_type, url, headers, request_template, response_mapping, default_params, settings, test_status, last_tested_at, last_test_message, updated_at)
             VALUES (@provider_id, 'embedding', @url, @headers, @request_template, @response_mapping, @default_params, @settings, @test_status, @last_tested_at, @last_test_message, now())
             ON CONFLICT (provider_id)
-            DO UPDATE SET 
+            DO UPDATE SET
                 url = EXCLUDED.url,
                 headers = EXCLUDED.headers,
                 request_template = EXCLUDED.request_template,
@@ -217,11 +217,11 @@ public sealed class AiProviderConfigurationStore
 
             // New flexible fields
             cmd.Parameters.AddWithValue("url", model.Url);
-            
+
             var headersJson = JsonSerializer.Serialize(model.Headers, Configuration.ConfigurationJson.Default);
             cmd.Parameters.Add("headers", NpgsqlTypes.NpgsqlDbType.Jsonb).Value = headersJson;
 
-            var templateJson = model.RequestTemplate != null 
+            var templateJson = model.RequestTemplate != null
                 ? model.RequestTemplate.RootElement.GetRawText()
                 : "null";
             cmd.Parameters.Add("request_template", NpgsqlTypes.NpgsqlDbType.Jsonb).Value = templateJson;
@@ -252,8 +252,8 @@ public sealed class AiProviderConfigurationStore
     private static async Task DeleteRemovedModelsAsync(NpgsqlConnection conn, NpgsqlTransaction transaction, AiProviderConfiguration config, CancellationToken ct)
     {
         const string deleteChatSql = @"
-            DELETE FROM ai_provider_settings 
-            WHERE provider_type = 'chat' 
+            DELETE FROM ai_provider_settings
+            WHERE provider_type = 'chat'
             AND provider_id NOT IN (SELECT unnest(@ids::text[]))";
 
         await using (var cmd = new NpgsqlCommand(deleteChatSql, conn, transaction))
@@ -263,8 +263,8 @@ public sealed class AiProviderConfigurationStore
         }
 
         const string deleteEmbeddingSql = @"
-            DELETE FROM ai_provider_settings 
-            WHERE provider_type = 'embedding' 
+            DELETE FROM ai_provider_settings
+            WHERE provider_type = 'embedding'
             AND provider_id NOT IN (SELECT unnest(@ids::text[]))";
 
         await using (var cmd = new NpgsqlCommand(deleteEmbeddingSql, conn, transaction))

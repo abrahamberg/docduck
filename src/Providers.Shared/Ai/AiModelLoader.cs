@@ -18,7 +18,7 @@ internal static class AiModelLoader
         const string chatSql = @"
             SELECT provider_id, settings, test_status, last_tested_at, last_test_message,
                    url, headers, request_template, response_mapping, default_params
-            FROM ai_provider_settings 
+            FROM ai_provider_settings
             WHERE provider_type = 'chat'";
 
         await using var chatCmd = new NpgsqlCommand(chatSql, conn);
@@ -40,8 +40,8 @@ internal static class AiModelLoader
         CancellationToken ct)
     {
         const string embeddingSql = @"
-            SELECT provider_id, url, headers, request_template, response_mapping, default_params, settings, test_status, last_tested_at, last_test_message 
-            FROM ai_provider_settings 
+            SELECT provider_id, url, headers, request_template, response_mapping, default_params, settings, test_status, last_tested_at, last_test_message
+            FROM ai_provider_settings
             WHERE provider_type = 'embedding'";
 
         await using var embeddingCmd = new NpgsqlCommand(embeddingSql, conn);

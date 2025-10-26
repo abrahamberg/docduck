@@ -16,7 +16,7 @@ public class AiProviderConfigurationStoreTests
     {
         // This test validates the complex logic in LoadChatModelsAsync
         // by checking the field mapping and deserialization paths
-        
+
         var config = new AiProviderConfiguration
         {
             Enabled = true,
