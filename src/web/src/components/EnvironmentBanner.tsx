@@ -1,12 +1,12 @@
 import React from 'react';
-import { Alert, AlertTitle, Stack, Chip, LinearProgress } from '@mui/material';
+import { Stack, Chip, LinearProgress, Typography, Box } from '@mui/material';
 import { HealthStatus } from '../types';
 
 interface Props { health: HealthStatus | null; loading: boolean; }
 
 export const EnvironmentBanner: React.FC<Props> = ({ health, loading }) => {
   if (loading) {
-    return <LinearProgress />;
+    return <LinearProgress sx={{ width: '100%', maxWidth: 300 }} />;
   }
   if (!health) return null;
 
@@ -17,22 +17,26 @@ export const EnvironmentBanner: React.FC<Props> = ({ health, loading }) => {
 
   if (warnings.length === 0) {
     return (
-      <Alert severity="success" variant="outlined" sx={{ alignItems: 'center' }}>
-        <AlertTitle>Environment OK</AlertTitle>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.main' }}>
+          Environment OK
+        </Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap">
           <Chip color="success" size="small" label={`Chunks: ${health.chunks}`} />
           <Chip color="success" size="small" label={`Docs: ${health.documents}`} />
         </Stack>
-      </Alert>
+      </Box>
     );
   }
 
   return (
-    <Alert severity="warning" variant="outlined">
-      <AlertTitle>Environment Issues</AlertTitle>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.main' }}>
+        Environment Issues
+      </Typography>
       <Stack direction="row" spacing={1} flexWrap="wrap">
         {warnings.map(w => <Chip key={w} color="warning" size="small" label={w} />)}
       </Stack>
-    </Alert>
+    </Box>
   );
 };

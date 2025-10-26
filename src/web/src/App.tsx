@@ -59,87 +59,89 @@ export const App: React.FC = () => {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-        <EnvironmentBanner health={health} loading={healthLoading} />
-        
-        {/* Theme toggle at top-left */}
+      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', display: 'flex', flexDirection: 'column' }}>
+        {/* Single top bar with environment status and controls */}
         <Box
           sx={{
-            position: 'fixed',
-            top: 16,
-            left: 16,
-            zIndex: 1000,
+            position: 'sticky',
+            top: 0,
+            zIndex: 1100,
+            bgcolor: 'background.default',
+            borderBottom: theme => `1px solid ${theme.palette.divider}`,
+            px: 2,
+            py: 1.5,
           }}
         >
-          <IconButton
-            onClick={toggleTheme}
-            sx={{
-              bgcolor: 'background.paper',
-              backdropFilter: 'blur(12px)',
-              '&:hover': {
-                bgcolor: 'action.hover',
-              },
-            }}
-            aria-label="toggle theme"
-          >
-            {themeMode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
-          </IconButton>
-        </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+            {/* Left side - Environment status */}
+            <Box sx={{ flex: '1 1 auto', minWidth: 200 }}>
+              <EnvironmentBanner health={health} loading={healthLoading} />
+            </Box>
 
-        {/* Top-right controls - Always visible */}
-        <Box
-          sx={{
-            position: 'fixed',
-            top: 16,
-            right: 16,
-            zIndex: 1000,
-            display: 'flex',
-            gap: 2,
-            alignItems: 'center',
-          }}
-        >
-          <Autocomplete
-            multiple
-            disableCloseOnSelect
-            size="small"
-            options={providerOptions}
-            loading={loadingProviders}
-            value={providerOptions.filter(o => selectedProviders.includes(o.value))}
-            onChange={(_, newValue) => setSelectedProviders(newValue.map(v => v.value))}
-            sx={{ 
-              minWidth: 220, 
-              maxWidth: 320,
-              '& .MuiOutlinedInput-root': {
-                bgcolor: 'background.paper',
-                backdropFilter: 'blur(12px)',
-              }
-            }}
-            getOptionLabel={o => o.label}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Providers"
-                placeholder={providerOptions.length === 0 ? 'No providers' : 'Select providers'}
+            {/* Right side - Provider selector, Theme toggle, and Admin button */}
+            <Box
+              sx={{
+                display: 'flex',
+                gap: 1.5,
+                alignItems: 'center',
+                flexWrap: { xs: 'wrap', sm: 'nowrap' },
+                justifyContent: 'flex-end',
+              }}
+            >
+              <Autocomplete
+                multiple
+                disableCloseOnSelect
+                size="small"
+                options={providerOptions}
+                loading={loadingProviders}
+                value={providerOptions.filter(o => selectedProviders.includes(o.value))}
+                onChange={(_, newValue) => setSelectedProviders(newValue.map(v => v.value))}
+                sx={{ 
+                  minWidth: { xs: 180, sm: 220 }, 
+                  maxWidth: { xs: 280, sm: 320 },
+                }}
+                getOptionLabel={o => o.label}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Providers"
+                    placeholder={providerOptions.length === 0 ? 'No providers' : 'Select providers'}
+                  />
+                )}
               />
-            )}
-          />
-          <Button 
-            color="primary" 
-            variant="outlined" 
-            size="small" 
-            href="/admin/login"
-            sx={{ 
-              bgcolor: 'background.paper',
-              backdropFilter: 'blur(12px)',
-            }}
-          >
-            Admin
-          </Button>
+              <IconButton
+                onClick={toggleTheme}
+                size="small"
+                aria-label="toggle theme"
+                sx={{
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                  },
+                }}
+              >
+                {themeMode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
+              </IconButton>
+              <Button 
+                color="primary" 
+                variant="outlined" 
+                size="small" 
+                href="/admin/login"
+                sx={{ 
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Admin
+              </Button>
+            </Box>
+          </Box>
         </Box>
 
-        <Ask 
-          providerNames={selectedProviders.length > 0 ? selectedProviders : undefined} 
-        />
+        {/* Main content area */}
+        <Box sx={{ flex: 1 }}>
+          <Ask 
+            providerNames={selectedProviders.length > 0 ? selectedProviders : undefined} 
+          />
+        </Box>
       </Box>
     </ThemeProvider>
   );

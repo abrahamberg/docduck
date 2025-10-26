@@ -140,7 +140,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
     return (
       <Box
         sx={{
-          minHeight: '100vh',
+          minHeight: 'calc(100vh - 120px)', // Account for top bar and banner
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -338,30 +338,43 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
 
   // CHAT MODE: Conversation layout with search at bottom
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      {/* Logo in top-left corner */}
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 120px)' }}>
+      {/* Logo/New Chat button in top-center */}
       <Box
         sx={{
-          position: 'fixed',
-          top: 16,
-          left: 16,
-          zIndex: 1000,
+          display: 'flex',
+          justifyContent: 'center',
+          py: 2,
+          borderBottom: theme => `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Typography
-          variant="h6"
-          sx={{
-            fontWeight: 700,
-            letterSpacing: '-0.02em',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            cursor: 'pointer',
-          }}
+        <Button
           onClick={clearAll}
+          variant="text"
+          size="small"
+          sx={{
+            textTransform: 'none',
+            px: 3,
+            py: 0.5,
+            borderRadius: 2,
+            '&:hover': {
+              bgcolor: 'action.hover',
+            },
+          }}
         >
-          DocDuck
-        </Typography>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 700,
+              letterSpacing: '-0.02em',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            DocDuck - New Chat
+          </Typography>
+        </Button>
       </Box>
 
       {/* Messages area */}
@@ -371,7 +384,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
           flex: 1,
           overflowY: 'auto',
           px: { xs: 2, sm: 4 },
-          pt: 10,
+          pt: 3,
           pb: 20,
         }}
       >
