@@ -25,7 +25,8 @@ public record QueryResponse(
     int TokensUsed,
     List<string>? Steps = null,
     List<DocumentResult>? Files = null,
-    List<ChatMessage>? History = null
+    List<ChatMessage>? History = null,
+    List<ModelUsageInfo>? ModelUsage = null
 )
 {
     /// <summary>
@@ -39,7 +40,8 @@ public record QueryResponse(
             TokensUsed: chatResponse.TokensUsed,
             Steps: chatResponse.Steps,
             Files: chatResponse.Files,
-            History: chatResponse.History
+            History: chatResponse.History,
+            ModelUsage: chatResponse.ModelUsage
         );
     }
 };
@@ -92,6 +94,15 @@ public record ChatMessage(
 );
 
 /// <summary>
+/// Tracks AI model usage and token consumption.
+/// </summary>
+public record ModelUsageInfo(
+    string ModelId,
+    string Purpose,  // e.g., "query_refinement", "evaluation", "answer_generation"
+    int Tokens
+);
+
+/// <summary>
 /// Response model for chat endpoint.
 /// </summary>
 public record ChatResponse(
@@ -100,7 +111,8 @@ public record ChatResponse(
     List<DocumentResult> Files,
     List<Source> Sources,
     int TokensUsed,
-    List<ChatMessage> History
+    List<ChatMessage> History,
+    List<ModelUsageInfo>? ModelUsage = null
 );
 
 /// <summary>

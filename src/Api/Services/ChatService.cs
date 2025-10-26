@@ -60,6 +60,7 @@ public class ChatService
         };
         
         var steps = new List<string>();
+        var modelUsage = new List<ModelUsageInfo>();
 
         _logger.LogInformation("Query search depth {Depth} configured for {Attempts} attempt(s)", depth, maxAttempts);
 
@@ -144,6 +145,7 @@ public class ChatService
                 latestSources.Select(s => s.Text).ToList(), 
                 ct);
             totalTokens += evalTokens;
+            modelUsage.Add(new ModelUsageInfo("chat-model", "context_evaluation", evalTokens));
 
             _logger.LogInformation("Model decision: {Action} - {Reasoning}", decision.Action, decision.Reasoning);
 
@@ -210,6 +212,7 @@ public class ChatService
                 ct,
                 useLargeModel: true);
             totalTokens += answerTokens;
+            modelUsage.Add(new ModelUsageInfo("chat-model-large", "answer_generation", answerTokens));
 
             finalAnswer = answer;
             break;
@@ -248,7 +251,8 @@ public class ChatService
             sources: latestSources,
             tokens: totalTokens,
             includeStepsInHistory: progress != null,
-            includeStepsInResponse: progress != null);
+            includeStepsInResponse: progress != null,
+            modelUsage: modelUsage);
 
         if (progress != null)
         {
@@ -270,7 +274,8 @@ public class ChatService
         List<Source> sources,
         int tokens,
         bool includeStepsInHistory,
-        bool includeStepsInResponse)
+        bool includeStepsInResponse,
+        List<ModelUsageInfo>? modelUsage = null)
     {
         var files = BuildDocumentResults(sources);
         var responseSteps = includeStepsInResponse ? new List<string>(steps) : new List<string>();
@@ -320,7 +325,8 @@ public class ChatService
             Files: files,
             Sources: sources,
             TokensUsed: tokens,
-            History: updatedHistory
+            History: updatedHistory,
+            ModelUsage: modelUsage
         );
     }
 
@@ -400,7 +406,17 @@ public class ChatService
             options: null,
             ct: ct);
 
-        return result.Content?.Trim() ?? original;
+        var refined = result.Content?.Trim();
+        
+        if (string.IsNullOrWhiteSpace(refined))
+        {
+            _logger.LogWarning("Query refinement returned empty content for input: {Input}. Tool calls: {ToolCalls}. Falling back to original.",
+                original, result.ToolCalls.Count);
+            return original;
+        }
+
+        _logger.LogDebug("Query refined from '{Original}' to '{Refined}'", original, refined);
+        return refined;
     }
 
     private async Task<string> RephraseForRetryAsync(
@@ -453,7 +469,17 @@ public class ChatService
             options: null,
             ct: ct);
 
-        return result.Content?.Trim() ?? previous;
+        var rephrased = result.Content?.Trim();
+        
+        if (string.IsNullOrWhiteSpace(rephrased))
+        {
+            _logger.LogWarning("Query rephrase returned empty content for input: {Input}. Tool calls: {ToolCalls}. Falling back to previous.",
+                previous, result.ToolCalls.Count);
+            return previous;
+        }
+
+        _logger.LogDebug("Query rephrased from '{Previous}' to '{Rephrased}'", previous, rephrased);
+        return rephrased;
     }
 
     private async Task<(RefinementDecision Decision, int TokensUsed)> EvaluateWithToolsAsync(
@@ -561,18 +587,10 @@ public class ChatService
 
     private static ToolDefinition ConvertToToolDefinition(OpenAI.Chat.ChatTool chatTool)
     {
-        var json = System.Text.Json.JsonSerializer.Serialize(chatTool);
-        using var doc = System.Text.Json.JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        var function = root.GetProperty("function");
-        var name = function.GetProperty("name").GetString() ?? string.Empty;
-        var description = function.TryGetProperty("description", out var desc) && desc.ValueKind == System.Text.Json.JsonValueKind.String
-            ? desc.GetString() ?? string.Empty
-            : string.Empty;
-        var parameters = function.TryGetProperty("parameters", out var param)
-            ? param.GetRawText()
-            : "{}";
+        // ChatTool from OpenAI SDK has FunctionName, FunctionDescription, and FunctionParameters properties
+        var name = chatTool.FunctionName ?? string.Empty;
+        var description = chatTool.FunctionDescription ?? string.Empty;
+        var parameters = chatTool.FunctionParameters?.ToString() ?? "{}";
 
         return new ToolDefinition(name, description, parameters);
     }

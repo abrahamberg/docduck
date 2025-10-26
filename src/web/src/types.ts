@@ -25,6 +25,7 @@ export interface QueryResponse {
   steps?: string[];
   files?: DocumentResult[];
   history?: ChatMessage[];
+  modelUsage?: ModelUsageInfo[];
 }
 
 export interface DocumentResult {
@@ -40,6 +41,12 @@ export interface DocumentResult {
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+}
+
+export interface ModelUsageInfo {
+  modelId: string;
+  purpose: string;
+  tokens: number;
 }
 
 export interface ChatRequest {
@@ -58,6 +65,7 @@ export interface ChatResponse {
   sources: Source[];
   tokensUsed: number;
   history: ChatMessage[];
+  modelUsage?: ModelUsageInfo[] | null;
 }
 
 export interface ChatStreamUpdate {

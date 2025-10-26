@@ -117,8 +117,40 @@ public sealed class GenericAiHttpClient : IDisposable
                 ?? _model.RequestTemplate.RootElement.GetRawText();
             var substituted = TemplateSubstitutionService.Substitute(templateString, context);
             
+            // Parse, add tools if needed, then serialize
+            using var doc = JsonDocument.Parse(substituted);
+            var payload = JsonSerializer.Deserialize<JsonObject>(doc.RootElement.GetRawText()) 
+                ?? new JsonObject();
+            
+            // Add tools if provided and supported
+            if (tools != null && tools.Count > 0)
+            {
+                if (!_model.SupportsFunctionCalling)
+                {
+                    _logger?.LogWarning("Model {Model} does not support function calling, ignoring tools", _model.ModelId);
+                }
+                else
+                {
+                    payload["tools"] = new JsonArray(tools.Select(t => new JsonObject
+                    {
+                        ["type"] = "function",
+                        ["function"] = new JsonObject
+                        {
+                            ["name"] = t.Name,
+                            ["description"] = t.Description,
+                            ["parameters"] = JsonNode.Parse(t.ParametersJson)
+                        }
+                    }).ToArray());
+
+                    if (!string.IsNullOrWhiteSpace(toolChoice))
+                    {
+                        payload["tool_choice"] = toolChoice;
+                    }
+                }
+            }
+            
             // Merge in DefaultParams from model configuration
-            json = MergeDefaultParams(substituted, _model.DefaultParams);
+            json = MergeDefaultParams(payload.ToJsonString(), _model.DefaultParams);
             endpoint = string.Empty; // Url already includes full path
         }
         else
@@ -345,13 +377,23 @@ public sealed class GenericAiHttpClient : IDisposable
             // Handle array indexing like "choices[0]"
             if (part.Contains('['))
             {
-                var arrayParts = part.Split('[', ']', StringSplitOptions.RemoveEmptyEntries);
-                if (arrayParts.Length != 2 || !int.TryParse(arrayParts[1], out var index))
+                var bracketStart = part.IndexOf('[');
+                var bracketEnd = part.IndexOf(']');
+                
+                if (bracketStart == -1 || bracketEnd == -1 || bracketEnd <= bracketStart)
                 {
                     return null;
                 }
 
-                if (!current.TryGetProperty(arrayParts[0], out var arrayProp) || arrayProp.ValueKind != JsonValueKind.Array)
+                var propertyName = part.Substring(0, bracketStart);
+                var indexStr = part.Substring(bracketStart + 1, bracketEnd - bracketStart - 1);
+                
+                if (!int.TryParse(indexStr, out var index))
+                {
+                    return null;
+                }
+
+                if (!current.TryGetProperty(propertyName, out var arrayProp) || arrayProp.ValueKind != JsonValueKind.Array)
                 {
                     return null;
                 }

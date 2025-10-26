@@ -356,6 +356,11 @@ app.MapPost("/query", async (
             async Task WriteUpdateAsync(ChatStreamUpdate update)
             {
                 var payload = JsonSerializer.Serialize(update, streamJsonOptions);
+                logger.LogDebug("Sending stream update: {Type}, payload length: {Length}", update.Type, payload.Length);
+                if (update.Type == "final" && update.Final != null)
+                {
+                    logger.LogDebug("Final answer preview: {Answer}", update.Final.Answer.Length > 100 ? update.Final.Answer.Substring(0, 100) + "..." : update.Final.Answer);
+                }
                 await httpContext.Response.WriteAsync($"data: {payload}\n\n", ct);
                 await httpContext.Response.Body.FlushAsync(ct);
             }

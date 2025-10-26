@@ -3,10 +3,12 @@ import { QueryResponse, DocumentResult, ChatStreamUpdate } from '../types';
 import { postQuery, postQueryStream, postDocSearch } from '../api';
 import { SourceList } from './SourceList';
 import { DocSearchResults } from './DocSearchResults';
-import { Box, Stack, TextField, Button, Card, Typography, CircularProgress, Switch, FormControlLabel, Slider, IconButton, Popover, Divider } from '@mui/material';
+import { Box, Stack, TextField, Button, Card, Typography, CircularProgress, Switch, FormControlLabel, Slider, IconButton, Popover, Divider, Collapse } from '@mui/material';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 interface Props {
   providerNames?: string[];
@@ -24,6 +26,7 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
   const [docResults, setDocResults] = useState<DocumentResult[] | null>(null);
   const [streamMode, setStreamMode] = useState(true);
   const [searchDepth, setSearchDepth] = useState<number>(3);
+  const [showThinking, setShowThinking] = useState(false);
 
   // Mode detection: landing (search-engine style) vs chat (conversation started)
   const isLandingMode = messages.length === 0 && !streamingAnswer && !response && !docResults;
@@ -87,16 +90,19 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
 
   const handleStreamUpdate = useCallback((update: ChatStreamUpdate) => {
     if (update.type === 'step' && update.message) {
-      setStreamingAnswer(prev => prev + update.message);
+      setStreamingAnswer(prev => prev + update.message + '\n');
     } else if (update.type === 'final' && update.final) {
       const final = update.final;
       const qResp: QueryResponse = {
         answer: final.answer,
         sources: final.sources || [],
         tokensUsed: final.tokensUsed || 0,
+        steps: final.steps || [],
+        modelUsage: final.modelUsage || [],
       };
       setResponse(qResp);
-      setMessages(prev => [...prev, { role: 'assistant', content: final.answer, id: `assistant-${Date.now()}` }]);
+      // Don't add to messages - we display it in the response card
+      setStreamingAnswer(''); // Clear thinking steps
     } else if (update.type === 'error' && update.message) {
       setError(update.message);
     }
@@ -459,10 +465,54 @@ export const Ask: React.FC<Props> = ({ providerNames, topK, onInteraction }) => 
                   <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, mb: 2 }}>
                     {response.answer}
                   </Typography>
+                  
+                  {response.steps && response.steps.length > 0 && (
+                    <Box sx={{ mt: 2, mb: 2 }}>
+                      <Button
+                        size="small"
+                        onClick={() => setShowThinking(!showThinking)}
+                        endIcon={showThinking ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                        sx={{ textTransform: 'none', color: 'text.secondary', fontSize: '0.875rem' }}
+                      >
+                        {showThinking ? 'Hide' : 'Show'} thinking ({response.steps.length} steps)
+                      </Button>
+                      <Collapse in={showThinking}>
+                        <Box sx={{ mt: 1, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
+                          {response.steps.map((step, idx) => (
+                            <Typography
+                              key={idx}
+                              variant="body2"
+                              sx={{
+                                fontSize: '0.875rem',
+                                color: 'text.secondary',
+                                mb: 0.5,
+                                fontFamily: 'monospace',
+                              }}
+                            >
+                              {step}
+                            </Typography>
+                          ))}
+                        </Box>
+                      </Collapse>
+                    </Box>
+                  )}
+                  
                   <SourceList sources={response.sources} />
-                  <Typography variant="caption" sx={{ mt: 2, display: 'block', opacity: 0.6 }}>
-                    Tokens used: {response.tokensUsed}
-                  </Typography>
+                  
+                  <Box sx={{ mt: 2, pt: 2, borderTop: theme => `1px solid ${theme.palette.divider}` }}>
+                    <Typography variant="caption" sx={{ display: 'block', opacity: 0.6, mb: 0.5 }}>
+                      Total tokens: {response.tokensUsed}
+                    </Typography>
+                    {response.modelUsage && response.modelUsage.length > 0 && (
+                      <Box sx={{ mt: 1 }}>
+                        {response.modelUsage.map((usage, idx) => (
+                          <Typography key={idx} variant="caption" sx={{ display: 'block', opacity: 0.5, fontSize: '0.75rem' }}>
+                            • {usage.purpose.replace(/_/g, ' ')}: {usage.tokens} tokens
+                          </Typography>
+                        ))}
+                      </Box>
+                    )}
+                  </Box>
                 </Card>
               </Box>
             </Box>
