@@ -591,7 +591,7 @@ public static class AdminEndpointExtensions
 
                 var successMessage = supportsFunctionCalling
                     ? $"✓ Model responded in {sw.ElapsedMilliseconds}ms with function call - {functionCallDetails}"
-                    : $"✓ Model responded in {sw.ElapsedMilliseconds}ms - \"{responseText.Substring(0, Math.Min(50, responseText.Length))}{(responseText.Length > 50 ? "..." : "")}\"";
+                    : FormatSuccessMessage(sw.ElapsedMilliseconds, responseText);
 
                 return Results.Ok(new AiProbeResponse(
                     Success: true,
@@ -1203,4 +1203,12 @@ public static class AdminEndpointExtensions
     }
 
     private static AdminUserDto ToDto(AdminUser user) => new(user.Id, user.Username, user.IsAdmin, user.CreatedAt, user.UpdatedAt);
+
+    private static string FormatSuccessMessage(long elapsedMilliseconds, string responseText)
+    {
+        var preview = responseText.Length > 50
+            ? responseText.Substring(0, 50) + "..."
+            : responseText;
+        return $"✓ Model responded in {elapsedMilliseconds}ms - \"{preview}\"";
+    }
 }

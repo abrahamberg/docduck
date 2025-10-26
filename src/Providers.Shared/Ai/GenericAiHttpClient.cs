@@ -24,7 +24,7 @@ public sealed class GenericAiHttpClient : IDisposable
         _model = model;
         _logger = logger;
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(model.Url, nameof(model.Url));
+        ArgumentException.ThrowIfNullOrWhiteSpace(model.Url);
 
         _httpClient = new HttpClient
         {
