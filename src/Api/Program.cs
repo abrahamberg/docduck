@@ -210,32 +210,7 @@ logger.LogInformation("DB Connection configured: {Configured}", !string.IsNullOr
 // Health check endpoint
 app.MapGet("/health", async (IVectorSearchService searchService, IModelAgnosticAiService aiSvc, CancellationToken ct) =>
 {
-    try
-    {
-        var chunkCount = await searchService.GetChunkCountAsync(ct);
-        var docCount = await searchService.GetDocumentCountAsync(ct);
-
-        var config = await aiSvc.GetConfigurationAsync(ct);
-        var aiKeyPresent = config is { Enabled: true, EmbeddingModel: not null }
-            && config.EmbeddingModel.Headers.TryGetValue("Authorization", out var authHeader)
-            && !string.IsNullOrWhiteSpace(authHeader);
-        var dbConnectionPresent = !string.IsNullOrWhiteSpace(dbConnectionString);
-
-        return Results.Ok(new
-        {
-            status = "healthy",
-            timestamp = DateTime.UtcNow,
-            chunks = chunkCount,
-            documents = docCount,
-            aiKeyPresent,
-            dbConnectionPresent
-        });
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Health check failed");
-        return Results.Problem("Service unhealthy");
-    }
+    return await GetHealthCheckAsync(searchService, aiSvc, dbConnectionString, logger, ct);
 });
 
 // Get active providers endpoint
@@ -281,57 +256,7 @@ app.MapPost("/docsearch", async (
     IOptions<SearchOptions> searchOptions,
     CancellationToken ct) =>
 {
-    if (string.IsNullOrWhiteSpace(request.Question))
-    {
-        return Results.BadRequest(new { error = "Question/query is required" });
-    }
-
-    try
-    {
-        var depth = Math.Clamp(request.SearchDepth ?? searchOptions.Value.DefaultSearchDepth, 1, searchOptions.Value.MaxSearchDepth);
-        // Create embedding for the query
-        var qEmbedding = await aiSvc.EmbedAsync(request.Question, ct);
-
-        // Fetch chunks (limit a bit higher to allow grouping) - respect TopK if provided but cap to 100
-        var fetchTopK = Math.Min(request.TopK ?? 20, 100);
-        var chunks = await searchService.SearchAsync(qEmbedding, request.Question, fetchTopK, request.ProviderType, request.ProviderName, depth, ct);
-
-        // Group by document and pick the best (smallest) distance per document
-        var docs = chunks
-            .GroupBy(c => c.DocId)
-            .Select(g => new
-            {
-                DocId = g.Key,
-                Filename = g.First().Filename,
-                ProviderType = g.First().ProviderType,
-                ProviderName = g.First().ProviderName,
-                BestDistance = g.Min(x => x.Distance)
-            })
-            .OrderBy(x => x.BestDistance)
-            .Take(5)
-                .Select(x =>
-                {
-                    // pick the first chunk text for the document to show as snippet
-                    var chunkText = chunks.FirstOrDefault(c => c.DocId == x.DocId)?.Text ?? string.Empty;
-                    return new Api.Models.DocumentResult(
-                        DocId: x.DocId,
-                        Filename: x.Filename,
-                        Address: $"{x.ProviderType}/{x.ProviderName}:{x.Filename}",
-                        Text: chunkText,
-                        Distance: x.BestDistance,
-                        ProviderType: x.ProviderType,
-                        ProviderName: x.ProviderName
-                    );
-                })
-            .ToList();
-
-        return Results.Ok(new { query = request.Question, count = docs.Count, results = docs });
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Error processing docsearch");
-        return Results.Problem("An error occurred processing your document search");
-    }
+    return await ExecuteDocSearchAsync(request, aiSvc, searchService, searchOptions.Value, logger, ct);
 });
 
 // Root endpoint - API info
@@ -349,3 +274,106 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 await app.RunAsync();
+
+static async Task<IResult> GetHealthCheckAsync(
+    IVectorSearchService searchService,
+    IModelAgnosticAiService aiSvc,
+    string dbConnectionString,
+    ILogger logger,
+    CancellationToken ct)
+{
+    try
+    {
+        var chunkCount = await searchService.GetChunkCountAsync(ct);
+        var docCount = await searchService.GetDocumentCountAsync(ct);
+
+        var config = await aiSvc.GetConfigurationAsync(ct);
+        var aiKeyPresent = IsAiKeyPresent(config);
+        var dbConnectionPresent = !string.IsNullOrWhiteSpace(dbConnectionString);
+
+        return Results.Ok(new
+        {
+            status = "healthy",
+            timestamp = DateTime.UtcNow,
+            chunks = chunkCount,
+            documents = docCount,
+            aiKeyPresent,
+            dbConnectionPresent
+        });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Health check failed");
+        return Results.Problem("Service unhealthy");
+    }
+}
+
+static bool IsAiKeyPresent(AiProviderConfiguration? config)
+{
+    return config is { Enabled: true, EmbeddingModel: not null }
+        && config.EmbeddingModel.Headers.TryGetValue("Authorization", out var authHeader)
+        && !string.IsNullOrWhiteSpace(authHeader);
+}
+
+static async Task<IResult> ExecuteDocSearchAsync(
+    QueryRequest request,
+    IModelAgnosticAiService aiSvc,
+    IVectorSearchService searchService,
+    SearchOptions searchOptions,
+    ILogger logger,
+    CancellationToken ct)
+{
+    if (string.IsNullOrWhiteSpace(request.Question))
+    {
+        return Results.BadRequest(new { error = "Question/query is required" });
+    }
+
+    try
+    {
+        var depth = Math.Clamp(request.SearchDepth ?? searchOptions.DefaultSearchDepth, 1, searchOptions.MaxSearchDepth);
+        var qEmbedding = await aiSvc.EmbedAsync(request.Question, ct);
+
+        var fetchTopK = Math.Min(request.TopK ?? 20, 100);
+        var chunks = await searchService.SearchAsync(qEmbedding, request.Question, fetchTopK, request.ProviderType, request.ProviderName, depth, ct);
+
+        var docs = GroupChunksByDocument(chunks);
+
+        return Results.Ok(new { query = request.Question, count = docs.Count, results = docs });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Error processing docsearch");
+        return Results.Problem("An error occurred processing your document search");
+    }
+}
+
+static List<Api.Models.DocumentResult> GroupChunksByDocument(List<Source> chunks)
+{
+    return chunks
+        .GroupBy(c => c.DocId)
+        .Select(g => new
+        {
+            DocId = g.Key,
+            Filename = g.First().Filename,
+            ProviderType = g.First().ProviderType,
+            ProviderName = g.First().ProviderName,
+            BestDistance = g.Min(x => x.Distance)
+        })
+        .OrderBy(x => x.BestDistance)
+        .Take(5)
+        .Select(x =>
+        {
+            var chunkText = chunks.FirstOrDefault(c => c.DocId == x.DocId)?.Text ?? string.Empty;
+            return new Api.Models.DocumentResult(
+                DocId: x.DocId,
+                Filename: x.Filename,
+                Address: $"{x.ProviderType}/{x.ProviderName}:{x.Filename}",
+                Text: chunkText,
+                Distance: x.BestDistance,
+                ProviderType: x.ProviderType,
+                ProviderName: x.ProviderName
+            );
+        })
+        .ToList();
+}
+

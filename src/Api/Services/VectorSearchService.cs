@@ -178,7 +178,7 @@ public class VectorSearchService : IVectorSearchService
     {
         if (_lexicalSearchUnavailable)
         {
-            return new List<LexicalMatch>();
+            return [];
         }
 
         const string sql = @"
@@ -265,13 +265,13 @@ public class VectorSearchService : IVectorSearchService
         {
             _lexicalSearchUnavailable = true;
             _logger.LogWarning(ex, "Lexical search disabled because the database is missing the required schema or extension.");
-            return new List<LexicalMatch>();
+            return [];
         }
         catch (PostgresException ex) when (ex.SqlState == "XX000")
         {
             // tsquery parse/plan error (often due to malformed user input). Swallow and fall back to vector-only results.
             _logger.LogDebug(ex, "Lexical search failed for query '{Query}'. Falling back to vector-only results.", queryText);
-            return new List<LexicalMatch>();
+            return [];
         }
     }
 
@@ -285,9 +285,20 @@ public class VectorSearchService : IVectorSearchService
     {
         if (vectorResults.Count == 0 && lexicalResults.Count == 0)
         {
-            return new List<Source>();
+            return [];
         }
 
+        var candidates = BuildCandidateDictionary(vectorResults, lexicalResults);
+        var lexicalWeight = DetermineLexicalWeight(depth, lexicalEnabled, vectorEnabled);
+        var vectorWeight = 1d - lexicalWeight;
+
+        return RankAndSelectCandidates(candidates, vectorWeight, lexicalWeight, limit);
+    }
+
+    private static Dictionary<(string DocId, int Chunk), CandidateScore> BuildCandidateDictionary(
+        IReadOnlyCollection<Source> vectorResults,
+        IReadOnlyCollection<LexicalMatch> lexicalResults)
+    {
         var candidates = new Dictionary<(string DocId, int Chunk), CandidateScore>();
 
         foreach (var source in vectorResults)
@@ -306,33 +317,45 @@ public class VectorSearchService : IVectorSearchService
 
         if (lexicalResults.Count > 0)
         {
-            var maxRank = lexicalResults.Max(match => match.Rank);
-            var normalization = maxRank <= 0d ? 0d : maxRank;
-
-            foreach (var match in lexicalResults)
-            {
-                var key = (match.Source.DocId, match.Source.ChunkNum);
-                if (!candidates.TryGetValue(key, out var candidate))
-                {
-                    candidate = new CandidateScore(match.Source);
-                    candidates[key] = candidate;
-                }
-
-                var lexicalScore = normalization == 0d ? 0d : match.Rank / normalization;
-                candidate.LexicalScore = Math.Max(candidate.LexicalScore, lexicalScore);
-
-                // Prefer lexical text if vector text is empty (shouldn't happen, but guard anyway)
-                if (string.IsNullOrWhiteSpace(candidate.Source.Text))
-                {
-                    candidate.Source = match.Source;
-                }
-            }
+            AddLexicalScoresToCandidates(candidates, lexicalResults);
         }
 
-        var lexicalWeight = DetermineLexicalWeight(depth, lexicalEnabled, vectorEnabled);
-        var vectorWeight = 1d - lexicalWeight;
+        return candidates;
+    }
 
-        var ordered = candidates.Values
+    private static void AddLexicalScoresToCandidates(
+        Dictionary<(string DocId, int Chunk), CandidateScore> candidates,
+        IReadOnlyCollection<LexicalMatch> lexicalResults)
+    {
+        var maxRank = lexicalResults.Max(match => match.Rank);
+        var normalization = maxRank <= 0d ? 0d : maxRank;
+
+        foreach (var match in lexicalResults)
+        {
+            var key = (match.Source.DocId, match.Source.ChunkNum);
+            if (!candidates.TryGetValue(key, out var candidate))
+            {
+                candidate = new CandidateScore(match.Source);
+                candidates[key] = candidate;
+            }
+
+            var lexicalScore = normalization <= double.Epsilon ? 0d : match.Rank / normalization;
+            candidate.LexicalScore = Math.Max(candidate.LexicalScore, lexicalScore);
+
+            if (string.IsNullOrWhiteSpace(candidate.Source.Text))
+            {
+                candidate.Source = match.Source;
+            }
+        }
+    }
+
+    private static List<Source> RankAndSelectCandidates(
+        Dictionary<(string DocId, int Chunk), CandidateScore> candidates,
+        double vectorWeight,
+        double lexicalWeight,
+        int limit)
+    {
+        return candidates.Values
             .Select(candidate =>
             {
                 var combinedScore = (vectorWeight * candidate.VectorScore) + (lexicalWeight * candidate.LexicalScore);
@@ -351,8 +374,6 @@ public class VectorSearchService : IVectorSearchService
             .Take(limit)
             .Select(x => x.Source)
             .ToList();
-
-        return ordered;
     }
 
     private static double CalculateVectorScore(double distance)

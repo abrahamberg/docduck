@@ -29,13 +29,13 @@ public sealed class ProviderSettingsStore
         var results = new List<ProviderSettingsRecord>();
         while (await reader.ReadAsync(ct))
         {
-            var payload = reader.GetFieldValue<JsonDocument>(2);
+            var payload = await reader.GetFieldValueAsync<JsonDocument>(2, ct);
             results.Add(new ProviderSettingsRecord
             {
                 ProviderType = reader.GetString(0),
                 ProviderName = reader.GetString(1),
                 Payload = payload,
-                UpdatedAt = reader.GetFieldValue<DateTimeOffset>(3)
+                UpdatedAt = await reader.GetFieldValueAsync<DateTimeOffset>(3, ct)
             });
         }
 
@@ -61,13 +61,13 @@ WHERE provider_type = @type AND provider_name = @name";
             return null;
         }
 
-        var payload = reader.GetFieldValue<JsonDocument>(2);
+        var payload = await reader.GetFieldValueAsync<JsonDocument>(2, ct);
         return new ProviderSettingsRecord
         {
             ProviderType = reader.GetString(0),
             ProviderName = reader.GetString(1),
             Payload = payload,
-            UpdatedAt = reader.GetFieldValue<DateTimeOffset>(3)
+            UpdatedAt = await reader.GetFieldValueAsync<DateTimeOffset>(3, ct)
         };
     }
 

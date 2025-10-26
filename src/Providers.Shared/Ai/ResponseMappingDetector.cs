@@ -274,34 +274,39 @@ public sealed class ResponseMappingDetector
 
         foreach (var segment in segments)
         {
-            // Check for array notation: property[0] or just [0]
-            var bracketStart = segment.IndexOf('[');
-            if (bracketStart >= 0)
-            {
-                var bracketEnd = segment.IndexOf(']');
-                if (bracketEnd > bracketStart)
-                {
-                    // Add property part if exists
-                    if (bracketStart > 0)
-                    {
-                        parts.Add(new PathPart { PropertyName = segment.Substring(0, bracketStart) });
-                    }
-
-                    // Add index part
-                    var indexStr = segment.Substring(bracketStart + 1, bracketEnd - bracketStart - 1);
-                    if (int.TryParse(indexStr, out var index))
-                    {
-                        parts.Add(new PathPart { IsIndex = true, Index = index });
-                    }
-                }
-            }
-            else
-            {
-                parts.Add(new PathPart { PropertyName = segment });
-            }
+            ParseSegment(segment, parts);
         }
 
         return parts;
+    }
+
+    private static void ParseSegment(string segment, List<PathPart> parts)
+    {
+        var bracketStart = segment.IndexOf('[');
+        if (bracketStart < 0)
+        {
+            parts.Add(new PathPart { PropertyName = segment });
+            return;
+        }
+
+        var bracketEnd = segment.IndexOf(']');
+        if (bracketEnd <= bracketStart)
+        {
+            return;
+        }
+
+        // Add property part if exists
+        if (bracketStart > 0)
+        {
+            parts.Add(new PathPart { PropertyName = segment.Substring(0, bracketStart) });
+        }
+
+        // Add index part
+        var indexStr = segment.Substring(bracketStart + 1, bracketEnd - bracketStart - 1);
+        if (int.TryParse(indexStr, out var index))
+        {
+            parts.Add(new PathPart { IsIndex = true, Index = index });
+        }
     }
 
     private sealed class PathPart

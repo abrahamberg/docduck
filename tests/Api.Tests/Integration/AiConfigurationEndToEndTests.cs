@@ -168,10 +168,10 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
             ModelId = newModelRequest.ModelId,
             Url = newModelRequest.Url,
             Headers = newModelRequest.Headers,
-            RequestTemplate = JsonDocument.Parse(newModelRequest.RequestTemplate.GetRawText()),
+            RequestTemplate = JsonDocument.Parse(newModelRequest.RequestTemplate!.GetRawText()),
             ResponseMapping = new ResponseMapping
             {
-                ContentPath = newModelRequest.ResponseMapping.ContentPath,
+                ContentPath = newModelRequest.ResponseMapping!.ContentPath,
                 RolePath = newModelRequest.ResponseMapping.RolePath,
                 ToolCallsPath = newModelRequest.ResponseMapping.ToolCallsPath,
                 UsagePromptTokensPath = newModelRequest.ResponseMapping.UsagePromptTokensPath,
@@ -194,26 +194,26 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
         {
             Enabled = true,
             DefaultSelectionStrategy = ModelSelectionStrategy.Standard,
-            ModelRegistry = new List<AiModelAssignment> { modelAssignment },
+            ModelRegistry = [modelAssignment],
             MicroModelId = modelAssignment.Id,
             MiniModelId = modelAssignment.Id,
             FullModelId = modelAssignment.Id,
-            EmbeddingRegistry = new List<AiEmbeddingModelAssignment>
-            {
+            EmbeddingRegistry =
+            [
                 new()
                 {
                     Id = "test-embedding",
                     DisplayName = "Test Embedding Model",
                     ModelId = "text-embedding-3-small",
                     BaseUrl = "https://api.openai.com/v1",
-                    ApiKey = _apiKey,
+                    ApiKey = _apiKey ?? string.Empty,
                     Dimensions = 1536,
                     BatchSize = 100,
                     Enabled = true,
-                    CustomHeaders = new List<string>(),
+                    CustomHeaders = [],
                     TimeoutSeconds = 30
                 }
-            },
+            ],
             ActiveEmbeddingModelId = "test-embedding"
         };
 

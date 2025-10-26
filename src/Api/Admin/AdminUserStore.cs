@@ -5,6 +5,9 @@ namespace Api.Admin;
 
 public sealed class AdminUserStore
 {
+    private const string PasswordHashColumn = "password_hash";
+    private const string IsAdminColumn = "is_admin";
+
     private readonly string _connectionString;
     private readonly ILogger<AdminUserStore> _logger;
 
@@ -40,7 +43,7 @@ VALUES (@id, @username, @password_hash, TRUE);
         {
             cmd.Parameters.AddWithValue("id", Guid.NewGuid());
             cmd.Parameters.AddWithValue("username", "admin");
-            cmd.Parameters.AddWithValue("password_hash", passwordHash);
+            cmd.Parameters.AddWithValue(PasswordHashColumn, passwordHash);
             await cmd.ExecuteNonQueryAsync(ct);
         }
 
@@ -138,8 +141,8 @@ RETURNING id, username, is_admin, created_at, updated_at;
         var id = Guid.NewGuid();
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("username", username);
-        cmd.Parameters.AddWithValue("password_hash", passwordHash);
-        cmd.Parameters.AddWithValue("is_admin", isAdmin);
+        cmd.Parameters.AddWithValue(PasswordHashColumn, passwordHash);
+        cmd.Parameters.AddWithValue(IsAdminColumn, isAdmin);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
@@ -164,7 +167,7 @@ WHERE id = @id;
         await conn.OpenAsync(ct);
         await using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("password_hash", hash);
+        cmd.Parameters.AddWithValue(PasswordHashColumn, hash);
 
         var affected = await cmd.ExecuteNonQueryAsync(ct);
         return affected > 0;
@@ -220,10 +223,10 @@ WHERE id = @id;
         return new AdminUser(
             reader.GetGuid(reader.GetOrdinal("id")),
             reader.GetString(reader.GetOrdinal("username")),
-            reader.GetBoolean(reader.GetOrdinal("is_admin")),
-            reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("created_at")),
-            reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("updated_at")),
-            reader.GetString(reader.GetOrdinal("password_hash")));
+            reader.GetBoolean(reader.GetOrdinal(IsAdminColumn)),
+            reader.GetDateTime(reader.GetOrdinal("created_at")),
+            reader.GetDateTime(reader.GetOrdinal("updated_at")),
+            reader.GetString(reader.GetOrdinal(PasswordHashColumn)));
     }
 
     private static AdminUser MapUserWithoutHash(NpgsqlDataReader reader)
@@ -231,7 +234,7 @@ WHERE id = @id;
         return new AdminUser(
             reader.GetGuid(reader.GetOrdinal("id")),
             reader.GetString(reader.GetOrdinal("username")),
-            reader.GetBoolean(reader.GetOrdinal("is_admin")),
+            reader.GetBoolean(reader.GetOrdinal(IsAdminColumn)),
             reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("created_at")),
             reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("updated_at")),
             null);
