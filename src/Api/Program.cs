@@ -12,6 +12,15 @@ using System.Globalization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
+// Static configuration for root endpoint
+var apiEndpoints = new[]
+{
+    "GET /health - Health check",
+    "GET /providers - List active document providers",
+    "POST /query - Intelligent Q&A with adaptive depth (1-5) and optional streaming",
+    "POST /docsearch - Document-level search (returns top 5 matching documents)"
+};
+
 var builder = WebApplication.CreateBuilder(args);
 
 var dbConnectionString = ConfigureDatabase(builder);
@@ -98,13 +107,7 @@ app.MapGet("/", () => Results.Ok(new
 {
     name = "DocDuck Query API",
     version = "3.0.0",
-    endpoints = new[]
-    {
-        "GET /health - Health check",
-        "GET /providers - List active document providers",
-        "POST /query - Intelligent Q&A with adaptive depth (1-5) and optional streaming",
-        "POST /docsearch - Document-level search (returns top 5 matching documents)"
-    }
+    endpoints = apiEndpoints
 }));
 
 await app.RunAsync();
@@ -185,13 +188,17 @@ static List<Api.Models.DocumentResult> GroupChunksByDocument(List<Source> chunks
 {
     return chunks
         .GroupBy(c => c.DocId)
-        .Select(g => new
+        .Select(g =>
         {
-            DocId = g.Key,
-            Filename = g.First().Filename,
-            ProviderType = g.First().ProviderType,
-            ProviderName = g.First().ProviderName,
-            BestDistance = g.Min(x => x.Distance)
+            var first = g.First();
+            return new
+            {
+                DocId = g.Key,
+                Filename = first.Filename,
+                ProviderType = first.ProviderType,
+                ProviderName = first.ProviderName,
+                BestDistance = g.Min(x => x.Distance)
+            };
         })
         .OrderBy(x => x.BestDistance)
         .Take(5)

@@ -13,7 +13,7 @@ namespace DocDuck.Providers.Providers;
 /// </summary>
 public sealed class S3Provider : IDocumentProvider, IDisposable
 {
-    private readonly IAmazonS3 _s3Client;
+    private readonly AmazonS3Client _s3Client;
     private readonly S3ProviderSettings _settings;
     private readonly ILogger<S3Provider> _logger;
 

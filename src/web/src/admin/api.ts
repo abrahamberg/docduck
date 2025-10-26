@@ -42,15 +42,15 @@ const API_BASES = (() => {
     maybeAdd(envBase);
   } else if (envBase) {
     const relative = envBase.startsWith('/') ? envBase : `/${envBase}`;
-    if (typeof window !== 'undefined') {
-      maybeAdd(`${window.location.origin}${relative}`);
+    if (typeof globalThis !== 'undefined' && globalThis.location) {
+      maybeAdd(`${globalThis.location.origin}${relative}`);
     } else {
       maybeAdd(relative);
     }
   }
 
-  if (typeof window !== 'undefined') {
-    maybeAdd(`${window.location.origin}/api`);
+  if (typeof globalThis !== 'undefined' && globalThis.location) {
+    maybeAdd(`${globalThis.location.origin}/api`);
   }
 
   maybeAdd('http://localhost:5000');
@@ -61,7 +61,7 @@ const API_BASES = (() => {
 const preferredBaseStorageKey = 'docduck-admin-api-base';
 
 const getStoredPreferredBase = (): string | null => {
-  if (typeof window === 'undefined') {
+  if (typeof globalThis === 'undefined' || !globalThis.localStorage) {
     return null;
   }
 
@@ -74,7 +74,7 @@ const getStoredPreferredBase = (): string | null => {
 };
 
 const setStoredPreferredBase = (value: string) => {
-  if (typeof window === 'undefined') {
+  if (typeof globalThis === 'undefined') {
     return;
   }
 
@@ -146,7 +146,7 @@ function handleAuthError(resp: Response): void {
     localStorage.removeItem('docduck-admin-token');
     localStorage.removeItem('docduck-admin-user');
     selectedApiBase = null;
-    if (typeof window !== 'undefined') {
+    if (typeof globalThis !== 'undefined' && globalThis.localStorage) {
       localStorage.removeItem(preferredBaseStorageKey);
     }
     throw new Error('Unauthorized');

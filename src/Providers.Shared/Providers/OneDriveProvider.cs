@@ -12,6 +12,8 @@ namespace DocDuck.Providers.Providers;
 /// </summary>
 public sealed class OneDriveProvider : IDocumentProvider
 {
+    private static readonly string[] DefaultGraphScopes = ["https://graph.microsoft.com/.default"];
+
     private readonly GraphServiceClient _client;
     private readonly OneDriveProviderSettings _settings;
     private readonly ILogger<OneDriveProvider> _logger;
@@ -29,7 +31,7 @@ public sealed class OneDriveProvider : IDocumentProvider
         _logger = logger;
 
         var credential = CreateCredential();
-        _client = new GraphServiceClient(credential, new[] { "https://graph.microsoft.com/.default" });
+        _client = new GraphServiceClient(credential, DefaultGraphScopes);
 
         _logger.LogInformation("OneDrive provider '{Name}' initialized for {AccountType}", _settings.Name, _settings.AccountType);
     }
@@ -181,7 +183,7 @@ public sealed class OneDriveProvider : IDocumentProvider
         return true;
     }
 
-    private Azure.Core.TokenCredential CreateCredential()
+    private ClientSecretCredential CreateCredential()
     {
         if (string.IsNullOrEmpty(_settings.TenantId) || string.IsNullOrEmpty(_settings.ClientId) || string.IsNullOrEmpty(_settings.ClientSecret))
         {

@@ -16,7 +16,6 @@ import { DocSearchResults } from './DocSearchResults';
 
 interface Props {
   providerNames?: string[];
-  searchDepth?: number;
 }
 
 export const DocSearchPanel: React.FC<Props> = ({ providerNames }) => {

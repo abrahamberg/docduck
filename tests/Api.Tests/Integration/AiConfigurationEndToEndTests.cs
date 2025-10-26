@@ -205,12 +205,14 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
                     Id = "test-embedding",
                     DisplayName = "Test Embedding Model",
                     ModelId = "text-embedding-3-small",
-                    BaseUrl = "https://api.openai.com/v1",
-                    ApiKey = _apiKey ?? string.Empty,
+                    Url = "https://api.openai.com/v1/embeddings",
+                    Headers = new Dictionary<string, string>
+                    {
+                        ["Authorization"] = $"Bearer {_apiKey ?? string.Empty}"
+                    },
                     Dimensions = 1536,
                     BatchSize = 100,
                     Enabled = true,
-                    CustomHeaders = [],
                     TimeoutSeconds = 30
                 }
             ],

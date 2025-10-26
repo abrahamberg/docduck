@@ -276,7 +276,7 @@ public class VectorSearchService : IVectorSearchService
     }
 
     private List<Source> CombineCandidates(
-        IReadOnlyCollection<Source> vectorResults,
+        List<Source> vectorResults,
         IReadOnlyCollection<LexicalMatch> lexicalResults,
         int limit,
         int depth,
@@ -296,7 +296,7 @@ public class VectorSearchService : IVectorSearchService
     }
 
     private static Dictionary<(string DocId, int Chunk), CandidateScore> BuildCandidateDictionary(
-        IReadOnlyCollection<Source> vectorResults,
+        List<Source> vectorResults,
         IReadOnlyCollection<LexicalMatch> lexicalResults)
     {
         var candidates = new Dictionary<(string DocId, int Chunk), CandidateScore>();
@@ -511,7 +511,7 @@ public class VectorSearchService : IVectorSearchService
         int window = 1,
         CancellationToken ct = default)
     {
-        if (targets.Count == 0) return new Dictionary<string, List<Source>>();
+        if (targets.Count == 0) return [];
         await using var conn = new NpgsqlConnection(_dbOptions.ConnectionString);
         await conn.OpenAsync(ct);
 

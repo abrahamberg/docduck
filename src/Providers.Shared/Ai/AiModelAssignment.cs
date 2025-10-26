@@ -79,39 +79,6 @@ public sealed class AiModelAssignment
     public Dictionary<string, JsonElement> DefaultParams { get; set; } = new();
 
     /// <summary>
-    /// DEPRECATED: Use Url instead. Kept for backward compatibility during migration.
-    /// Will be removed in future version.
-    /// </summary>
-    [Obsolete("Use Url property instead. This will be removed in a future version.")]
-    public string BaseUrl
-    {
-        get => ExtractBaseUrlFromUrl();
-        set
-        {
-            if (!string.IsNullOrWhiteSpace(value) && string.IsNullOrWhiteSpace(Url))
-            {
-                Url = $"{value.TrimEnd('/')}/chat/completions";
-            }
-        }
-    }
-
-    /// <summary>
-    /// DEPRECATED: Use Headers["Authorization"] instead.
-    /// </summary>
-    [Obsolete("Use Headers[\"Authorization\"] instead. This will be removed in a future version.")]
-    public string ApiKey
-    {
-        get => ExtractApiKeyFromHeaders();
-        set
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                Headers["Authorization"] = $"Bearer {value}";
-            }
-        }
-    }
-
-    /// <summary>
     /// Maximum context window size in tokens for this model.
     /// Used to determine if context fits without truncation.
     /// </summary>
@@ -153,16 +120,6 @@ public sealed class AiModelAssignment
     /// Last test result message.
     /// </summary>
     public string? LastTestMessage { get; set; }
-
-    /// <summary>
-    /// DEPRECATED: Use Headers dictionary instead.
-    /// </summary>
-    [Obsolete("Use Headers dictionary instead. This will be removed in a future version.")]
-    public List<string> CustomHeaders
-    {
-        get => ConvertHeadersToList();
-        set => ParseHeadersList(value);
-    }
 
     /// <summary>
     /// Request timeout in seconds.
@@ -220,56 +177,6 @@ public sealed class AiModelAssignment
     public void SetDefaultTemperature(double temperature)
     {
         DefaultParams["temperature"] = JsonDocument.Parse(temperature.ToString("F1")).RootElement.Clone();
-    }
-
-    private string ExtractBaseUrlFromUrl()
-    {
-        if (string.IsNullOrWhiteSpace(Url))
-        {
-            return string.Empty;
-        }
-
-        // Extract base URL from full URL (e.g., https://api.openai.com/v1/chat/completions -> https://api.openai.com/v1)
-        var uri = new Uri(Url);
-        var pathParts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-        if (pathParts.Length > 0)
-        {
-            // Remove last path segment (endpoint name)
-            var basePath = string.Join("/", pathParts.Take(pathParts.Length - 1));
-            return $"{uri.Scheme}://{uri.Host}{(string.IsNullOrEmpty(basePath) ? "" : "/" + basePath)}";
-        }
-
-        return $"{uri.Scheme}://{uri.Host}";
-    }
-
-    private string ExtractApiKeyFromHeaders()
-    {
-        if (Headers.TryGetValue("Authorization", out var authHeader))
-        {
-            return authHeader.Replace("Bearer ", "").Trim();
-        }
-        return string.Empty;
-    }
-
-    private List<string> ConvertHeadersToList()
-    {
-        return Headers
-            .Where(h => h.Key != "Content-Type") // Exclude default header
-            .Select(h => $"{h.Key}: {h.Value}")
-            .ToList();
-    }
-
-    private void ParseHeadersList(List<string> headers)
-    {
-        foreach (var header in headers)
-        {
-            var parts = header.Split(':', 2, StringSplitOptions.TrimEntries);
-            if (parts.Length == 2)
-            {
-                Headers[parts[0]] = parts[1];
-            }
-        }
     }
 
     public AiModelAssignment Clone() => new()

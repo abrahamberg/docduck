@@ -83,7 +83,6 @@ export const AiModelsPage: React.FC = () => {
   const [modelDialogOpen, setModelDialogOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<ModelFormData | null>(null);
   const [modelTouched, setModelTouched] = useState(false);
-  const [modelApiKeyChanged, setModelApiKeyChanged] = useState(false);
   const [testingModel, setTestingModel] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -92,7 +91,6 @@ export const AiModelsPage: React.FC = () => {
   const [embeddingDialogOpen, setEmbeddingDialogOpen] = useState(false);
   const [editingEmbedding, setEditingEmbedding] = useState<EmbeddingFormData | null>(null);
   const [embeddingTouched, setEmbeddingTouched] = useState(false);
-  const [embeddingApiKeyChanged, setEmbeddingApiKeyChanged] = useState(false);
   const [testingEmbedding, setTestingEmbedding] = useState(false);
   const [embeddingTestResult, setEmbeddingTestResult] = useState<{
     success: boolean;
@@ -130,7 +128,6 @@ export const AiModelsPage: React.FC = () => {
     setEditingModel(newModel);
     setEditingModel(newModel);
     setModelTouched(false);
-    setModelApiKeyChanged(false);
     setTestResult(null);
     setFieldErrors({});
     setModelDialogOpen(true);
@@ -151,7 +148,6 @@ export const AiModelsPage: React.FC = () => {
     };
     setEditingModel(modelData);
     setModelTouched(false);
-    setModelApiKeyChanged(false);
     setTestResult(null);
     setFieldErrors({});
     setModelDialogOpen(true);
@@ -272,9 +268,8 @@ export const AiModelsPage: React.FC = () => {
       setConfig(saved);
       setSuccess(isNew ? 'Model added successfully' : 'Model updated successfully');
 
-      // Reset changed flags - stay in dialog for testing
+      // Reset changed flag - stay in dialog for testing
       setModelTouched(false);
-      setModelApiKeyChanged(false);
 
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
@@ -350,7 +345,10 @@ export const AiModelsPage: React.FC = () => {
       console.log('Calling testEmbedding...');
       const result = await testEmbedding(editingEmbedding.id);
       console.log('Test result:', result);
-      setEmbeddingTestResult({ success: result.success, message: result.error || result.model || '' });
+      setEmbeddingTestResult({
+        success: result.success,
+        message: result.error || result.model || '',
+      });
 
       // Update config with test result AND save to database
       const updatedConfig = {
@@ -459,7 +457,6 @@ export const AiModelsPage: React.FC = () => {
       dimensions: 1536,
     });
     setEmbeddingTouched(false);
-    setEmbeddingApiKeyChanged(false);
     setEmbeddingTestResult(null);
     setEmbeddingDialogOpen(true);
   };
@@ -482,7 +479,6 @@ export const AiModelsPage: React.FC = () => {
     };
     setEditingEmbedding(embeddingData);
     setEmbeddingTouched(false);
-    setEmbeddingApiKeyChanged(false);
     setEmbeddingTestResult(null);
     setEmbeddingDialogOpen(true);
   };
@@ -551,9 +547,8 @@ export const AiModelsPage: React.FC = () => {
         isNew ? 'Embedding model added successfully' : 'Embedding model updated successfully'
       );
 
-      // Reset changed flags - stay in dialog for testing
+      // Reset changed flag - stay in dialog for testing
       setEmbeddingTouched(false);
-      setEmbeddingApiKeyChanged(false);
 
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {

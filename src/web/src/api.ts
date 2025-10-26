@@ -14,7 +14,7 @@ async function http<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...(options.headers || {}),
+      ...options.headers,
     },
   });
   if (!resp.ok) {

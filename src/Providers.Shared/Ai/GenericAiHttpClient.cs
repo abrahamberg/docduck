@@ -147,30 +147,6 @@ public sealed class GenericAiHttpClient : IDisposable
         return client;
     }
 
-    [Obsolete("Use JsonResponseParser.ParseChatCompletion instead")]
-    private ChatCompletionResult ParseChatCompletionResponse(string json)
-    {
-        return JsonResponseParser.ParseChatCompletion(json, _model.ResponseMapping);
-    }
-
-    [Obsolete("Use JsonResponseParser.ExtractJsonPath instead")]
-    private static string? ExtractJsonPath(JsonElement root, string path)
-    {
-        return JsonResponseParser.ExtractJsonPath(root, path);
-    }
-
-    [Obsolete("Use JsonResponseParser.ParseEmbeddingResponse instead")]
-    private static float[][] ParseEmbeddingResponseWithMapping(string json, Dictionary<string, string>? responseMapping)
-    {
-        return JsonResponseParser.ParseEmbeddingResponse(json, responseMapping);
-    }
-
-    [Obsolete("Use JsonResponseParser.ParseEmbeddingResponse instead")]
-    private static float[][] ParseEmbeddingResponse(string json)
-    {
-        return JsonResponseParser.ParseEmbeddingResponse(json, null);
-    }
-
     public void Dispose()
     {
         _httpClient?.Dispose();

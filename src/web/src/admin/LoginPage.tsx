@@ -24,7 +24,7 @@ export const LoginPage: React.FC = () => {
         localStorage.removeItem('docduck-admin-token');
         throw profileError;
       }
-      window.location.href = '/admin';
+      globalThis.location.href = '/admin';
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {

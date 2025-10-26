@@ -5,5 +5,5 @@ import { AdminApp } from './admin/AdminApp';
 
 const rootElem = document.getElementById('root');
 if (!rootElem) throw new Error('Root element not found');
-const isAdminRoute = window.location.pathname.startsWith('/admin');
+const isAdminRoute = globalThis.location.pathname.startsWith('/admin');
 createRoot(rootElem).render(isAdminRoute ? <AdminApp /> : <App />);

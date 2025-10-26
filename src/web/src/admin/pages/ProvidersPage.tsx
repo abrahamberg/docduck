@@ -259,7 +259,7 @@ export const ProvidersPage: React.FC = () => {
       return;
     }
 
-    const shouldDelete = window.confirm(`Delete provider "${selectedProvider.providerName}"?`);
+    const shouldDelete = globalThis.confirm(`Delete provider "${selectedProvider.providerName}"?`);
     if (!shouldDelete) {
       return;
     }
