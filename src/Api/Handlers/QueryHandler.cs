@@ -15,6 +15,8 @@ namespace Api.Handlers;
 /// </summary>
 public sealed class QueryHandler
 {
+    private static readonly JsonSerializerOptions StreamJsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly IModelAgnosticAiService _aiService;
     private readonly IVectorSearchService _searchService;
     private readonly IChatService _chatService;
@@ -85,7 +87,7 @@ public sealed class QueryHandler
         {
             return Results.Ok(new QueryResponse(
                 Answer: "I couldn't find any relevant information in the indexed documents.",
-                Sources: new List<Source>(),
+                Sources: [],
                 TokensUsed: 0
             ));
         }
@@ -163,17 +165,15 @@ public sealed class QueryHandler
         httpContext.Response.Headers.CacheControl = "no-cache";
         httpContext.Response.Headers["X-Accel-Buffering"] = "no";
 
-        var streamJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-
         async Task WriteUpdateAsync(ChatStreamUpdate update)
         {
-            var payload = JsonSerializer.Serialize(update, streamJsonOptions);
+            var payload = JsonSerializer.Serialize(update, StreamJsonOptions);
             _logger.LogDebug("Sending stream update: {Type}, payload length: {Length}", update.Type, payload.Length);
 
             if (update.Type == "final" && update.Final != null)
             {
                 var preview = update.Final.Answer.Length > 100
-                    ? update.Final.Answer.Substring(0, 100) + "..."
+                    ? string.Concat(update.Final.Answer.AsSpan(0, 100), "...")
                     : update.Final.Answer;
                 _logger.LogDebug("Final answer preview: {Answer}", preview);
             }
@@ -208,18 +208,17 @@ public sealed class QueryHandler
         return Results.Problem("An error occurred processing your query");
     }
 
-    private IResult WriteStreamingError(HttpContext httpContext, CancellationToken ct)
+    private static IResult WriteStreamingError(HttpContext httpContext, CancellationToken ct)
     {
-        var streamJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         var errorUpdate = new ChatStreamUpdate(
             Type: "error",
             Message: "An error occurred processing your query.",
             Files: null,
             Final: null);
 
-        var payload = JsonSerializer.Serialize(errorUpdate, streamJsonOptions);
-        httpContext.Response.WriteAsync($"data: {payload}\n\n", ct).Wait();
-        httpContext.Response.Body.FlushAsync(ct).Wait();
+        var payload = JsonSerializer.Serialize(errorUpdate, StreamJsonOptions);
+        httpContext.Response.WriteAsync($"data: {payload}\n\n", ct).Wait(ct);
+        httpContext.Response.Body.FlushAsync(ct).Wait(ct);
 
         return Results.Empty;
     }

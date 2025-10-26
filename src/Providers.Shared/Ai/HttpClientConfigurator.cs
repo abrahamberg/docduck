@@ -22,12 +22,7 @@ internal static class HttpClientConfigurator
             {
                 SetAuthorizationHeader(httpClient, value);
             }
-            else if (IsContentTypeHeader(key))
-            {
-                // Content-Type is set per-request, skip here
-                continue;
-            }
-            else
+            else if (!IsContentTypeHeader(key))
             {
                 httpClient.DefaultRequestHeaders.TryAddWithoutValidation(key, value);
             }

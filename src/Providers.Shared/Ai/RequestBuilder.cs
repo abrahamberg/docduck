@@ -155,7 +155,7 @@ internal sealed class ChatRequestBuilder
 /// <summary>
 /// Builds embedding request payloads and handles template substitution.
 /// </summary>
-internal sealed class EmbeddingRequestBuilder
+internal static class EmbeddingRequestBuilder
 {
     public static string BuildRequest(
         AiEmbeddingModelAssignment model,

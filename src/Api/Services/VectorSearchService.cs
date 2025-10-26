@@ -68,12 +68,12 @@ public class VectorSearchService : IVectorSearchService
         await conn.OpenAsync(ct);
 
         var vectorResults = lexicalOnly
-            ? new List<Source>()
+            ? []
             : await ExecuteVectorSearchAsync(conn, queryEmbedding, k, providerType, providerName, ct);
 
         var lexicalResults = lexicalEnabled
             ? await ExecuteLexicalSearchAsync(conn, normalizedQuery, providerType, providerName, lexicalLimit, ct)
-            : new List<LexicalMatch>();
+            : [];
 
         var combined = CombineCandidates(vectorResults, lexicalResults, k, depth, lexicalEnabled, !lexicalOnly && vectorResults.Count > 0);
 
@@ -86,7 +86,7 @@ public class VectorSearchService : IVectorSearchService
         return combined;
     }
 
-    private async Task<List<Source>> ExecuteVectorSearchAsync(
+    private static async Task<List<Source>> ExecuteVectorSearchAsync(
         NpgsqlConnection conn,
         float[] queryEmbedding,
         int limit,

@@ -188,7 +188,7 @@ public sealed class ModelAgnosticAiService : IModelAgnosticAiService
         ChatCompletionOptions? options = null,
         CancellationToken ct = default)
     {
-        var (config, selector) = await EnsureConfigAsync(ct);
+        var (_, selector) = await EnsureConfigAsync(ct);
 
         var estimatedTokens = EstimateTokenCount(messages);
         var requiresTools = options?.Tools != null && options.Tools.Count > 0;

@@ -12,10 +12,6 @@ namespace DocDuck.Providers.Ai;
 /// </summary>
 public sealed class GenericAiHttpClient : IDisposable
 {
-    private const string FunctionType = "function";
-    private const string AuthorizationHeader = "Authorization";
-    private const string ContentTypeHeader = "Content-Type";
-
     private readonly HttpClient _httpClient;
     private readonly AiModelAssignment _model;
     private readonly ILogger? _logger;

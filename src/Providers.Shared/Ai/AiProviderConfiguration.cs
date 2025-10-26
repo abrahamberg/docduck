@@ -128,6 +128,8 @@ public sealed class AiProviderConfiguration
 /// </summary>
 public sealed class AiEmbeddingModelAssignment
 {
+    private const string AuthorizationHeaderName = "Authorization";
+
     /// <summary>
     /// Unique identifier for this embedding model.
     /// </summary>
@@ -237,7 +239,7 @@ public sealed class AiEmbeddingModelAssignment
         {
             if (!string.IsNullOrWhiteSpace(value))
             {
-                Headers["Authorization"] = $"Bearer {value}";
+                Headers[AuthorizationHeaderName] = $"Bearer {value}";
             }
         }
     }
@@ -264,7 +266,7 @@ public sealed class AiEmbeddingModelAssignment
 
     private string ExtractApiKeyFromHeaders()
     {
-        if (Headers.TryGetValue("Authorization", out var auth) && auth.StartsWith("Bearer "))
+        if (Headers.TryGetValue(AuthorizationHeaderName, out var auth) && auth.StartsWith("Bearer "))
             return auth.Substring("Bearer ".Length);
         return string.Empty;
     }
@@ -272,7 +274,7 @@ public sealed class AiEmbeddingModelAssignment
     private List<string> ConvertHeadersToList()
     {
         return Headers
-            .Where(h => h.Key != "Authorization")
+            .Where(h => h.Key != AuthorizationHeaderName)
             .Select(h => $"{h.Key}: {h.Value}")
             .ToList();
     }
@@ -286,7 +288,7 @@ public sealed class AiEmbeddingModelAssignment
             {
                 var key = header.Substring(0, colonIndex).Trim();
                 var value = header.Substring(colonIndex + 1).Trim();
-                if (key != "Authorization")
+                if (key != AuthorizationHeaderName)
                 {
                     Headers[key] = value;
                 }

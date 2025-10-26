@@ -116,7 +116,7 @@ public class ChatService : IChatService
                         userMessage: request.Message,
                         history,
                         steps,
-                        sources: new List<Source>(),
+                        sources: [],
                         tokens: totalTokens,
                         includeStepsInHistory: progress != null,
                         includeStepsInResponse: progress != null);
@@ -211,8 +211,8 @@ public class ChatService : IChatService
                 currentPhrase,
                 latestSources.Select(s => s.Text).ToList(),
                 history.Select(h => (h.Role, h.Content)).ToList(),
-                ct,
-                useLargeModel: true);
+                useLargeModel: true,
+                ct);
             totalTokens += answerTokens;
             modelUsage.Add(new ModelUsageInfo("chat-model-large", "answer_generation", answerTokens));
 
@@ -268,7 +268,7 @@ public class ChatService : IChatService
         return success;
     }
 
-    private ChatResponse BuildResponse(
+    private static ChatResponse BuildResponse(
         string answer,
         string userMessage,
         List<ChatMessage> history,
@@ -280,7 +280,7 @@ public class ChatService : IChatService
         List<ModelUsageInfo>? modelUsage = null)
     {
         var files = BuildDocumentResults(sources);
-        var responseSteps = includeStepsInResponse ? new List<string>(steps) : new List<string>();
+        var responseSteps = includeStepsInResponse ? new List<string>(steps) : [];
 
         if (includeStepsInResponse && files.Count > 0)
         {
@@ -298,7 +298,7 @@ public class ChatService : IChatService
 
         var updatedHistory = new List<ChatMessage>(history)
         {
-            new ChatMessage("user", userMessage)
+            new("user", userMessage)
         };
 
         if (includeStepsInHistory)
@@ -336,7 +336,7 @@ public class ChatService : IChatService
     {
         if (sources.Count == 0)
         {
-            return new List<DocumentResult>();
+            return [];
         }
 
         return sources
@@ -447,7 +447,7 @@ public class ChatService : IChatService
             builder.AppendLine("Previous search found these results (but may not be sufficient):");
             foreach (var source in previousResults.Take(3))
             {
-                var preview = source.Text.Length > 100 ? source.Text.Substring(0, 100) + "..." : source.Text;
+                var preview = source.Text.Length > 100 ? string.Concat(source.Text.AsSpan(0, 100), "...") : source.Text;
                 builder.AppendLine($"- {source.Filename}: \"{preview}\" (distance: {source.Distance:F4})");
             }
         }
@@ -540,8 +540,8 @@ public class ChatService : IChatService
         string question,
         List<string> contextChunks,
         List<(string Role, string Content)> history,
-        CancellationToken ct,
-        bool useLargeModel)
+        bool useLargeModel,
+        CancellationToken ct)
     {
         var promptBuilder = new System.Text.StringBuilder();
 

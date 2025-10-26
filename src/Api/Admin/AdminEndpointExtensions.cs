@@ -15,6 +15,9 @@ namespace Api.Admin;
 
 public static class AdminEndpointExtensions
 {
+    private const string ApplicationJson = "application/json";
+    private const string ContentKey = "content";
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S3776:Cognitive Complexity of methods should not be too high")]
     public static RouteGroupBuilder MapAdminEndpoints(this IEndpointRouteBuilder app)
     {
@@ -291,7 +294,7 @@ public static class AdminEndpointExtensions
                 var jsonContent = new StringContent(
                     JsonSerializer.Serialize(testPayload),
                     System.Text.Encoding.UTF8,
-                    "application/json");
+                    ApplicationJson);
 
                 logger.LogInformation("Probing AI model {Model} at {BaseUrl} (timeout: {Timeout}s)",
                     request.ModelId, request.BaseUrl, timeout.TotalSeconds);
@@ -316,7 +319,7 @@ public static class AdminEndpointExtensions
                 var responseText = result.TryGetProperty("choices", out var choices) &&
                                    choices.GetArrayLength() > 0 &&
                                    choices[0].TryGetProperty("message", out var msg) &&
-                                   msg.TryGetProperty("content", out var content)
+                                   msg.TryGetProperty(ContentKey, out var content)
                     ? content.GetString() ?? "No content"
                     : "No response";
 
@@ -471,7 +474,7 @@ public static class AdminEndpointExtensions
                 var jsonContent = new StringContent(
                     testPayload,
                     System.Text.Encoding.UTF8,
-                    "application/json");
+                    ApplicationJson);
 
                 logger.LogInformation("Testing saved model {ModelId} ({Model}) at {Url}",
                     model.Id, model.ModelId, model.Url);
@@ -541,7 +544,7 @@ public static class AdminEndpointExtensions
 
                 // Try content field first, then reasoning field (for reasoning models)
                 var responseText = "";
-                if (msg.TryGetProperty("content", out var content))
+                if (msg.TryGetProperty(ContentKey, out var content))
                 {
                     responseText = content.GetString() ?? "";
                 }
@@ -695,7 +698,7 @@ public static class AdminEndpointExtensions
                 var jsonContent = new StringContent(
                     JsonSerializer.Serialize(testPayload),
                     System.Text.Encoding.UTF8,
-                    "application/json");
+                    ApplicationJson);
 
                 logger.LogInformation("Testing saved embedding model {ModelId} ({Model}) at {Url}",
                     embedding.Id, embedding.ModelId, embedding.Url);
@@ -910,7 +913,7 @@ public static class AdminEndpointExtensions
                     DisplayName: model.DisplayName,
                     ModelId: model.ModelId,
                     Url: model.Url,
-                    Headers: model.Headers ?? new Dictionary<string, string>(),
+                    Headers: model.Headers ?? [],
                     RequestTemplate: model.RequestTemplate?.RootElement.Clone() ?? default,
                     ResponseMapping: model.ResponseMapping != null ? new ResponseMappingDto(
                         ContentPath: model.ResponseMapping.ContentPath,
@@ -922,7 +925,7 @@ public static class AdminEndpointExtensions
                         AutoDetected: model.ResponseMapping.AutoDetected,
                         DetectedAt: model.ResponseMapping.DetectedAt
                     ) : null,
-                    DefaultParams: model.DefaultParams ?? new Dictionary<string, JsonElement>(),
+                    DefaultParams: model.DefaultParams ?? [],
                     MaxContextTokens: model.MaxContextTokens,
                     MaxOutputTokens: model.MaxOutputTokens,
                     SupportsFunctionCalling: model.SupportsFunctionCalling,
@@ -997,10 +1000,10 @@ public static class AdminEndpointExtensions
                 {
                     var context = new TemplateContext(
                         ModelId: request.ModelId ?? "test-model",
-                        Messages: new List<ChatMessagePayload>
-                        {
+                        Messages:
+                        [
                             new("user", "Respond with just 'OK' to confirm you are working.")
-                        },
+                        ],
                         Temperature: 0.0,
                         MaxTokens: 10
                     );
@@ -1030,7 +1033,7 @@ public static class AdminEndpointExtensions
 
                 logger.LogInformation("Probing model at {Url}", request.Url);
 
-                using var content = new StringContent(requestJson, System.Text.Encoding.UTF8, "application/json");
+                using var content = new StringContent(requestJson, System.Text.Encoding.UTF8, ApplicationJson);
                 using var response = await http.PostAsync(request.Url, content, ct);
                 var responseBody = await response.Content.ReadAsStringAsync(ct);
                 sw.Stop();

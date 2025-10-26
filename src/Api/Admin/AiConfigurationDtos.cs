@@ -184,11 +184,11 @@ public static class AiConfigurationMapper
         {
             Enabled = dto.Enabled,
             DefaultSelectionStrategy = dto.DefaultSelectionStrategy ?? ModelSelectionStrategy.Standard,
-            ModelRegistry = dto.ModelRegistry?.Select(FromDto).ToList() ?? new List<AiModelAssignment>(),
+            ModelRegistry = dto.ModelRegistry?.Select(FromDto).ToList() ?? [],
             MicroModelId = dto.MicroModelId,
             MiniModelId = dto.MiniModelId,
             FullModelId = dto.FullModelId,
-            EmbeddingRegistry = dto.EmbeddingRegistry?.Select(FromDto).ToList() ?? new List<AiEmbeddingModelAssignment>(),
+            EmbeddingRegistry = dto.EmbeddingRegistry?.Select(FromDto).ToList() ?? [],
             ActiveEmbeddingModelId = dto.ActiveEmbeddingModelId
         };
     }
@@ -244,11 +244,11 @@ public static class AiConfigurationMapper
                 ? JsonDocument.Parse(dto.RequestTemplate.Value.GetRawText())
                 : null,
             ResponseMapping = dto.ResponseMapping.HasValue
-                ? JsonSerializer.Deserialize<Dictionary<string, string>>(dto.ResponseMapping.Value.GetRawText()) ?? new Dictionary<string, string>()
-                : new Dictionary<string, string>(),
+                ? JsonSerializer.Deserialize<Dictionary<string, string>>(dto.ResponseMapping.Value.GetRawText()) ?? []
+                : [],
             DefaultParams = dto.DefaultParams?
                 .ToDictionary(kv => kv.Key, kv => JsonSerializer.Deserialize<object>(kv.Value.GetRawText()) ?? new object())
-                ?? new Dictionary<string, object>(),
+                ?? [],
             Dimensions = dto.Dimensions,
             BatchSize = dto.BatchSize,
             Enabled = dto.Enabled,
