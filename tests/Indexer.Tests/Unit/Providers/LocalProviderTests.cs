@@ -346,7 +346,7 @@ public class LocalProviderTests : IDisposable
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
         // Act
-        Action act = () => new LocalProvider(_config, null!);
+        Action act = () => new LocalProvider(_settings, null!);
 
         // Assert
         act.Should().Throw<ArgumentNullException>();

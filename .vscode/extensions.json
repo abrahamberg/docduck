@@ -1,0 +1,42 @@
+{
+  "recommendations": [
+    // C# / .NET
+    "ms-dotnettools.csharp",
+    "ms-dotnettools.csdevkit",
+    "ms-dotnettools.vscode-dotnet-runtime",
+    
+    // TypeScript / React
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    
+    // Testing
+    "ms-vscode.test-adapter-converter",
+    "hbenl.vscode-test-explorer",
+    
+    // Docker & Containers
+    "ms-azuretools.vscode-docker",
+    "ms-vscode-remote.remote-containers",
+    
+    // Git & GitHub
+    "github.vscode-pull-request-github",
+    "eamodio.gitlens",
+    
+    // Code Quality
+    "sonarsource.sonarlint-vscode",
+    
+    // Markdown & Documentation
+    "yzhang.markdown-all-in-one",
+    "davidanson.vscode-markdownlint",
+    
+    // YAML & Config Files
+    "redhat.vscode-yaml",
+    
+    // Productivity
+    "github.copilot",
+    "github.copilot-chat",
+    "usernamehw.errorlens",
+    "gruntfuggly.todo-tree"
+  ],
+  "unwantedRecommendations": []
+}

@@ -22,7 +22,11 @@ bld/
 
 # Visual Studio cache/options
 .vs/
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/settings.json
 
 # NuGet Packages
 *.nupkg
@@ -38,6 +42,8 @@ bld/
 [Bb]uild[Ll]og.*
 *.trx
 *.coverage
+coverage/
+coverage.xml
 
 # Environment files
 .env
