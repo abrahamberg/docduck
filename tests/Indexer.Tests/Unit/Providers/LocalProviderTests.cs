@@ -219,7 +219,7 @@ public class LocalProviderTests : IDisposable
         var filePath = Path.Combine(_testDirectory, "test.txt");
         var content = "Test file content";
         File.WriteAllText(filePath, content);
-        
+
         var documents = await _provider.ListDocumentsAsync();
         var docId = documents.Single().DocumentId;
 

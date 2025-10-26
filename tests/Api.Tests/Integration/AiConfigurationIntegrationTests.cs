@@ -19,9 +19,9 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
 
     public AiConfigurationIntegrationTests()
     {
-        _connectionString = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION_STRING") 
+        _connectionString = Environment.GetEnvironmentVariable("TEST_DB_CONNECTION_STRING")
             ?? "Host=localhost;Database=docduck_test;Username=postgres;Password=postgres";
-        
+
         _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
     }
 
@@ -31,10 +31,10 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
         {
             return; // Skip initialization if no API key
         }
-        
+
         _store = new AiProviderConfigurationStore(_connectionString);
         _seeder = new AiConfigurationSeeder(_store, NullLogger<AiConfigurationSeeder>.Instance);
-        
+
         // Clean up any existing configuration
         await _store.DeleteAsync();
     }
@@ -46,7 +46,7 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
 
     [Fact(Skip = "Requires OPENAI_API_KEY environment variable")]
     public async Task Seeder_CreatesConfigurationWithNewFlexibleStructure()
-    {        
+    {
         // Arrange
         Environment.SetEnvironmentVariable("OPENAI_API_KEY", _apiKey);
         Environment.SetEnvironmentVariable("OPENAI_MICRO_MODEL", "gpt-4o-mini");
@@ -72,7 +72,7 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
         Assert.NotNull(microModel.RequestTemplate);
         Assert.NotNull(microModel.ResponseMapping);
         Assert.NotNull(microModel.DefaultParams);
-        
+
         // Verify temperature is in DefaultParams, not global config
         Assert.True(microModel.DefaultParams.ContainsKey("temperature"));
         Assert.Equal(0.0, microModel.GetDefaultTemperature());
@@ -85,7 +85,7 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
 
     [Fact(Skip = "Requires OPENAI_API_KEY environment variable")]
     public async Task Store_PersistsAndLoadsNewColumns()
-    {        
+    {
         // Arrange
         var config = new AiProviderConfiguration
         {
@@ -133,7 +133,7 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
         // Assert
         Assert.NotNull(loaded);
         Assert.Single(loaded.ModelRegistry);
-        
+
         var model = loaded.ModelRegistry[0];
         Assert.Equal("test-model", model.Id);
         Assert.Equal("https://api.test.com/v1/chat/completions", model.Url);
@@ -150,7 +150,7 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
 
     [Fact(Skip = "Requires OPENAI_API_KEY environment variable")]
     public void TemplateSubstitution_WorksWithRealTemplate()
-    {        
+    {
         // Arrange
         var messages = new List<ChatMessagePayload>
         {
@@ -176,7 +176,7 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
         Assert.Equal("gpt-4o-mini", json.RootElement.GetProperty("model").GetString());
         Assert.Equal(0.0, json.RootElement.GetProperty("temperature").GetDouble());
         Assert.Equal(100, json.RootElement.GetProperty("max_tokens").GetInt32());
-        
+
         var messagesArray = json.RootElement.GetProperty("messages");
         Assert.Equal(2, messagesArray.GetArrayLength());
         Assert.Equal("system", messagesArray[0].GetProperty("role").GetString());
@@ -185,7 +185,7 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
 
     [Fact(Skip = "Requires OPENAI_API_KEY environment variable")]
     public void ResponseMappingDetector_DetectsOpenAiFormat()
-    {        
+    {
         // Arrange
         var sampleResponse = @"{
             ""id"": ""chatcmpl-123"",
@@ -223,7 +223,7 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
 
     [Fact(Skip = "Requires OPENAI_API_KEY environment variable")]
     public void CurlImportService_ParsesValidCurl()
-    {        
+    {
         // Arrange
         var curlCommand = @"curl https://api.openai.com/v1/chat/completions \
             -H ""Content-Type: application/json"" \
@@ -245,7 +245,7 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
 
     [Fact(Skip = "Requires OPENAI_API_KEY environment variable")]
     public void SystemPrompts_AreAccessible()
-    {        
+    {
         // Assert
         Assert.NotNull(SystemPrompts.Refine);
         Assert.NotNull(SystemPrompts.Chat);
@@ -260,10 +260,10 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
         Environment.SetEnvironmentVariable("OPENAI_API_KEY", _apiKey);
         Environment.SetEnvironmentVariable("OPENAI_MICRO_MODEL", "gpt-4o-mini");
         await _seeder!.SeedFromEnvironmentAsync(CancellationToken.None);
-        
+
         var config = await _store!.GetAsync();
         var microModel = config!.ModelRegistry.First(m => m.Id == "openai-micro");
-        
+
         using var client = new GenericAiHttpClient(microModel, null);
 
         // Act
@@ -290,11 +290,11 @@ public class AiConfigurationIntegrationTests : IAsyncLifetime
         // Arrange
         Environment.SetEnvironmentVariable("OPENAI_API_KEY", _apiKey);
         await _seeder!.SeedFromEnvironmentAsync(CancellationToken.None);
-        
+
         var config = await _store!.GetAsync();
         var microModel = config!.ModelRegistry.First(m => m.Id == "openai-micro");
         var embeddingModel = config.EmbeddingRegistry[0];
-        
+
         using var client = new GenericAiHttpClient(microModel, null);
 
         // Act

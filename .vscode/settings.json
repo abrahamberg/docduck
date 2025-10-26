@@ -8,7 +8,7 @@
   "editor.rulers": [100, 120],
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
-  
+
   // Language-specific formatting
   "[csharp]": {
     "editor.defaultFormatter": "ms-dotnettools.csharp",
@@ -36,34 +36,27 @@
   "[yaml]": {
     "editor.defaultFormatter": "redhat.vscode-yaml"
   },
-  
+
   // .NET
   "dotnet.defaultSolution": "docduck.sln",
   "omnisharp.enableEditorConfigSupport": true,
   "omnisharp.enableRoslynAnalyzers": true,
-  
+
   // TypeScript
   "typescript.tsdk": "src/web/node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
-  
+
   // ESLint
-  "eslint.workingDirectories": [
-    { "directory": "src/web", "changeProcessCWD": true }
-  ],
-  "eslint.validate": [
-    "javascript",
-    "javascriptreact",
-    "typescript",
-    "typescriptreact"
-  ],
-  
+  "eslint.workingDirectories": [{ "directory": "src/web", "changeProcessCWD": true }],
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+
   // Prettier
   "prettier.configPath": "src/web/.prettierrc.json",
-  
+
   // SonarLint
   "sonarlint.connectedMode.connections.sonarqube": [],
   "sonarlint.pathToNodeExecutable": "",
-  
+
   // Files
   "files.exclude": {
     "**/bin": true,
@@ -78,17 +71,17 @@
     "**/dist": true,
     "**/.nuget": true
   },
-  
+
   // Git
   "git.ignoreLimitWarning": true,
-  
+
   // Terminal
   "terminal.integrated.defaultProfile.linux": "zsh",
   "terminal.integrated.defaultProfile.osx": "zsh",
-  
+
   // Testing
   "dotnet-test-explorer.testProjectPath": "tests/**/*.csproj",
-  
+
   // Misc
   "explorer.fileNesting.enabled": true,
   "explorer.fileNesting.patterns": {

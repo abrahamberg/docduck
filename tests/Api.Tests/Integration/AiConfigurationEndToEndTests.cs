@@ -21,7 +21,7 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
     private const string TestDbName = "docduck_test_e2e";
     private const string TestDbUser = "test_user";
     private const string TestDbPassword = "test_pass_123";
-    
+
     private readonly ITestOutputHelper _output;
     private readonly string? _apiKey;
     private string? _containerId;
@@ -40,9 +40,9 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
         {
             return; // Skip initialization if no API key
         }
-        
+
         _output.WriteLine("Starting ephemeral PostgreSQL container...");
-        
+
         // Start PostgreSQL container on non-standard port
         var startInfo = new ProcessStartInfo
         {
@@ -82,7 +82,7 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
 
         // Create store
         _store = new AiProviderConfigurationStore(_connectionString);
-        
+
         _output.WriteLine("Database ready");
     }
 
@@ -110,7 +110,7 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
 
     [Fact(Skip = "Requires OPENAI_API_KEY environment variable")]
     public async Task EndToEnd_AddModelConfiguration_SaveToDatabase_CallOpenAI()
-    {        
+    {
         // Simulate what the frontend sends - add a new model configuration
         var newModelRequest = new AiModelAssignmentDto(
             Id: "custom-gpt4-mini",
@@ -159,7 +159,7 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
 
         // Step 1: Convert DTO to domain model and save to database
         _output.WriteLine("Step 1: Saving model configuration to database...");
-        
+
         var modelAssignment = new AiModelAssignment
         {
             Id = newModelRequest.Id,
@@ -221,11 +221,11 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
 
         // Step 2: Load configuration from database (simulating application startup)
         _output.WriteLine("Step 2: Loading configuration from database...");
-        
+
         var loadedConfig = await _store.GetAsync();
         Assert.NotNull(loadedConfig);
         Assert.Single(loadedConfig.ModelRegistry);
-        
+
         var loadedModel = loadedConfig.ModelRegistry[0];
         Assert.Equal(newModelRequest.Id, loadedModel.Id);
         Assert.Equal(newModelRequest.DisplayName, loadedModel.DisplayName);
@@ -233,7 +233,7 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
         Assert.Equal(newModelRequest.Url, loadedModel.Url);
         Assert.NotNull(loadedModel.RequestTemplate);
         Assert.NotNull(loadedModel.ResponseMapping);
-        
+
         _output.WriteLine($"✓ Loaded model: {loadedModel.DisplayName}");
         _output.WriteLine($"  - URL: {loadedModel.Url}");
         _output.WriteLine($"  - Model ID: {loadedModel.ModelId}");
@@ -252,9 +252,9 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
 
         // Step 3: Use GenericAiHttpClient to call OpenAI (the way the application uses it)
         _output.WriteLine("Step 3: Calling OpenAI API using GenericAiHttpClient...");
-        
+
         var aiClient = new GenericAiHttpClient(
-            loadedModel, 
+            loadedModel,
             NullLogger<GenericAiHttpClient>.Instance
         );
 
@@ -275,26 +275,26 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
         _output.WriteLine($"  - Content: '{result.Content}'");
         _output.WriteLine($"  - Content length: {result.Content?.Length ?? 0}");
         _output.WriteLine($"  - Tokens: {result.PromptTokens} prompt + {result.CompletionTokens} completion = {result.TotalTokens} total");
-        
+
         // Verify we got a valid response from OpenAI
         Assert.Equal("assistant", result.Role);
         Assert.True(result.TotalTokens > 0, "Should have consumed tokens");
         Assert.True(result.CompletionTokens > 0, "Should have generated completion tokens");
-        
+
         // Content might be empty or non-empty depending on the model's response
         // The important thing is that the request succeeded
         _output.WriteLine($"✓ OpenAI API call successful!");
-        
+
         aiClient.Dispose();
 
-        
+
         _output.WriteLine("\n=== END-TO-END TEST COMPLETE ===");
         _output.WriteLine("✓ Frontend request → Database save → Load → OpenAI API call → Success");
     }
 
     [Fact(Skip = "Requires OPENAI_API_KEY environment variable")]
     public async Task EndToEnd_AddEmbeddingConfiguration_SaveToDatabase_CallOpenAI()
-    {        
+    {
         ArgumentNullException.ThrowIfNull(_store);
         ArgumentException.ThrowIfNullOrWhiteSpace(_connectionString);
 
@@ -478,7 +478,7 @@ public class AiConfigurationEndToEndTests : IAsyncLifetime
         }
 
         var schemaSql = await File.ReadAllTextAsync(schemaPath);
-        
+
         await using var cmd = new NpgsqlCommand(schemaSql, conn);
         await cmd.ExecuteNonQueryAsync();
 
