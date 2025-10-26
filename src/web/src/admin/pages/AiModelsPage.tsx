@@ -240,7 +240,7 @@ export const AiModelsPage: React.FC = () => {
             maxContextTokens: 128000,
             maxOutputTokens: 16000,
             supportsFunctionCalling: true,
-            costFactor: 1.0,
+            costFactor: 1,
             customHeaders: {},
             timeoutSeconds: 120,
           },
@@ -255,8 +255,6 @@ export const AiModelsPage: React.FC = () => {
             ? {
                 ...m, // Keep existing fields
                 ...modelData, // Override with changed fields
-                // If API key wasn't changed, preserve the existing one
-                ...(modelApiKeyChanged ? { apiKey: editingModel.apiKey } : {}),
               }
             : m
         ),
@@ -301,7 +299,7 @@ export const AiModelsPage: React.FC = () => {
       console.log('Calling testModel...');
       const result = await testModel(editingModel.id);
       console.log('Test result:', result);
-      setTestResult(result);
+      setTestResult({ success: result.success, message: result.error || result.model || '' });
 
       // Update config with test result AND save to database
       const updatedConfig = {
@@ -312,7 +310,7 @@ export const AiModelsPage: React.FC = () => {
                 ...m,
                 testStatus: result.success ? 1 : 2,
                 lastTestedAt: new Date().toISOString(),
-                lastTestMessage: result.message,
+                lastTestMessage: result.error || result.model || '',
               }
             : m
         ),
@@ -352,7 +350,7 @@ export const AiModelsPage: React.FC = () => {
       console.log('Calling testEmbedding...');
       const result = await testEmbedding(editingEmbedding.id);
       console.log('Test result:', result);
-      setEmbeddingTestResult(result);
+      setEmbeddingTestResult({ success: result.success, message: result.error || result.model || '' });
 
       // Update config with test result AND save to database
       const updatedConfig = {
@@ -363,7 +361,7 @@ export const AiModelsPage: React.FC = () => {
                 ...e,
                 testStatus: result.success ? 1 : 2,
                 lastTestedAt: new Date().toISOString(),
-                lastTestMessage: result.message,
+                lastTestMessage: result.error || result.model || '',
               }
             : e
         ),
@@ -403,9 +401,9 @@ export const AiModelsPage: React.FC = () => {
         ...config,
         modelRegistry: config.modelRegistry?.filter((m) => m.id !== modelId),
         // Clear tier assignments if this model was assigned
-        microModelId: config.microModelId === modelId ? null : config.microModelId,
-        miniModelId: config.miniModelId === modelId ? null : config.miniModelId,
-        fullModelId: config.fullModelId === modelId ? null : config.fullModelId,
+        microModelId: config.microModelId === modelId ? undefined : config.microModelId,
+        miniModelId: config.miniModelId === modelId ? undefined : config.miniModelId,
+        fullModelId: config.fullModelId === modelId ? undefined : config.fullModelId,
       };
 
       const saved = await updateAiConfiguration(updatedConfig);
@@ -432,7 +430,7 @@ export const AiModelsPage: React.FC = () => {
         embeddingRegistry: config.embeddingRegistry?.filter((e) => e.id !== embeddingId),
         // Clear active embedding if this was it
         activeEmbeddingModelId:
-          config.activeEmbeddingModelId === embeddingId ? null : config.activeEmbeddingModelId,
+          config.activeEmbeddingModelId === embeddingId ? '' : config.activeEmbeddingModelId,
       };
 
       const saved = await updateAiConfiguration(updatedConfig);
@@ -538,8 +536,6 @@ export const AiModelsPage: React.FC = () => {
             ? {
                 ...e, // Keep existing fields
                 ...embeddingData, // Override with changed fields
-                // If API key wasn't changed, preserve the existing one
-                ...(embeddingApiKeyChanged ? { apiKey: editingEmbedding.apiKey } : {}),
               }
             : e
         ),
@@ -718,7 +714,7 @@ export const AiModelsPage: React.FC = () => {
               <Select
                 value={config.activeEmbeddingModelId || ''}
                 onChange={(e) =>
-                  setConfig({ ...config, activeEmbeddingModelId: e.target.value || undefined })
+                  setConfig({ ...config, activeEmbeddingModelId: e.target.value || '' })
                 }
                 fullWidth
                 size="small"
@@ -1185,7 +1181,7 @@ export const AiModelsPage: React.FC = () => {
               onChange={(e) => {
                 setEditingEmbedding(
                   editingEmbedding
-                    ? { ...editingEmbedding, dimensions: parseInt(e.target.value) || 1536 }
+                    ? { ...editingEmbedding, dimensions: Number.parseInt(e.target.value) || 1536 }
                     : null
                 );
                 setEmbeddingTouched(true);

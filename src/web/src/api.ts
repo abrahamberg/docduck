@@ -1,4 +1,11 @@
-import { ProviderInfo, QueryRequest, QueryResponse, HealthStatus, DocumentResult, ChatStreamUpdate } from './types';
+import {
+  ProviderInfo,
+  QueryRequest,
+  QueryResponse,
+  HealthStatus,
+  DocumentResult,
+  ChatStreamUpdate,
+} from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:5000';
 
@@ -28,7 +35,15 @@ export async function postQuery(req: QueryRequest): Promise<QueryResponse> {
 }
 
 // Streaming version of query - for showing intermediate thinking steps
-export async function postQueryStream(req: QueryRequest, onUpdate: (update: ChatStreamUpdate) => void): Promise<void> {
+export async function postQueryStream(
+  req: QueryRequest,
+  onUpdate: (update: ChatStreamUpdate) => void
+): Promise<void> {
+  const resp = await fetchStreamingQuery(req);
+  await processStreamResponse(resp, onUpdate);
+}
+
+async function fetchStreamingQuery(req: QueryRequest): Promise<Response> {
   const resp = await fetch(`${API_BASE}/query`, {
     method: 'POST',
     headers: {
@@ -43,51 +58,94 @@ export async function postQueryStream(req: QueryRequest, onUpdate: (update: Chat
     throw new Error(`Request failed ${resp.status}: ${text}`);
   }
 
+  return resp;
+}
+
+async function processStreamResponse(
+  resp: Response,
+  onUpdate: (update: ChatStreamUpdate) => void
+): Promise<void> {
+  if (!resp.body) return;
+
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let shouldStop = false;
 
-  while (true) {
+  while (!shouldStop) {
     const { value, done } = await reader.read();
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-
-    let boundary = buffer.indexOf('\n\n');
-    while (boundary !== -1) {
-      const rawEvent = buffer.slice(0, boundary).trim();
-      buffer = buffer.slice(boundary + 2);
-
-      for (const line of rawEvent.split('\n')) {
-        if (line.startsWith('data: ')) {
-          const json = line.slice(6);
-          if (json) {
-            const payload = JSON.parse(json) as ChatStreamUpdate;
-            onUpdate(payload);
-            if (payload.type === 'final' || payload.type === 'error') {
-              shouldStop = true;
-            }
-          }
-        }
-      }
-
-      boundary = buffer.indexOf('\n\n');
-    }
+    shouldStop = processEventBuffer(buffer, onUpdate, (newBuffer) => {
+      buffer = newBuffer;
+    });
 
     if (shouldStop) break;
   }
 
-  if (!shouldStop && buffer.trim().length > 0) {
-    const trailingLine = buffer.trim().split('\n').find(line => line.startsWith('data: '));
-    if (trailingLine) {
-      const payload = JSON.parse(trailingLine.slice(6)) as ChatStreamUpdate;
-      onUpdate(payload);
+  processRemainingBuffer(buffer, onUpdate);
+}
+
+function processEventBuffer(
+  buffer: string,
+  onUpdate: (update: ChatStreamUpdate) => void,
+  updateBuffer: (newBuffer: string) => void
+): boolean {
+  let shouldStop = false;
+  let currentBuffer = buffer;
+
+  let boundary = currentBuffer.indexOf('\n\n');
+  while (boundary !== -1) {
+    const rawEvent = currentBuffer.slice(0, boundary).trim();
+    currentBuffer = currentBuffer.slice(boundary + 2);
+
+    if (processRawEvent(rawEvent, onUpdate)) {
+      shouldStop = true;
     }
+
+    boundary = currentBuffer.indexOf('\n\n');
+  }
+
+  updateBuffer(currentBuffer);
+  return shouldStop;
+}
+
+function processRawEvent(rawEvent: string, onUpdate: (update: ChatStreamUpdate) => void): boolean {
+  for (const line of rawEvent.split('\n')) {
+    if (line.startsWith('data: ')) {
+      const json = line.slice(6);
+      if (json) {
+        const payload = JSON.parse(json) as ChatStreamUpdate;
+        onUpdate(payload);
+        if (payload.type === 'final' || payload.type === 'error') {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function processRemainingBuffer(
+  buffer: string,
+  onUpdate: (update: ChatStreamUpdate) => void
+): void {
+  if (buffer.trim().length === 0) return;
+
+  const trailingLine = buffer
+    .trim()
+    .split('\n')
+    .find((line) => line.startsWith('data: '));
+  if (trailingLine) {
+    const payload = JSON.parse(trailingLine.slice(6)) as ChatStreamUpdate;
+    onUpdate(payload);
   }
 }
 
-export async function postDocSearch(req: QueryRequest): Promise<{ query: string; count: number; results: DocumentResult[] }> {
+export async function postDocSearch(
+  req: QueryRequest
+): Promise<{ query: string; count: number; results: DocumentResult[] }> {
   return http(`/docsearch`, { method: 'POST', body: JSON.stringify(req) });
 }
 

@@ -34,13 +34,20 @@ export const LoginPage: React.FC = () => {
 
   return (
     <Container maxWidth="xs" sx={{ display: 'flex', alignItems: 'center', minHeight: '100vh' }}>
-      <Paper component="form" onSubmit={handleSubmit} elevation={3} sx={{ p: 3, width: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 600 }}>Admin Login</Typography>
+      <Paper
+        component="form"
+        onSubmit={handleSubmit}
+        elevation={3}
+        sx={{ p: 3, width: '100%', display: 'flex', flexDirection: 'column', gap: 2 }}
+      >
+        <Typography variant="h5" sx={{ fontWeight: 600 }}>
+          Admin Login
+        </Typography>
         {error && <Alert severity="error">{error}</Alert>}
         <TextField
           label="Username"
           value={username}
-          onChange={event => setUsername(event.target.value)}
+          onChange={(event) => setUsername(event.target.value)}
           required
           autoFocus
         />
@@ -48,7 +55,7 @@ export const LoginPage: React.FC = () => {
           label="Password"
           type="password"
           value={password}
-          onChange={event => setPassword(event.target.value)}
+          onChange={(event) => setPassword(event.target.value)}
           required
         />
         <Button type="submit" variant="contained" disabled={loading}>

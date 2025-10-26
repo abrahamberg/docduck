@@ -340,7 +340,7 @@ public class ChatService : IChatService
                     searchParams.Progress,
                     searchParams.RecordStepAsync);
 
-                var noResultsResponse = await HandleNoResults(noResultsParams, ct);
+                var noResultsResponse = await HandleNoResults(noResultsParams);
 
                 if (noResultsResponse != null)
                 {
@@ -409,8 +409,7 @@ public class ChatService : IChatService
     }
 
     private async Task<ChatResponse?> HandleNoResults(
-        NoResultsParams noResultsParams,
-        CancellationToken ct)
+        NoResultsParams noResultsParams)
     {
         _logger.LogInformation("No sources found on attempt {Attempt}", noResultsParams.Attempt);
         await noResultsParams.RecordStepAsync("No matching passages came back.");

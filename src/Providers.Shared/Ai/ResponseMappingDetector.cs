@@ -191,34 +191,57 @@ public sealed class ResponseMappingDetector
     private static bool TryGetPropertyPath(JsonElement element, string[] pathParts, out string jsonPath)
     {
         jsonPath = string.Empty;
-        var current = element;
+
+        if (!TryNavigatePath(element, pathParts, out var _))
+        {
+            return false;
+        }
+
+        jsonPath = BuildJsonPathNotation(pathParts);
+        return true;
+    }
+
+    private static bool TryNavigatePath(JsonElement current, string[] pathParts, out JsonElement result)
+    {
+        result = current;
 
         for (int i = 0; i < pathParts.Length; i++)
         {
-            var part = pathParts[i];
-
-            // Handle array index
-            if (int.TryParse(part, out var index))
+            if (!TryNavigatePathPart(ref result, pathParts[i]))
             {
-                if (current.ValueKind != JsonValueKind.Array || current.GetArrayLength() <= index)
-                {
-                    return false;
-                }
-                current = current[index];
-            }
-            // Handle property
-            else
-            {
-                if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(part, out var next))
-                {
-                    return false;
-                }
-                current = next;
+                return false;
             }
         }
 
-        // Build JSONPath notation
+        return true;
+    }
+
+    private static bool TryNavigatePathPart(ref JsonElement current, string part)
+    {
+        // Handle array index
+        if (int.TryParse(part, out var index))
+        {
+            if (current.ValueKind != JsonValueKind.Array || current.GetArrayLength() <= index)
+            {
+                return false;
+            }
+            current = current[index];
+            return true;
+        }
+
+        // Handle property
+        if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(part, out var next))
+        {
+            return false;
+        }
+        current = next;
+        return true;
+    }
+
+    private static string BuildJsonPathNotation(string[] pathParts)
+    {
         var pathBuilder = new System.Text.StringBuilder();
+
         for (int i = 0; i < pathParts.Length; i++)
         {
             if (int.TryParse(pathParts[i], out var index))
@@ -235,8 +258,7 @@ public sealed class ResponseMappingDetector
             }
         }
 
-        jsonPath = pathBuilder.ToString();
-        return true;
+        return pathBuilder.ToString();
     }
 
     private static string? ExtractValueByPath(JsonElement root, string jsonPath)

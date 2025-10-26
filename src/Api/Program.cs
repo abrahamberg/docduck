@@ -34,7 +34,7 @@ var aiService = app.Services.GetRequiredService<IModelAgnosticAiService>();
 var aiConfig = await aiService.GetConfigurationAsync();
 var aiConfigured = aiConfig is { Enabled: true };
 
-ConfigureExceptionMiddleware(app, logger, dbConnectionString);
+ConfigureExceptionMiddleware(app, logger);
 
 // Log configuration status
 logger.LogInformation("DocDuck Query API starting - AI: {AiStatus}, DB: {DbConfigured}",
@@ -213,6 +213,12 @@ static List<Api.Models.DocumentResult> GroupChunksByDocument(List<Source> chunks
 
 static void ConfigureSearchOptions(SearchOptions options)
 {
+    ConfigureBasicSearchParameters(options);
+    ConfigureLexicalSearchParameters(options);
+}
+
+static void ConfigureBasicSearchParameters(SearchOptions options)
+{
     if (int.TryParse(Environment.GetEnvironmentVariable("DEFAULT_TOP_K"), out var topK))
     {
         options.DefaultTopK = topK;
@@ -232,7 +238,10 @@ static void ConfigureSearchOptions(SearchOptions options)
     {
         options.DefaultSearchDepth = Math.Clamp(defaultDepth, 1, options.MaxSearchDepth);
     }
+}
 
+static void ConfigureLexicalSearchParameters(SearchOptions options)
+{
     if (bool.TryParse(Environment.GetEnvironmentVariable("ENABLE_LEXICAL_SEARCH"), out var enableLexical))
     {
         options.EnableLexicalSearch = enableLexical;
@@ -373,7 +382,7 @@ static async Task BootstrapServicesAsync(WebApplication app)
     bootstrapLogger.LogInformation("AI provider configured: {Configured}", bootstrapAiConfig is { Enabled: true });
 }
 
-static void ConfigureExceptionMiddleware(WebApplication app, ILogger logger, string dbConnectionString)
+static void ConfigureExceptionMiddleware(WebApplication app, ILogger logger)
 {
     // Global exception logging middleware: captures unhandled exceptions and logs request details
     app.Use(async (context, next) =>

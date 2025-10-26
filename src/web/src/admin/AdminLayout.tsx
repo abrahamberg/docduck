@@ -22,13 +22,18 @@ export const AdminLayout: React.FC<Props> = ({ title, navKey, actions, children 
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <AppBar position="static" color="default" elevation={0} sx={{ borderBottom: theme => `1px solid ${theme.palette.divider}` }}>
+      <AppBar
+        position="static"
+        color="default"
+        elevation={0}
+        sx={{ borderBottom: (theme) => `1px solid ${theme.palette.divider}` }}
+      >
         <Toolbar sx={{ gap: 2, flexWrap: 'wrap' }}>
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             {title}
           </Typography>
           <Stack direction="row" spacing={1} sx={{ flexGrow: 1, flexWrap: 'wrap' }}>
-            {NAV_ITEMS.map(item => (
+            {NAV_ITEMS.map((item) => (
               <Button
                 key={item.key}
                 component={RouterLink}

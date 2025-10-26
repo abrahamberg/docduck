@@ -13,15 +13,38 @@ export function useHistory() {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return parsed as HistoryItem[];
       return [];
-    } catch { return []; }
+    } catch {
+      return [];
+    }
   });
 
-  useEffect(() => { localStorage.setItem(KEY, JSON.stringify(items)); }, [items]);
+  useEffect(() => {
+    localStorage.setItem(KEY, JSON.stringify(items));
+  }, [items]);
 
-  const add = useCallback((question: string, resp: QueryResponse | null, providers: string[], meta?: { latencyMs?: number; tokensUsed?: number }) => {
-    const answerSnippet = resp?.answer ? resp.answer.slice(0, 120) : undefined;
-    setItems(prev => [{ id: crypto.randomUUID(), question, answerSnippet, timestamp: Date.now(), providers, latencyMs: meta?.latencyMs, tokensUsed: meta?.tokensUsed ?? resp?.tokensUsed }, ...prev.slice(0, MAX - 1)]);
-  }, []);
+  const add = useCallback(
+    (
+      question: string,
+      resp: QueryResponse | null,
+      providers: string[],
+      meta?: { latencyMs?: number; tokensUsed?: number }
+    ) => {
+      const answerSnippet = resp?.answer ? resp.answer.slice(0, 120) : undefined;
+      setItems((prev) => [
+        {
+          id: crypto.randomUUID(),
+          question,
+          answerSnippet,
+          timestamp: Date.now(),
+          providers,
+          latencyMs: meta?.latencyMs,
+          tokensUsed: meta?.tokensUsed ?? resp?.tokensUsed,
+        },
+        ...prev.slice(0, MAX - 1),
+      ]);
+    },
+    []
+  );
 
   return { items, add };
 }

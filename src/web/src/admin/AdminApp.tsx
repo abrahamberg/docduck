@@ -45,19 +45,51 @@ const AdminRoutes: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/"
-        element={token && user ? <AdminLayout title="DocDuck Admin" navKey="dashboard"><Dashboard /></AdminLayout> : <Navigate to="/login" replace />}
+        element={
+          token && user ? (
+            <AdminLayout title="DocDuck Admin" navKey="dashboard">
+              <Dashboard />
+            </AdminLayout>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
       />
       <Route
         path="/providers"
-        element={token && user ? <AdminLayout title="Providers" navKey="providers"><ProvidersPage /></AdminLayout> : <Navigate to="/login" replace />}
+        element={
+          token && user ? (
+            <AdminLayout title="Providers" navKey="providers">
+              <ProvidersPage />
+            </AdminLayout>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
       />
       <Route
         path="/ai"
-        element={token && user ? <AdminLayout title="AI Models" navKey="ai"><AiModelsPage /></AdminLayout> : <Navigate to="/login" replace />}
+        element={
+          token && user ? (
+            <AdminLayout title="AI Models" navKey="ai">
+              <AiModelsPage />
+            </AdminLayout>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
       />
       <Route
         path="/users"
-        element={token && user ? <AdminLayout title="Admin Users" navKey="users"><UsersPage /></AdminLayout> : <Navigate to="/login" replace />}
+        element={
+          token && user ? (
+            <AdminLayout title="Admin Users" navKey="users">
+              <UsersPage />
+            </AdminLayout>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
       />
       <Route path="*" element={<Navigate to={token && user ? '/' : '/login'} replace />} />
     </Routes>

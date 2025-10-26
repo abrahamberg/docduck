@@ -52,7 +52,7 @@ export interface AiModelAssignmentDto {
   testStatus?: number; // 0=Untested, 1=Passed, 2=Failed
   lastTestedAt?: string;
   lastTestMessage?: string;
-  
+
   // Deprecated - for backward compatibility
   baseUrl?: string;
   apiKey?: string;
@@ -75,7 +75,7 @@ export interface AiEmbeddingModelAssignmentDto {
   testStatus?: number;
   lastTestedAt?: string;
   lastTestMessage?: string;
-  
+
   // Deprecated - for backward compatibility
   baseUrl?: string;
   apiKey?: string;
@@ -85,19 +85,19 @@ export interface AiEmbeddingModelAssignmentDto {
 export interface AiConfigurationDto {
   enabled: boolean;
   defaultSelectionStrategy: 'Eco' | 'Standard' | 'Turbo';
-  
+
   // Model registry: all available models
   modelRegistry: AiModelAssignmentDto[];
-  
+
   // Tier assignments by ID (optional)
   microModelId?: string;
   miniModelId?: string;
   fullModelId?: string;
-  
+
   // Embedding registry and active selection
   embeddingRegistry: AiEmbeddingModelAssignmentDto[];
   activeEmbeddingModelId: string;
-  
+
   defaultTemperature: number;
   refineSystemPrompt?: string;
 }

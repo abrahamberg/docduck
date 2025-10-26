@@ -21,7 +21,7 @@ export const App: React.FC = () => {
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
 
   const toggleTheme = () => {
-    setThemeMode(prev => prev === 'dark' ? 'light' : 'dark');
+    setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   useEffect(() => {
@@ -52,14 +52,21 @@ export const App: React.FC = () => {
     })();
   }, []);
 
-  const providerOptions = providers.map(p => ({
+  const providerOptions = providers.map((p) => ({
     label: `${p.providerName} (${p.providerType})`,
     value: p.providerName,
   }));
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', display: 'flex', flexDirection: 'column' }}>
+      <Box
+        sx={{
+          minHeight: '100vh',
+          bgcolor: 'background.default',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         {/* Single top bar with environment status and controls */}
         <Box
           sx={{
@@ -67,12 +74,20 @@ export const App: React.FC = () => {
             top: 0,
             zIndex: 1100,
             bgcolor: 'background.default',
-            borderBottom: theme => `1px solid ${theme.palette.divider}`,
+            borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
             px: 2,
             py: 1.5,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 2,
+              flexWrap: 'wrap',
+            }}
+          >
             {/* Left side - Environment status */}
             <Box sx={{ flex: '1 1 auto', minWidth: 200 }}>
               <EnvironmentBanner health={health} loading={healthLoading} />
@@ -94,13 +109,13 @@ export const App: React.FC = () => {
                 size="small"
                 options={providerOptions}
                 loading={loadingProviders}
-                value={providerOptions.filter(o => selectedProviders.includes(o.value))}
-                onChange={(_, newValue) => setSelectedProviders(newValue.map(v => v.value))}
-                sx={{ 
-                  minWidth: { xs: 180, sm: 220 }, 
+                value={providerOptions.filter((o) => selectedProviders.includes(o.value))}
+                onChange={(_, newValue) => setSelectedProviders(newValue.map((v) => v.value))}
+                sx={{
+                  minWidth: { xs: 180, sm: 220 },
                   maxWidth: { xs: 280, sm: 320 },
                 }}
-                getOptionLabel={o => o.label}
+                getOptionLabel={(o) => o.label}
                 renderInput={(params) => (
                   <TextField
                     {...params}
@@ -119,14 +134,18 @@ export const App: React.FC = () => {
                   },
                 }}
               >
-                {themeMode === 'dark' ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
+                {themeMode === 'dark' ? (
+                  <Brightness7Icon fontSize="small" />
+                ) : (
+                  <Brightness4Icon fontSize="small" />
+                )}
               </IconButton>
-              <Button 
-                color="primary" 
-                variant="outlined" 
-                size="small" 
+              <Button
+                color="primary"
+                variant="outlined"
+                size="small"
                 href="/admin/login"
-                sx={{ 
+                sx={{
                   whiteSpace: 'nowrap',
                 }}
               >
@@ -138,9 +157,7 @@ export const App: React.FC = () => {
 
         {/* Main content area */}
         <Box sx={{ flex: 1 }}>
-          <Ask 
-            providerNames={selectedProviders.length > 0 ? selectedProviders : undefined} 
-          />
+          <Ask providerNames={selectedProviders.length > 0 ? selectedProviders : undefined} />
         </Box>
       </Box>
     </ThemeProvider>

@@ -2,7 +2,10 @@ import React from 'react';
 import { Stack, Chip, LinearProgress, Typography, Box } from '@mui/material';
 import { HealthStatus } from '../types';
 
-interface Props { health: HealthStatus | null; loading: boolean; }
+interface Props {
+  health: HealthStatus | null;
+  loading: boolean;
+}
 
 export const EnvironmentBanner: React.FC<Props> = ({ health, loading }) => {
   if (loading) {
@@ -35,7 +38,9 @@ export const EnvironmentBanner: React.FC<Props> = ({ health, loading }) => {
         Environment Issues
       </Typography>
       <Stack direction="row" spacing={1} flexWrap="wrap">
-        {warnings.map(w => <Chip key={w} color="warning" size="small" label={w} />)}
+        {warnings.map((w) => (
+          <Chip key={w} color="warning" size="small" label={w} />
+        ))}
       </Stack>
     </Box>
   );

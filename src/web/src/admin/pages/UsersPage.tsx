@@ -1,5 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, Paper, Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
+  Paper,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { changePassword, createUser, listUsers, setAdmin } from '../api';
 import type { AdminUser } from '../types';
 
@@ -12,16 +31,27 @@ export const UsersPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [passwordDialog, setPasswordDialog] = useState<{ open: boolean; userId: string | null; username: string }>(
-    { open: false, userId: null, username: '' }
-  );
+  const [passwordDialog, setPasswordDialog] = useState<{
+    open: boolean;
+    userId: string | null;
+    username: string;
+  }>({ open: false, userId: null, username: '' });
   const [newUserPassword, setNewUserPassword] = useState('');
 
   const trimmedUsername = newUsername.trim();
-  const usernameError = trimmedUsername.length > 0 && trimmedUsername.length < 3 ? 'Username must be at least 3 characters.' : null;
-  const passwordError = newPassword.length > 0 && newPassword.length < 8 ? 'Password must be at least 8 characters.' : null;
+  const usernameError =
+    trimmedUsername.length > 0 && trimmedUsername.length < 3
+      ? 'Username must be at least 3 characters.'
+      : null;
+  const passwordError =
+    newPassword.length > 0 && newPassword.length < 8
+      ? 'Password must be at least 8 characters.'
+      : null;
   const createDisabled = saving || trimmedUsername.length < 3 || newPassword.length < 8;
-  const passwordUpdateError = newUserPassword.length > 0 && newUserPassword.length < 8 ? 'Password must be at least 8 characters.' : null;
+  const passwordUpdateError =
+    newUserPassword.length > 0 && newUserPassword.length < 8
+      ? 'Password must be at least 8 characters.'
+      : null;
   const updateDisabled = newUserPassword.length < 8;
 
   const loadUsers = async () => {
@@ -43,14 +73,16 @@ export const UsersPage: React.FC = () => {
 
   const handleCreateUser = async () => {
     if (trimmedUsername.length < 3 || newPassword.length < 8) {
-      setError('Provide a username with at least 3 characters and a password with at least 8 characters.');
+      setError(
+        'Provide a username with at least 3 characters and a password with at least 8 characters.'
+      );
       return;
     }
 
     try {
       setSaving(true);
       setError(null);
-  await createUser(trimmedUsername, newPassword, isAdmin);
+      await createUser(trimmedUsername, newPassword, isAdmin);
       setCreateDialogOpen(false);
       setNewUsername('');
       setNewPassword('');
@@ -101,9 +133,15 @@ export const UsersPage: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Typography variant="h5" sx={{ fontWeight: 600 }}>Admin Users</Typography>
+      <Typography variant="h5" sx={{ fontWeight: 600 }}>
+        Admin Users
+      </Typography>
       {error && <Alert severity="error">{error}</Alert>}
-      <Button variant="contained" onClick={() => setCreateDialogOpen(true)} sx={{ alignSelf: 'flex-start' }}>
+      <Button
+        variant="contained"
+        onClick={() => setCreateDialogOpen(true)}
+        sx={{ alignSelf: 'flex-start' }}
+      >
         New User
       </Button>
       <Paper>
@@ -118,7 +156,7 @@ export const UsersPage: React.FC = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.map(user => (
+            {users.map((user) => (
               <TableRow key={user.id}>
                 <TableCell>{user.username}</TableCell>
                 <TableCell>{user.isAdmin ? 'Admin' : 'User'}</TableCell>
@@ -127,7 +165,12 @@ export const UsersPage: React.FC = () => {
                 <TableCell align="right">
                   <Button onClick={() => openPasswordDialog(user)}>Change Password</Button>
                   <FormControlLabel
-                    control={<Switch checked={user.isAdmin} onChange={event => toggleAdmin(user.id, event.target.checked)} />}
+                    control={
+                      <Switch
+                        checked={user.isAdmin}
+                        onChange={(event) => toggleAdmin(user.id, event.target.checked)}
+                      />
+                    }
                     label="Admin"
                   />
                 </TableCell>
@@ -143,7 +186,7 @@ export const UsersPage: React.FC = () => {
           <TextField
             label="Username"
             value={newUsername}
-            onChange={event => setNewUsername(event.target.value)}
+            onChange={(event) => setNewUsername(event.target.value)}
             error={Boolean(usernameError)}
             helperText={usernameError ?? ' '}
             autoFocus
@@ -152,34 +195,48 @@ export const UsersPage: React.FC = () => {
             label="Password"
             type="password"
             value={newPassword}
-            onChange={event => setNewPassword(event.target.value)}
+            onChange={(event) => setNewPassword(event.target.value)}
             error={Boolean(passwordError)}
             helperText={passwordError ?? 'Minimum 8 characters.'}
           />
-          <FormControlLabel control={<Switch checked={isAdmin} onChange={event => setIsAdmin(event.target.checked)} />} label="Admin" />
+          <FormControlLabel
+            control={
+              <Switch checked={isAdmin} onChange={(event) => setIsAdmin(event.target.checked)} />
+            }
+            label="Admin"
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreateUser} disabled={createDisabled}>{saving ? 'Creating…' : 'Create'}</Button>
+          <Button onClick={handleCreateUser} disabled={createDisabled}>
+            {saving ? 'Creating…' : 'Create'}
+          </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={passwordDialog.open} onClose={() => setPasswordDialog({ open: false, userId: null, username: '' })}>
+      <Dialog
+        open={passwordDialog.open}
+        onClose={() => setPasswordDialog({ open: false, userId: null, username: '' })}
+      >
         <DialogTitle>Change Password for {passwordDialog.username}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
           <TextField
             label="New Password"
             type="password"
             value={newUserPassword}
-            onChange={event => setNewUserPassword(event.target.value)}
+            onChange={(event) => setNewUserPassword(event.target.value)}
             error={Boolean(passwordUpdateError)}
             helperText={passwordUpdateError ?? 'Minimum 8 characters.'}
             autoFocus
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPasswordDialog({ open: false, userId: null, username: '' })}>Cancel</Button>
-          <Button onClick={updatePassword} disabled={updateDisabled}>Update</Button>
+          <Button onClick={() => setPasswordDialog({ open: false, userId: null, username: '' })}>
+            Cancel
+          </Button>
+          <Button onClick={updatePassword} disabled={updateDisabled}>
+            Update
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

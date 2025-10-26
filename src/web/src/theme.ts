@@ -4,7 +4,7 @@ type ThemeMode = 'light' | 'dark';
 
 const getPalette = (isDark: boolean) => ({
   mode: (isDark ? 'dark' : 'light') as ThemeMode,
-  primary: { 
+  primary: {
     main: isDark ? '#4fa' : '#667eea',
     light: isDark ? '#6fd' : '#7c8ff0',
     dark: isDark ? '#3c8' : '#5568d3',
@@ -15,21 +15,23 @@ const getPalette = (isDark: boolean) => ({
   success: { main: isDark ? '#3fb950' : '#2e7d32' },
   warning: { main: isDark ? '#d29922' : '#ed6c02' },
   error: { main: isDark ? '#f85149' : '#d32f2f' },
-  background: isDark ? {
-    default: '#0d1117',
-    paper: '#161b22'
-  } : {
-    default: '#f5f5f5',
-    paper: '#ffffff'
-  },
+  background: isDark
+    ? {
+        default: '#0d1117',
+        paper: '#161b22',
+      }
+    : {
+        default: '#f5f5f5',
+        paper: '#ffffff',
+      },
   divider: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
 });
 
 const getComponents = (isDark: boolean): any => ({
   MuiButton: {
     styleOverrides: {
-      root: { 
-        textTransform: 'none', 
+      root: {
+        textTransform: 'none',
         fontWeight: 600,
         borderRadius: 8,
         padding: '8px 16px',
@@ -44,13 +46,13 @@ const getComponents = (isDark: boolean): any => ({
   },
   MuiPaper: {
     styleOverrides: {
-      root: { 
+      root: {
         backgroundImage: 'none',
         border: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.08)',
         backdropFilter: 'blur(4px)',
       },
       elevation2: {
-        boxShadow: isDark 
+        boxShadow: isDark
           ? '0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.24)'
           : '0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.06)',
       },
@@ -77,9 +79,7 @@ const getComponents = (isDark: boolean): any => ({
       root: {
         borderRadius: 12,
         border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.12)',
-        boxShadow: isDark 
-          ? '0 4px 18px rgba(0,0,0,0.45)'
-          : '0 2px 8px rgba(0,0,0,0.1)',
+        boxShadow: isDark ? '0 4px 18px rgba(0,0,0,0.45)' : '0 2px 8px rgba(0,0,0,0.1)',
       },
     },
   },
@@ -94,19 +94,20 @@ const getComponents = (isDark: boolean): any => ({
     styleOverrides: {
       paper: {
         backdropFilter: 'blur(10px)',
-      }
-    }
-  }
+      },
+    },
+  },
 });
 
 export const getTheme = (mode: ThemeMode) => {
   const isDark = mode === 'dark';
-  
+
   return createTheme({
     palette: getPalette(isDark),
     shape: { borderRadius: 8 },
     typography: {
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      fontFamily:
+        '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       h5: {
         fontWeight: 700,
         letterSpacing: '-0.02em',
@@ -118,7 +119,7 @@ export const getTheme = (mode: ThemeMode) => {
       body1: {
         lineHeight: 1.6,
       },
-      body2: { 
+      body2: {
         lineHeight: 1.5,
       },
       button: {

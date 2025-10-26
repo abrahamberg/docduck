@@ -39,7 +39,9 @@ describe('ProvidersPage', () => {
 
     const typeSelect = screen.getByLabelText('Provider Type') as HTMLSelectElement;
     const nameField = screen.getByLabelText('Provider Name') as HTMLInputElement;
-    const settingsField = screen.getByRole('textbox', { name: 'Settings JSON' }) as HTMLTextAreaElement;
+    const settingsField = screen.getByRole('textbox', {
+      name: 'Settings JSON',
+    }) as HTMLTextAreaElement;
 
     expect(settingsField.value).toContain('"name": "LocalFiles"');
     expect(settingsField.value).toContain('"enabled": true');
@@ -72,7 +74,9 @@ describe('ProvidersPage', () => {
     const typeSelect = screen.getByLabelText('Provider Type') as HTMLSelectElement;
     const nameField = screen.getByLabelText('Provider Name') as HTMLInputElement;
     const enabledSwitch = screen.getByRole('checkbox', { name: /enabled/i });
-    const settingsField = screen.getByRole('textbox', { name: 'Settings JSON' }) as HTMLTextAreaElement;
+    const settingsField = screen.getByRole('textbox', {
+      name: 'Settings JSON',
+    }) as HTMLTextAreaElement;
 
     await user.selectOptions(typeSelect, 's3');
     await waitFor(() => expect(nameField).toHaveValue('S3'));

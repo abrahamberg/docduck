@@ -3,7 +3,12 @@ import { Box, Typography, LinearProgress } from '@mui/material';
 import { QueryResponse } from '../types';
 import { SourceAccordion } from './SourceAccordion';
 
-interface Props { streamingText: string; response: QueryResponse | null; loading: boolean; tokens?: number; }
+interface Props {
+  streamingText: string;
+  response: QueryResponse | null;
+  loading: boolean;
+  tokens?: number;
+}
 
 export const AnswerView: React.FC<Props> = ({ streamingText, response, loading, tokens }) => {
   return (
@@ -11,16 +16,27 @@ export const AnswerView: React.FC<Props> = ({ streamingText, response, loading, 
       {loading && !streamingText && !response && <LinearProgress sx={{ mb: 2 }} />}
       {streamingText && !response && (
         <Box sx={{ mb: 2 }} aria-live="polite">
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>Answer (streaming)</Typography>
-          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{streamingText}<span style={{ opacity: 0.5 }}>|</span></Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Answer (streaming)
+          </Typography>
+          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+            {streamingText}
+            <span style={{ opacity: 0.5 }}>|</span>
+          </Typography>
         </Box>
       )}
       {response && (
         <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>Answer</Typography>
-          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mb: 2 }}>{response.answer}</Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Answer
+          </Typography>
+          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mb: 2 }}>
+            {response.answer}
+          </Typography>
           <SourceAccordion sources={response.sources} />
-          <Typography variant="caption" sx={{ mt: 2, display: 'block', opacity: 0.7 }}>Tokens used: {tokens ?? response.tokensUsed}</Typography>
+          <Typography variant="caption" sx={{ mt: 2, display: 'block', opacity: 0.7 }}>
+            Tokens used: {tokens ?? response.tokensUsed}
+          </Typography>
         </Box>
       )}
     </Box>

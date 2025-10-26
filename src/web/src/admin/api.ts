@@ -1,12 +1,12 @@
-import { 
-  LoginResponse, 
-  AdminUser, 
-  ProviderSettings, 
+import {
+  LoginResponse,
+  AdminUser,
+  ProviderSettings,
   ProviderProbeResult,
   AiConfigurationDto,
   AiProbeRequest,
   AiProbeResponse,
-  EmbeddingChangeWarningResponse
+  EmbeddingChangeWarningResponse,
 } from './types';
 
 const API_BASES = (() => {
@@ -88,61 +88,25 @@ const getCandidateBases = () => {
     return API_BASES;
   }
 
-  return [selectedApiBase, ...API_BASES.filter(base => base !== selectedApiBase)];
+  return [selectedApiBase, ...API_BASES.filter((base) => base !== selectedApiBase)];
 };
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem('docduck-admin-token');
-  const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
+  const headers = buildRequestHeaders(options.headers);
   let lastNetworkError: Error | null = null;
 
   for (const base of getCandidateBases()) {
-    const target = `${base}${path}`;
-
     try {
-      const resp = await fetch(target, { ...options, headers });
-      if (resp.status === 401) {
-        localStorage.removeItem('docduck-admin-token');
-        localStorage.removeItem('docduck-admin-user');
-        selectedApiBase = null;
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem(preferredBaseStorageKey);
-        }
-        throw new Error('Unauthorized');
-      }
-
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(text || `Request failed ${resp.status}`);
-      }
-
+      const result = await tryRequest<T>(base, path, { ...options, headers });
       selectedApiBase = base;
       setStoredPreferredBase(base);
-
-      if (resp.status === 204 || resp.status === 205) {
-        return undefined as T;
-      }
-
-      const contentType = resp.headers.get('content-type') ?? '';
-      if (!contentType.includes('application/json')) {
-        const text = await resp.text();
-        return text as unknown as T;
-      }
-
-      return resp.json();
+      return result;
     } catch (error: any) {
       const isNetworkError = error instanceof TypeError || error?.name === 'TypeError';
       if (!isNetworkError) {
         throw error;
       }
-
       lastNetworkError = error;
-      continue;
     }
   }
 
@@ -151,6 +115,56 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   throw new Error('Request failed: no reachable admin API base URL.');
+}
+
+function buildRequestHeaders(existingHeaders?: HeadersInit): Headers {
+  const token = localStorage.getItem('docduck-admin-token');
+  const headers = new Headers(existingHeaders);
+  headers.set('Content-Type', 'application/json');
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return headers;
+}
+
+async function tryRequest<T>(base: string, path: string, options: RequestInit): Promise<T> {
+  const target = `${base}${path}`;
+  const resp = await fetch(target, options);
+
+  handleAuthError(resp);
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text || `Request failed ${resp.status}`);
+  }
+
+  return parseResponse<T>(resp);
+}
+
+function handleAuthError(resp: Response): void {
+  if (resp.status === 401) {
+    localStorage.removeItem('docduck-admin-token');
+    localStorage.removeItem('docduck-admin-user');
+    selectedApiBase = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(preferredBaseStorageKey);
+    }
+    throw new Error('Unauthorized');
+  }
+}
+
+async function parseResponse<T>(resp: Response): Promise<T> {
+  if (resp.status === 204 || resp.status === 205) {
+    return undefined as T;
+  }
+
+  const contentType = resp.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    const text = await resp.text();
+    return text as unknown as T;
+  }
+
+  return resp.json();
 }
 
 export async function login(username: string, password: string): Promise<LoginResponse> {
@@ -168,7 +182,11 @@ export async function listUsers(): Promise<{ users: AdminUser[] }> {
   return request('/admin/users');
 }
 
-export async function createUser(username: string, password: string, isAdmin: boolean): Promise<AdminUser> {
+export async function createUser(
+  username: string,
+  password: string,
+  isAdmin: boolean
+): Promise<AdminUser> {
   return request('/admin/users', {
     method: 'POST',
     body: JSON.stringify({ username, password, isAdmin }),
@@ -244,7 +262,9 @@ export async function getAiConfiguration(): Promise<AiConfigurationDto> {
   return request('/admin/ai/config');
 }
 
-export async function updateAiConfiguration(config: AiConfigurationDto): Promise<AiConfigurationDto> {
+export async function updateAiConfiguration(
+  config: AiConfigurationDto
+): Promise<AiConfigurationDto> {
   return request('/admin/ai/config', {
     method: 'PUT',
     body: JSON.stringify(config),
@@ -258,7 +278,9 @@ export async function probeAiModel(req: AiProbeRequest): Promise<AiProbeResponse
   });
 }
 
-export async function checkEmbeddingChange(newDimensions: number): Promise<EmbeddingChangeWarningResponse> {
+export async function checkEmbeddingChange(
+  newDimensions: number
+): Promise<EmbeddingChangeWarningResponse> {
   return request('/admin/ai/check-embedding-change', {
     method: 'POST',
     body: JSON.stringify({ newDimensions }),
