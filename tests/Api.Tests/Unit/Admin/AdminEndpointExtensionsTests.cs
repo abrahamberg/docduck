@@ -26,7 +26,6 @@ public class AdminEndpointExtensionsTests
     public void AdminLoginRequest_EmptyPassword_IsInvalid()
     {
         // Arrange
-        var username = "admin";
         var password = "";
 
         // Assert

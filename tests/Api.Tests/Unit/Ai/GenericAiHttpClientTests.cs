@@ -13,6 +13,7 @@ namespace DocDuck.Tests.Unit.Ai;
 public class GenericAiHttpClientTests : IDisposable
 {
     private readonly List<IDisposable> _disposables = new();
+    private static readonly string[] TestTextArray = new[] { "test" };
 
     public void Dispose()
     {
@@ -20,6 +21,7 @@ public class GenericAiHttpClientTests : IDisposable
         {
             disposable?.Dispose();
         }
+        GC.SuppressFinalize(this);
     }
 
     #region Constructor Tests
@@ -136,7 +138,7 @@ public class GenericAiHttpClientTests : IDisposable
     {
         var client = CreateClient();
 
-        var act = async () => await client.EmbedBatchAsync(null!, new[] { "test" });
+        var act = async () => await client.EmbedBatchAsync(null!, TestTextArray);
 
         await act.Should().ThrowAsync<ArgumentNullException>()
             .WithParameterName("embeddingModel");
@@ -179,7 +181,7 @@ public class GenericAiHttpClientTests : IDisposable
         return client;
     }
 
-    private AiModelAssignment CreateValidModel()
+    private static AiModelAssignment CreateValidModel()
     {
         return new AiModelAssignment
         {
@@ -201,7 +203,7 @@ public class GenericAiHttpClientTests : IDisposable
         };
     }
 
-    private AiEmbeddingModelAssignment CreateValidEmbeddingModel()
+    private static AiEmbeddingModelAssignment CreateValidEmbeddingModel()
     {
         return new AiEmbeddingModelAssignment
         {
