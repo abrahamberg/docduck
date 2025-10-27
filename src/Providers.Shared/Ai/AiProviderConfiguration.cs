@@ -128,8 +128,6 @@ public sealed class AiProviderConfiguration
 /// </summary>
 public sealed class AiEmbeddingModelAssignment
 {
-    private const string AuthorizationHeaderName = "Authorization";
-
     /// <summary>
     /// Unique identifier for this embedding model.
     /// </summary>

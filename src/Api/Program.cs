@@ -194,9 +194,9 @@ static List<Api.Models.DocumentResult> GroupChunksByDocument(List<Source> chunks
             return new
             {
                 DocId = g.Key,
-                Filename = first.Filename,
-                ProviderType = first.ProviderType,
-                ProviderName = first.ProviderName,
+                first.Filename,
+                first.ProviderType,
+                first.ProviderName,
                 BestDistance = g.Min(x => x.Distance)
             };
         })
