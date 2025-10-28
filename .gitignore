@@ -72,3 +72,5 @@ build/
 
 # env
 .env.local
+# Local development files (backups, temp data, etc.)
+.local_files/
