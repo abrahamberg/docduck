@@ -3,9 +3,9 @@
 -- =============================================================================
 -- This script creates all required tables, indexes, and extensions for DocDuck.
 -- It is designed to be idempotent and can be run multiple times safely.
--- 
+--
 -- Required PostgreSQL extensions: pgvector, pg_trgm
--- 
+--
 -- Tables created:
 --   - docs_chunks: Document chunks with vector embeddings
 --   - docs_files: File metadata and tracking (etag, last_modified)
@@ -50,14 +50,14 @@ CREATE TABLE IF NOT EXISTS ai_provider_settings (
     provider_id TEXT PRIMARY KEY,
     provider_type TEXT NOT NULL, -- 'chat' or 'embedding'
     settings JSONB NOT NULL,
-    
+
     -- Flexible model configuration (added in v2 for multi-provider support)
     url TEXT, -- Full API endpoint URL (e.g., https://api.openai.com/v1/chat/completions)
     headers JSONB DEFAULT '{"Content-Type": "application/json"}'::jsonb, -- HTTP headers
     request_template JSONB, -- Request body template with variable placeholders
     response_mapping JSONB, -- JSONPath expressions for extracting response data
     default_params JSONB DEFAULT '{}'::jsonb, -- Model-specific defaults (temperature, etc.)
-    
+
     test_status TEXT NOT NULL DEFAULT 'Untested', -- 'Untested', 'Passed', 'Failed'
     last_tested_at TIMESTAMPTZ,
     last_test_message TEXT,
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS docs_chunks (
     embedding vector(1536),
     search_lexeme tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce(text, ''))) STORED,
     created_at TIMESTAMPTZ DEFAULT now(),
-    
+
     -- Unique constraint: same doc_id+chunk_num can exist across different providers
     CONSTRAINT unique_doc_chunk_provider UNIQUE (doc_id, chunk_num, provider_type, provider_name)
 );
@@ -119,55 +119,55 @@ CREATE TABLE IF NOT EXISTS admin_users (
 
 -- Vector similarity search index (cosine distance)
 -- Lists parameter should be ~rows/1000 for optimal performance
-CREATE INDEX IF NOT EXISTS docs_chunks_embedding_idx 
-    ON docs_chunks USING ivfflat (embedding vector_cosine_ops) 
+CREATE INDEX IF NOT EXISTS docs_chunks_embedding_idx
+    ON docs_chunks USING ivfflat (embedding vector_cosine_ops)
     WITH (lists = 100);
 
 -- Lexical search index on generated tsvector column
-CREATE INDEX IF NOT EXISTS docs_chunks_search_lexeme_idx 
+CREATE INDEX IF NOT EXISTS docs_chunks_search_lexeme_idx
     ON docs_chunks USING GIN (search_lexeme);
 
 -- Common query indexes
-CREATE INDEX IF NOT EXISTS docs_chunks_doc_id_idx 
+CREATE INDEX IF NOT EXISTS docs_chunks_doc_id_idx
     ON docs_chunks(doc_id);
 
-CREATE INDEX IF NOT EXISTS docs_chunks_filename_idx 
+CREATE INDEX IF NOT EXISTS docs_chunks_filename_idx
     ON docs_chunks(filename);
 
-CREATE INDEX IF NOT EXISTS docs_chunks_provider_idx 
+CREATE INDEX IF NOT EXISTS docs_chunks_provider_idx
     ON docs_chunks(provider_type, provider_name);
 
-CREATE INDEX IF NOT EXISTS docs_chunks_created_at_idx 
+CREATE INDEX IF NOT EXISTS docs_chunks_created_at_idx
     ON docs_chunks(created_at);
 
 -- JSONB metadata index for flexible queries
-CREATE INDEX IF NOT EXISTS docs_chunks_metadata_idx 
+CREATE INDEX IF NOT EXISTS docs_chunks_metadata_idx
     ON docs_chunks USING GIN (metadata);
 
 -- File tracking indexes
-CREATE INDEX IF NOT EXISTS docs_files_provider_idx 
+CREATE INDEX IF NOT EXISTS docs_files_provider_idx
     ON docs_files(provider_type, provider_name);
 
-CREATE INDEX IF NOT EXISTS docs_files_filename_idx 
+CREATE INDEX IF NOT EXISTS docs_files_filename_idx
     ON docs_files(filename);
 
 -- Document-level vector similarity search index (for two-stage retrieval)
-CREATE INDEX IF NOT EXISTS docs_files_avg_embedding_idx 
-    ON docs_files USING ivfflat (avg_embedding vector_cosine_ops) 
+CREATE INDEX IF NOT EXISTS docs_files_avg_embedding_idx
+    ON docs_files USING ivfflat (avg_embedding vector_cosine_ops)
     WITH (lists = 100);
 
 -- Admin user indexes
-CREATE UNIQUE INDEX IF NOT EXISTS admin_users_username_lower_idx 
+CREATE UNIQUE INDEX IF NOT EXISTS admin_users_username_lower_idx
     ON admin_users ((LOWER(username)));
 
 -- AI provider settings indexes (for flexible model configuration)
-CREATE INDEX IF NOT EXISTS ai_provider_settings_url_idx 
+CREATE INDEX IF NOT EXISTS ai_provider_settings_url_idx
     ON ai_provider_settings(url);
 
-CREATE INDEX IF NOT EXISTS ai_provider_settings_headers_idx 
+CREATE INDEX IF NOT EXISTS ai_provider_settings_headers_idx
     ON ai_provider_settings USING GIN (headers);
 
-CREATE INDEX IF NOT EXISTS ai_provider_settings_default_params_idx 
+CREATE INDEX IF NOT EXISTS ai_provider_settings_default_params_idx
     ON ai_provider_settings USING GIN (default_params);
 
 -- =============================================================================
@@ -186,28 +186,28 @@ BEGIN
 END $$;
 
 -- Display current table sizes and row counts
-SELECT 
+SELECT
     'docs_chunks' AS table_name,
     COUNT(*) AS row_count,
     COUNT(DISTINCT doc_id) AS unique_docs,
     pg_size_pretty(pg_total_relation_size('docs_chunks')) AS total_size
 FROM docs_chunks
 UNION ALL
-SELECT 
+SELECT
     'docs_files' AS table_name,
     COUNT(*) AS row_count,
     NULL as unique_docs,
     pg_size_pretty(pg_total_relation_size('docs_files')) AS total_size
 FROM docs_files
 UNION ALL
-SELECT 
+SELECT
     'providers' AS table_name,
     COUNT(*) AS row_count,
     NULL as unique_docs,
     pg_size_pretty(pg_total_relation_size('providers')) AS total_size
 FROM providers
 UNION ALL
-SELECT 
+SELECT
     'admin_users' AS table_name,
     COUNT(*) AS row_count,
     NULL as unique_docs,

@@ -151,13 +151,13 @@ public class VectorRepository
             SET avg_embedding = (
                 SELECT avg(embedding)::vector(1536)
                 FROM docs_chunks
-                WHERE doc_id = @doc_id 
-                  AND provider_type = @provider_type 
+                WHERE doc_id = @doc_id
+                  AND provider_type = @provider_type
                   AND provider_name = @provider_name
                   AND embedding IS NOT NULL
             )
-            WHERE doc_id = @doc_id 
-              AND provider_type = @provider_type 
+            WHERE doc_id = @doc_id
+              AND provider_type = @provider_type
               AND provider_name = @provider_name";
 
         foreach (var docId in uniqueDocIds)
@@ -231,7 +231,7 @@ public class VectorRepository
         const string sql = @"
             SELECT EXISTS(
                 SELECT 1 FROM docs_files
-                WHERE doc_id = @doc_id 
+                WHERE doc_id = @doc_id
                   AND etag = @etag
                   AND provider_type = @provider_type
                   AND provider_name = @provider_name

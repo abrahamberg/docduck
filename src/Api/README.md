@@ -6,7 +6,7 @@ ASP.NET Core minimal API that provides RAG (Retrieval-Augmented Generation) endp
 
 - **Vector Similarity Search**: Uses pgvector for fast kNN search with cosine distance
 - **RAG Pipeline**: Embed → Search → Generate with citations
-- **Dual Endpoints**: 
+- **Dual Endpoints**:
   - `/query` - Simple question answering
   - `/chat` - Conversational with history support
 - **Memory Efficient**: Optimized for ≤512 MiB runtime footprint
@@ -15,7 +15,7 @@ ASP.NET Core minimal API that provides RAG (Retrieval-Augmented Generation) endp
 ## Architecture
 
 ```
-Request → Embed Question → kNN Search (pgvector) → Build Context → 
+Request → Embed Question → kNN Search (pgvector) → Build Context →
 OpenAI Generation → Response with Citations
 ```
 
@@ -109,6 +109,7 @@ curl -X POST http://localhost:5000/chat \
 Health check with database statistics.
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -123,14 +124,16 @@ Health check with database statistics.
 Simple question answering without conversation history.
 
 **Request:**
+
 ```json
 {
   "question": "What are the main features?",
-  "topK": 8  // Optional, defaults to DEFAULT_TOP_K
+  "topK": 8 // Optional, defaults to DEFAULT_TOP_K
 }
 ```
 
 **Response:**
+
 ```json
 {
   "answer": "The main features include...",
@@ -153,6 +156,7 @@ Simple question answering without conversation history.
 Conversational chat with history support.
 
 **Request:**
+
 ```json
 {
   "message": "Can you elaborate on that?",
@@ -166,11 +170,12 @@ Conversational chat with history support.
       "content": "The requirements are..."
     }
   ],
-  "topK": 8  // Optional
+  "topK": 8 // Optional
 }
 ```
 
 **Response:**
+
 ```json
 {
   "answer": "Sure! The requirements elaborate...",
@@ -214,7 +219,7 @@ Ensure vector index is optimized:
 
 ```sql
 -- Check index usage
-SELECT idx_scan FROM pg_stat_user_indexes 
+SELECT idx_scan FROM pg_stat_user_indexes
 WHERE indexrelname = 'docs_chunks_embedding_idx';
 
 -- Adjust probes for accuracy
@@ -267,32 +272,32 @@ spec:
   template:
     spec:
       containers:
-      - name: api
-        image: your-registry/docduck-api:latest
-        resources:
-          requests:
-            memory: 256Mi
-            cpu: 250m
-          limits:
-            memory: 512Mi
-            cpu: 500m
-        env:
-        - name: DB_CONNECTION_STRING
-          valueFrom:
-            secretKeyRef:
-              name: docduck-secrets
-              key: db-connection-string
-        - name: OPENAI_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: docduck-secrets
-              key: openai-api-key
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 10
+        - name: api
+          image: your-registry/docduck-api:latest
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 250m
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          env:
+            - name: DB_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: docduck-secrets
+                  key: db-connection-string
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: docduck-secrets
+                  key: openai-api-key
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ```
 
 ## Monitoring
@@ -330,6 +335,7 @@ curl http://api-service/health
 ### "OpenAI API Key: Missing"
 
 Set the environment variable:
+
 ```bash
 export OPENAI_API_KEY="sk-..."
 ```
@@ -337,6 +343,7 @@ export OPENAI_API_KEY="sk-..."
 ### "DB Connection: Missing"
 
 Set the connection string:
+
 ```bash
 export DB_CONNECTION_STRING="Host=localhost;..."
 ```
@@ -448,5 +455,5 @@ MIT
 ## See Also
 
 - [Main README](../README.md) - Overall project documentation
- - [pgvector docs](../docs/database/pgvector.md) - Database implementation details
+- [pgvector docs](../docs/database/pgvector.md) - Database implementation details
 - [Indexer README](../Indexer/README.md) - Indexing pipeline
