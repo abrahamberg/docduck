@@ -58,6 +58,10 @@ OPENAI_TEMPERATURE="0.7"
 # Search Configuration
 DEFAULT_TOP_K="8"   # Default number of chunks to retrieve
 MAX_TOP_K="20"      # Maximum allowed TopK value
+
+# Document-Level Filtering (enabled by default, improves relevance)
+# ENABLE_DOCUMENT_LEVEL_FILTERING="false"  # Uncomment to disable
+# DOCUMENT_LEVEL_TOP_K="30"                # Uncomment to adjust (default: 20)
 ```
 
 ## Running Locally

@@ -128,6 +128,51 @@ public class VectorRepository
 
         _logger.LogInformation("Inserted {Count} chunks to database for provider {Type}/{Name}",
             insertedCount, providerType, providerName);
+
+        // Update document-level average embedding for all unique documents
+        await UpdateDocumentAverageEmbeddingsAsync(recordList, providerType, providerName, conn, ct);
+    }
+
+    /// <summary>
+    /// Updates the document-level average embedding for documents after inserting chunks.
+    /// </summary>
+    private async Task UpdateDocumentAverageEmbeddingsAsync(
+        IReadOnlyCollection<ChunkRecord> records,
+        string providerType,
+        string providerName,
+        NpgsqlConnection conn,
+        CancellationToken ct)
+    {
+        var uniqueDocIds = records.Select(r => r.DocId).Distinct().ToList();
+        if (uniqueDocIds.Count == 0) return;
+
+        const string sql = @"
+            UPDATE docs_files
+            SET avg_embedding = (
+                SELECT avg(embedding)::vector(1536)
+                FROM docs_chunks
+                WHERE doc_id = @doc_id 
+                  AND provider_type = @provider_type 
+                  AND provider_name = @provider_name
+                  AND embedding IS NOT NULL
+            )
+            WHERE doc_id = @doc_id 
+              AND provider_type = @provider_type 
+              AND provider_name = @provider_name";
+
+        foreach (var docId in uniqueDocIds)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            await using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("doc_id", docId);
+            cmd.Parameters.AddWithValue("provider_type", providerType);
+            cmd.Parameters.AddWithValue("provider_name", providerName);
+
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        _logger.LogDebug("Updated document-level embeddings for {Count} documents", uniqueDocIds.Count);
     }
 
     /// <summary>

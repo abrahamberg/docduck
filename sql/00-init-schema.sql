@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS docs_files (
     etag TEXT NOT NULL,
     last_modified TIMESTAMPTZ NOT NULL,
     relative_path TEXT,
+    avg_embedding vector(1536), -- Document-level average embedding for two-stage retrieval
     PRIMARY KEY (doc_id, provider_type, provider_name)
 );
 
@@ -149,6 +150,11 @@ CREATE INDEX IF NOT EXISTS docs_files_provider_idx
 
 CREATE INDEX IF NOT EXISTS docs_files_filename_idx 
     ON docs_files(filename);
+
+-- Document-level vector similarity search index (for two-stage retrieval)
+CREATE INDEX IF NOT EXISTS docs_files_avg_embedding_idx 
+    ON docs_files USING ivfflat (avg_embedding vector_cosine_ops) 
+    WITH (lists = 100);
 
 -- Admin user indexes
 CREATE UNIQUE INDEX IF NOT EXISTS admin_users_username_lower_idx 

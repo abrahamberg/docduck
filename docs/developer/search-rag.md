@@ -5,7 +5,8 @@ Describes how DocDuck performs similarity search and constructs answers.
 ## Steps (/query)
 1. Embed question text
 2. Run hybrid retrieval:
-	- Vector search over embeddings (cosine distance)
+	- **Optional**: Document-level filtering (compare query to document average embeddings, select top-N documents)
+	- Vector search over embeddings (cosine distance), optionally filtered to selected documents
 	- Optional lexical search (`tsvector` + `websearch_to_tsquery`) when enabled
 	- Blend and rerank chunk candidates based on configured search depth
 3. Concatenate chunk texts (ordered by blended score)
@@ -32,6 +33,7 @@ Describes how DocDuck performs similarity search and constructs answers.
 | Chunk Size | Too large: diluted relevance; too small: fragmented context |
 | Overlap | Prevents context boundary loss |
 | Top-K | Higher recall vs prompt cost tradeoff |
+| Document-Level Filtering | Pre-filters to top-N documents before chunk search (see [guide](../guides/document-level-filtering.md)) |
 
 ## Search Depth Levels
 The API exposes a `searchDepth` knob (1-5) to control retrieval effort:

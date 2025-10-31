@@ -46,4 +46,16 @@ public class SearchOptions
     /// PostgreSQL text search configuration used for lexical queries.
     /// </summary>
     public string LexicalConfiguration { get; set; } = "simple";
+
+    /// <summary>
+    /// Enables document-level pre-filtering using average document embeddings.
+    /// When enabled, the search first finds the most relevant documents, then searches chunks within those.
+    /// </summary>
+    public bool EnableDocumentLevelFiltering { get; set; } = true;
+
+    /// <summary>
+    /// Maximum number of documents to consider when document-level filtering is enabled.
+    /// Only chunks from these top-N documents will be searched.
+    /// </summary>
+    public int DocumentLevelTopK { get; set; } = 20;
 }

@@ -67,9 +67,31 @@ public class VectorSearchService : IVectorSearchService
         await using var conn = new NpgsqlConnection(_dbOptions.ConnectionString);
         await conn.OpenAsync(ct);
 
+        // Document-level filtering: First find top-N most relevant documents
+        HashSet<string>? allowedDocIds = null;
+        if (_searchOptions.EnableDocumentLevelFiltering && !lexicalOnly)
+        {
+            allowedDocIds = await ExecuteDocumentLevelFilterAsync(
+                conn,
+                queryEmbedding,
+                _searchOptions.DocumentLevelTopK,
+                providerType,
+                providerName,
+                ct);
+
+            if (allowedDocIds.Count == 0)
+            {
+                _logger.LogWarning("Document-level filtering returned no documents. Falling back to standard search.");
+                allowedDocIds = null;
+            }
+        }
+
+        // Vector search: either filtered by documents or unrestricted
         var vectorResults = lexicalOnly
             ? []
-            : await ExecuteVectorSearchAsync(conn, queryEmbedding, k, providerType, providerName, ct);
+            : allowedDocIds != null
+                ? await ExecuteVectorSearchWithDocFilterAsync(conn, queryEmbedding, k, providerType, providerName, allowedDocIds, ct)
+                : await ExecuteVectorSearchAsync(conn, queryEmbedding, k, providerType, providerName, ct);
 
         var lexicalResults = lexicalEnabled
             ? await ExecuteLexicalSearchAsync(conn, normalizedQuery, providerType, providerName, lexicalLimit, ct)
@@ -78,10 +100,11 @@ public class VectorSearchService : IVectorSearchService
         var combined = CombineCandidates(vectorResults, lexicalResults, k, depth, lexicalEnabled, !lexicalOnly && vectorResults.Count > 0);
 
         _logger.LogInformation(
-            "Search produced {CombinedCount} chunks (vector: {VectorCount}, lexical: {LexicalCount})",
+            "Search produced {CombinedCount} chunks (vector: {VectorCount}, lexical: {LexicalCount}, doc-filter: {DocFilter})",
             combined.Count,
             vectorResults.Count,
-            lexicalResults.Count);
+            lexicalResults.Count,
+            allowedDocIds != null ? "enabled" : "disabled");
 
         return combined;
     }
@@ -166,6 +189,149 @@ public class VectorSearchService : IVectorSearchService
         }
 
         return results;
+    }
+
+    private static async Task<List<Source>> ExecuteVectorSearchWithDocFilterAsync(
+        NpgsqlConnection conn,
+        float[] queryEmbedding,
+        int limit,
+        string? providerType,
+        string? providerName,
+        HashSet<string> allowedDocIds,
+        CancellationToken ct)
+    {
+        var sql = @"
+            SELECT
+                doc_id,
+                filename,
+                provider_type,
+                provider_name,
+                chunk_num,
+                text,
+                metadata,
+                embedding <=> @embedding::vector AS distance
+            FROM docs_chunks";
+
+        var whereConditions = new List<string> { "doc_id = ANY(@allowed_doc_ids)" };
+
+        if (!string.IsNullOrWhiteSpace(providerType))
+        {
+            whereConditions.Add("provider_type = @provider_type");
+        }
+        if (!string.IsNullOrWhiteSpace(providerName))
+        {
+            whereConditions.Add("provider_name = @provider_name");
+        }
+
+        sql += $" WHERE {string.Join(" AND ", whereConditions)}";
+        sql += @"
+            ORDER BY embedding <=> (@embedding)::vector
+            LIMIT @limit";
+
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        var embeddingText = "[" + string.Join(",", queryEmbedding.Select(f => f.ToString(CultureInfo.InvariantCulture))) + "]";
+        cmd.Parameters.AddWithValue("embedding", embeddingText);
+        cmd.Parameters.AddWithValue("limit", limit);
+        cmd.Parameters.AddWithValue("allowed_doc_ids", allowedDocIds.ToArray());
+
+        if (!string.IsNullOrWhiteSpace(providerType))
+        {
+            cmd.Parameters.AddWithValue("provider_type", providerType);
+        }
+        if (!string.IsNullOrWhiteSpace(providerName))
+        {
+            cmd.Parameters.AddWithValue("provider_name", providerName);
+        }
+
+        var results = new List<Source>(capacity: limit);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var docId = reader.GetString(0);
+            var filename = reader.GetString(1);
+            var pType = reader.GetString(2);
+            var pName = reader.GetString(3);
+            var chunkNum = reader.GetInt32(4);
+            var text = reader.GetString(5);
+            var distance = reader.GetDouble(7);
+            var citation = BuildCitation(pType, pName, filename, chunkNum);
+
+            results.Add(new Source(
+                DocId: docId,
+                Filename: filename,
+                ChunkNum: chunkNum,
+                Text: text,
+                Distance: distance,
+                Citation: citation,
+                ProviderType: pType,
+                ProviderName: pName
+            ));
+        }
+
+        return results;
+    }
+
+    private async Task<HashSet<string>> ExecuteDocumentLevelFilterAsync(
+        NpgsqlConnection conn,
+        float[] queryEmbedding,
+        int topK,
+        string? providerType,
+        string? providerName,
+        CancellationToken ct)
+    {
+        var sql = @"
+            SELECT doc_id
+            FROM docs_files
+            WHERE avg_embedding IS NOT NULL";
+
+        var whereConditions = new List<string>();
+        if (!string.IsNullOrWhiteSpace(providerType))
+        {
+            whereConditions.Add("provider_type = @provider_type");
+        }
+        if (!string.IsNullOrWhiteSpace(providerName))
+        {
+            whereConditions.Add("provider_name = @provider_name");
+        }
+
+        if (whereConditions.Count > 0)
+        {
+            sql += " AND " + string.Join(" AND ", whereConditions);
+        }
+
+        sql += @"
+            ORDER BY avg_embedding <=> @embedding::vector
+            LIMIT @limit";
+
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        var embeddingText = "[" + string.Join(",", queryEmbedding.Select(f => f.ToString(CultureInfo.InvariantCulture))) + "]";
+        cmd.Parameters.AddWithValue("embedding", embeddingText);
+        cmd.Parameters.AddWithValue("limit", topK);
+
+        if (!string.IsNullOrWhiteSpace(providerType))
+        {
+            cmd.Parameters.AddWithValue("provider_type", providerType);
+        }
+        if (!string.IsNullOrWhiteSpace(providerName))
+        {
+            cmd.Parameters.AddWithValue("provider_name", providerName);
+        }
+
+        var docIds = new HashSet<string>();
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            docIds.Add(reader.GetString(0));
+        }
+
+        _logger.LogInformation(
+            "Document-level filtering selected {Count} documents from top-{TopK}",
+            docIds.Count,
+            topK);
+
+        return docIds;
     }
 
     private async Task<List<LexicalMatch>> ExecuteLexicalSearchAsync(
