@@ -14,9 +14,6 @@ public sealed class DocumentAggregationService(
     IOptions<DbOptions> dbOptions,
     ILogger<DocumentAggregationService> logger) : IDocumentAggregationService
 {
-    private readonly DbOptions _dbOptions = dbOptions.Value;
-    private readonly ILogger<DocumentAggregationService> _logger = logger;
-
     public async Task<List<SearchFinding>> AggregateByDocumentAsync(
         List<RawSearchResult> rawResults,
         int contextChunkCount = 2,
@@ -136,7 +133,7 @@ public sealed class DocumentAggregationService(
 
     private void LogAggregationResults(int rawCount, int docCount)
     {
-        _logger.LogInformation(
+        logger.LogInformation(
             "Aggregated {RawCount} raw results into {DocCount} document findings",
             rawCount,
             docCount);
@@ -147,7 +144,7 @@ public sealed class DocumentAggregationService(
         int count = 2,
         CancellationToken ct = default)
     {
-        await using var conn = new NpgsqlConnection(_dbOptions.ConnectionString);
+        await using var conn = new NpgsqlConnection(dbOptions.Value.ConnectionString);
         await conn.OpenAsync(ct);
 
         const string sql = @"
@@ -182,7 +179,7 @@ public sealed class DocumentAggregationService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to fetch context chunks for document {DocId}", docId);
+            logger.LogError(ex, "Failed to fetch context chunks for document {DocId}", docId);
             return [];
         }
     }

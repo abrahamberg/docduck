@@ -9,13 +9,11 @@ namespace DocDuck.Providers.Configuration;
 /// </summary>
 public sealed class ProviderSettingsStore(string connectionString)
 {
-    private readonly string _connectionString = connectionString;
-
     public async Task<IReadOnlyList<ProviderSettingsRecord>> GetAllAsync(CancellationToken ct = default)
     {
         const string sql = "SELECT provider_type, provider_name, settings, updated_at FROM provider_settings";
 
-        await using var conn = new NpgsqlConnection(_connectionString);
+        await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(sql, conn);
@@ -43,7 +41,7 @@ public sealed class ProviderSettingsStore(string connectionString)
 FROM provider_settings
 WHERE provider_type = @type AND provider_name = @name";
 
-        await using var conn = new NpgsqlConnection(_connectionString);
+        await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(sql, conn);
@@ -74,7 +72,7 @@ VALUES (@type, @name, @settings, now())
 ON CONFLICT (provider_type, provider_name)
 DO UPDATE SET settings = EXCLUDED.settings, updated_at = now();";
 
-        await using var conn = new NpgsqlConnection(_connectionString);
+        await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(sql, conn);
@@ -89,7 +87,7 @@ DO UPDATE SET settings = EXCLUDED.settings, updated_at = now();";
     {
         const string sql = "DELETE FROM provider_settings WHERE provider_type = @type AND provider_name = @name";
 
-        await using var conn = new NpgsqlConnection(_connectionString);
+        await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync(ct);
 
         await using var cmd = new NpgsqlCommand(sql, conn);

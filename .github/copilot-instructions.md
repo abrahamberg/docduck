@@ -3,12 +3,14 @@
 These instructions guide suggestions and edits in this repository. Favor readability and maintainability with a pragmatic take on SOLID. Keep things simple unless complexity is clearly justified.
 
 ## Philosophy
+
 - Prefer clarity over cleverness. Optimize for the next person reading the code.
 - Apply SOLID principles pragmatically. Avoid ceremony and unnecessary layers (YAGNI, KISS).
 - Make small, composable units with clear responsibilities and names.
 - Bias toward explicitness and predictable behavior.
 
 ## Defaults for code generation
+
 - Structure
   - Keep functions focused (single responsibility) and small enough to grasp quickly.
   - Introduce abstractions only when there are at least two concrete use-cases or clear testability benefits.
@@ -32,7 +34,9 @@ These instructions guide suggestions and edits in this repository. Favor readabi
   - Add docstrings or brief comments for non-obvious intent or invariants.
   - Include minimal, focused unit tests for public functions and bug fixes (happy path + 1–2 edge cases).
 - avoid backwards compatibility, this is a greenfield project.
+
 ## Style and conventions
+
 - Follow existing project conventions. If none exist, default to community standards:
   - Python: PEP 8, black formatting, pytest tests.
   - JavaScript/TypeScript: Prettier formatting, sensible ESLint rules, Jest/Vitest tests, ESM when feasible.
@@ -42,6 +46,7 @@ These instructions guide suggestions and edits in this repository. Favor readabi
 - Naming: verbs for actions (functions), nouns for entities (types, classes), clear and descriptive.
 
 ## C# (modern) guidelines
+
 - Language/runtime
   - Use C# 12 with file-scoped namespaces, implicit usings, and nullable reference types enabled (`<Nullable>enable</Nullable>`).
   - Prefer .NET 8 LTS unless the project explicitly requires another TFN.
@@ -77,27 +82,33 @@ These instructions guide suggestions and edits in this repository. Favor readabi
   - Use `dotnet test` with xUnit; add a minimal happy-path test plus 1–2 edge cases for public APIs.
 
 ## API and module design
+
 - Keep public APIs small and consistent. Avoid breaking changes unless necessary; if needed, provide migration notes.
 - Return simple data structures; avoid leaking internal types.
 - Prefer composition over inheritance.
 
 ## When NOT to apply more SOLID
+
 - Avoid interfaces/abstract classes until there are multiple implementations or tests truly need them.
 - Skip layering (e.g., repository/service/use-case) unless the project scale or requirements demand it.
 - Don’t wrap libraries "just in case"—only when it isolates volatility or simplifies usage.
 
 ## Pull requests and changes
+
 - Include a brief rationale and a short usage/example snippet for new features.
 - Keep diffs small and cohesive. Update or add tests alongside changes.
 - Document assumptions if requirements are ambiguous; choose the simplest reasonable path.
 
 ## What to ask or assume
+
 - If a detail is missing, make 1–2 reasonable assumptions aligned with these guidelines and proceed, clearly noting them in comments/PR text.
 
 ---
+
 By default, generate code that is clean, small, and obvious; apply SOLID where it reduces real complexity, not as ceremony.
 
 ## Documentation policy (repo hygiene)
+
 - Keep only a concise `README.md` in the repository root. All other documentation must be placed under `docs/`.
 - Prefer updating existing canonical docs over creating new top-level files. Avoid duplicated content.
 - Place how-to guides under `docs/guides/` (e.g., `quickstart.md`, `ai-configuration.md`, `api-usage.md`).
@@ -105,6 +116,7 @@ By default, generate code that is clean, small, and obvious; apply SOLID where i
 - Put ephemeral or auto-generated implementation summaries under `docs/reports/` (e.g., `api-implementation.md`). If the information has no long-term value, do not generate a new file; integrate the useful bits into existing guides instead.
 
 ## AI Configuration (Model-Agnostic Architecture)
+
 - The system uses **flexible JSON-based configuration** for all AI models (chat and embedding)
 - **Never hardcode AI provider names** (e.g., "OpenAI") in new code - use generic terms like "AI provider", "AI model", "AI API key"
 - Environment variables (`OPENAI_API_KEY`, etc.) are **only for initial database seeding** - all runtime config comes from database
@@ -119,7 +131,9 @@ By default, generate code that is clean, small, and obvious; apply SOLID where i
 - Health checks use generic `aiKeyPresent` not provider-specific names
 
 ## AI Configuration Code Patterns
+
 **DO:**
+
 ```csharp
 // Generic, provider-agnostic
 var config = await aiService.GetConfigurationAsync();
@@ -133,6 +147,7 @@ var content = responseMapping.ContentPath; // e.g., "$.choices[0].message.conten
 ```
 
 **DON'T:**
+
 ```csharp
 // Provider-specific hardcoding
 var openAiKey = config.OpenAiApiKey; // ❌ Too specific
@@ -145,14 +160,14 @@ if (provider == "openai") { ... } // ❌ Avoid provider checks
 When you need to run the stack locally for manual testing commands are:
 
 ```bash
-set -a; source .env.local; set +a;  # load required environments 
+set -a; source .env.local; set +a;  # load required environments
 
 docker compose up -d # add more options as needed
 ```
 
 Notes and helpful checks:
-- `.env.local` should contain `OPENAI_API_KEY` and `LOCAL_DOCS_PATH` (absolute path). If `.env.local` is not present, refer to `docs/guides/quickstart.md` for the required variables and example `.env.local` content.
 
+- `.env.local` should contain `OPENAI_API_KEY` and `LOCAL_DOCS_PATH` (absolute path). If `.env.local` is not present, refer to `docs/guides/quickstart.md` for the required variables and example `.env.local` content.
 
 - If a service is already running and you changed code you want to apply to the container, rebuild the image and recreate that service only:
 

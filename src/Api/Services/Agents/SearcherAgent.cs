@@ -15,11 +15,6 @@ public sealed class SearcherAgent(
     IModelAgnosticAiService aiService,
     ILogger<SearcherAgent> logger) : ISearcherAgent
 {
-    private readonly IVectorSearchService vectorSearch = vectorSearch;
-    private readonly IKeywordSearchService keywordSearch = keywordSearch;
-    private readonly IModelAgnosticAiService aiService = aiService;
-    private readonly ILogger<SearcherAgent> logger = logger;
-
     public async Task<List<RawSearchResult>> SearchAsync(
         SearchPlan plan,
         int topK,

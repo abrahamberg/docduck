@@ -15,11 +15,12 @@ namespace Api.Services;
 public sealed class VectorSearchService(
     IOptions<DbOptions> dbOptions,
     IOptions<SearchOptions> searchOptions,
-    ILogger<VectorSearchService> logger) : IVectorSearchService
+    ILogger<VectorSearchService> _logger) : IVectorSearchService
 {
+    // Explicit field declarations needed for null validation
     private readonly DbOptions _dbOptions = dbOptions?.Value ?? throw new ArgumentNullException(nameof(dbOptions));
     private readonly SearchOptions _searchOptions = searchOptions?.Value ?? throw new ArgumentNullException(nameof(searchOptions));
-    private readonly ILogger<VectorSearchService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly ILogger<VectorSearchService> _logger = _logger ?? throw new ArgumentNullException(nameof(_logger));
     private bool _lexicalSearchUnavailable;
 
     public async Task<List<Source>> SearchAsync(

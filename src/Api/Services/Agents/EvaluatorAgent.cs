@@ -12,9 +12,6 @@ public sealed class EvaluatorAgent(
     IDocumentAggregationService aggregationService,
     ILogger<EvaluatorAgent> logger) : IEvaluatorAgent
 {
-    private readonly IDocumentAggregationService aggregationService = aggregationService;
-    private readonly ILogger<EvaluatorAgent> logger = logger;
-
     public async Task<List<SearchFinding>> EvaluateAsync(
         SearchPlan plan,
         List<RawSearchResult> rawResults,

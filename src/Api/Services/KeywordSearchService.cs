@@ -17,10 +17,6 @@ public sealed class KeywordSearchService(
     IOptions<SearchOptions> searchOptions,
     ILogger<KeywordSearchService> logger) : IKeywordSearchService
 {
-    private readonly DbOptions _dbOptions = dbOptions.Value;
-    private readonly SearchOptions _searchOptions = searchOptions.Value;
-    private readonly ILogger<KeywordSearchService> _logger = logger;
-
     public async Task<List<RawSearchResult>> SearchByKeywordsAsync(
         List<string> keywords,
         float[]? queryEmbedding = null,
@@ -34,7 +30,7 @@ public sealed class KeywordSearchService(
             return [];
         }
 
-        await using var conn = new NpgsqlConnection(_dbOptions.ConnectionString);
+        await using var conn = new NpgsqlConnection(dbOptions.Value.ConnectionString);
         await conn.OpenAsync(ct);
 
         // Try full-text search first
@@ -44,7 +40,7 @@ public sealed class KeywordSearchService(
         // This handles proper nouns, company names, and non-English text better
         if (ftsResults.Count == 0)
         {
-            _logger.LogDebug("Full-text search returned 0 results, trying pattern matching for keywords: {Keywords}",
+            logger.LogDebug("Full-text search returned 0 results, trying pattern matching for keywords: {Keywords}",
                 string.Join(", ", keywords));
             var patternResults = await PatternMatchSearchAsync(conn, keywords, queryEmbedding, providerType, providerName, limit, ct);
             return patternResults;
@@ -76,7 +72,7 @@ public sealed class KeywordSearchService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Keyword search failed for keywords: {Keywords}", string.Join(", ", keywords));
+            logger.LogError(ex, "Keyword search failed for keywords: {Keywords}", string.Join(", ", keywords));
             throw;
         }
     }
@@ -134,7 +130,7 @@ public sealed class KeywordSearchService(
         string? providerName)
     {
         var cmd = new NpgsqlCommand(sql, conn);
-        cmd.Parameters.AddWithValue("config", _searchOptions.LexicalConfiguration);
+        cmd.Parameters.AddWithValue("config", searchOptions.Value.LexicalConfiguration);
         cmd.Parameters.AddWithValue("query", queryText);
         cmd.Parameters.AddWithValue("limit", limit);
 
@@ -197,7 +193,7 @@ public sealed class KeywordSearchService(
 
     private void LogFullTextSearchResults(List<string> keywords, int resultCount)
     {
-        _logger.LogInformation(
+        logger.LogInformation(
             "Keyword search for [{Keywords}] returned {Count} results",
             string.Join(", ", keywords),
             resultCount);
@@ -229,7 +225,7 @@ public sealed class KeywordSearchService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Pattern match search failed for keywords: {Keywords}", string.Join(", ", keywords));
+            logger.LogError(ex, "Pattern match search failed for keywords: {Keywords}", string.Join(", ", keywords));
             throw;
         }
     }
@@ -373,7 +369,7 @@ public sealed class KeywordSearchService(
 
     private void LogPatternMatchResults(List<string> keywords, int resultCount, bool hasEmbedding)
     {
-        _logger.LogInformation(
+        logger.LogInformation(
             "Pattern match search for [{Keywords}] returned {Count} results (with {DistanceType} distances)",
             string.Join(", ", keywords),
             resultCount,
@@ -413,7 +409,7 @@ public sealed class KeywordSearchService(
             .Take(maxKeywords)
             .ToList();
 
-        _logger.LogDebug("Extracted {Count} keywords from query: {Keywords}", words.Count, string.Join(", ", words));
+        logger.LogDebug("Extracted {Count} keywords from query: {Keywords}", words.Count, string.Join(", ", words));
 
         return words;
     }

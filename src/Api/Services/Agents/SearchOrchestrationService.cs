@@ -16,8 +16,6 @@ public sealed class SearchOrchestrationService(
     IOptions<SearchOptions> searchOptions,
     ILogger<SearchOrchestrationService> logger) : ISearchOrchestrationService
 {
-    private readonly SearchOptions _searchOptions = searchOptions.Value;
-
     public Task<MultiStepSearchResponse> ExecuteSearchAsync(
         MultiStepSearchRequest request,
         CancellationToken ct = default)
@@ -54,8 +52,8 @@ public sealed class SearchOrchestrationService(
             SearchId: Guid.NewGuid().ToString(),
             OriginalQuery: request.Query,
             StartTime: DateTime.UtcNow,
-            MaxDepth: request.MaxSteps ?? _searchOptions.DefaultSearchDepth,
-            TopK: request.TopK ?? _searchOptions.DefaultTopK,
+            MaxDepth: request.MaxSteps ?? searchOptions.Value.DefaultSearchDepth,
+            TopK: request.TopK ?? searchOptions.Value.DefaultTopK,
             ProviderType: request.ProviderType,
             ProviderName: request.ProviderName
         );

@@ -29,9 +29,6 @@ public enum TaskComplexity
 /// </summary>
 public sealed class AiModelSelector(AiProviderConfiguration config, ILogger<AiModelSelector> logger)
 {
-    private readonly AiProviderConfiguration _config = config ?? throw new ArgumentNullException(nameof(config));
-    private readonly ILogger<AiModelSelector> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
     /// <summary>
     /// Select the best available model for a task based on complexity, context size, and strategy.
     /// </summary>
@@ -46,9 +43,9 @@ public sealed class AiModelSelector(AiProviderConfiguration config, ILogger<AiMo
         int? estimatedTokens = null,
         bool requiresFunctionCalling = false)
     {
-        var effectiveStrategy = strategy ?? _config.DefaultSelectionStrategy;
+        var effectiveStrategy = strategy ?? config.DefaultSelectionStrategy;
 
-        _logger.LogDebug("Selecting model: complexity={Complexity}, strategy={Strategy}, tokens={Tokens}, needsTools={Tools}",
+        logger.LogDebug("Selecting model: complexity={Complexity}, strategy={Strategy}, tokens={Tokens}, needsTools={Tools}",
             complexity, effectiveStrategy, estimatedTokens ?? 0, requiresFunctionCalling);
 
         // Get preference-ordered tiers based on strategy and complexity
@@ -61,32 +58,32 @@ public sealed class AiModelSelector(AiProviderConfiguration config, ILogger<AiMo
 
             if (model == null || !model.Enabled)
             {
-                _logger.LogDebug("Tier {Tier} has no enabled model, trying next", tier);
+                logger.LogDebug("Tier {Tier} has no enabled model, trying next", tier);
                 continue;
             }
 
             // Check function calling requirement
             if (requiresFunctionCalling && !model.SupportsFunctionCalling)
             {
-                _logger.LogDebug("Model {Model} doesn't support function calling, trying next", model.ModelId);
+                logger.LogDebug("Model {Model} doesn't support function calling, trying next", model.ModelId);
                 continue;
             }
 
             // Check context size if provided
             if (estimatedTokens.HasValue && estimatedTokens.Value > model.MaxContextTokens)
             {
-                _logger.LogDebug("Model {Model} context {MaxTokens} insufficient for {Tokens} tokens, trying next",
+                logger.LogDebug("Model {Model} context {MaxTokens} insufficient for {Tokens} tokens, trying next",
                     model.ModelId, model.MaxContextTokens, estimatedTokens.Value);
                 continue;
             }
 
-            _logger.LogInformation("Selected {Tier} model: {Model} (cost factor: {Cost})",
+            logger.LogInformation("Selected {Tier} model: {Model} (cost factor: {Cost})",
                 tier, model.DisplayName, model.CostFactor);
             return model;
         }
 
         // No suitable model found
-        _logger.LogWarning("No suitable model found for complexity={Complexity}, strategy={Strategy}, requiresTools={RequiresTools}",
+        logger.LogWarning("No suitable model found for complexity={Complexity}, strategy={Strategy}, requiresTools={RequiresTools}",
             complexity, effectiveStrategy, requiresFunctionCalling);
         return null;
     }
@@ -139,9 +136,9 @@ public sealed class AiModelSelector(AiProviderConfiguration config, ILogger<AiMo
     {
         return tier switch
         {
-            AiModelTier.Micro => _config.MicroModel,
-            AiModelTier.Mini => _config.MiniModel,
-            AiModelTier.Full => _config.FullModel,
+            AiModelTier.Micro => config.MicroModel,
+            AiModelTier.Mini => config.MiniModel,
+            AiModelTier.Full => config.FullModel,
             _ => null
         };
     }
@@ -151,9 +148,9 @@ public sealed class AiModelSelector(AiProviderConfiguration config, ILogger<AiMo
     /// </summary>
     public bool HasAnyEnabledModel()
     {
-        return (_config.MicroModel?.Enabled == true) ||
-               (_config.MiniModel?.Enabled == true) ||
-               (_config.FullModel?.Enabled == true);
+        return (config.MicroModel?.Enabled == true) ||
+               (config.MiniModel?.Enabled == true) ||
+               (config.FullModel?.Enabled == true);
     }
 
     /// <summary>
@@ -163,9 +160,9 @@ public sealed class AiModelSelector(AiProviderConfiguration config, ILogger<AiMo
     {
         return new Dictionary<AiModelTier, AiModelAssignment?>
         {
-            [AiModelTier.Micro] = _config.MicroModel,
-            [AiModelTier.Mini] = _config.MiniModel,
-            [AiModelTier.Full] = _config.FullModel
+            [AiModelTier.Micro] = config.MicroModel,
+            [AiModelTier.Mini] = config.MiniModel,
+            [AiModelTier.Full] = config.FullModel
         };
     }
 }
