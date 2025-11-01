@@ -185,7 +185,7 @@ public sealed class QueryHandler(
             .Select(f =>
             {
                 // Get the chunk with the best (lowest) distance as representative
-                var bestChunk = f.Chunks.MinBy(c => c.Distance) ?? f.Chunks.First();
+                var bestChunk = f.Chunks.MinBy(c => c.Distance) ?? f.Chunks[0];
 
                 // Combine all chunk texts with separators for full context
                 var combinedText = string.Join("\n\n[...]\n\n", f.Chunks.Select(c => c.Text));
@@ -244,7 +244,7 @@ public sealed class QueryHandler(
             .ThenBy(f => f.Chunks.Min(c => c.Distance))
             .Select(f =>
             {
-                var bestChunk = f.Chunks.MinBy(c => c.Distance) ?? f.Chunks.First();
+                var bestChunk = f.Chunks.MinBy(c => c.Distance) ?? f.Chunks[0];
                 var combinedText = string.Join("\n\n[...]\n\n", f.Chunks.Select(c => c.Text));
 
                 return new Source(
@@ -279,7 +279,7 @@ public sealed class QueryHandler(
         return Results.Ok(queryResponse);
     }
 
-    private string GenerateAnswerFromFindings(List<SearchFinding> findings)
+    private static string GenerateAnswerFromFindings(List<SearchFinding> findings)
     {
         if (findings.Count == 0)
         {

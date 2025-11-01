@@ -99,7 +99,7 @@ public sealed class DocumentAggregationService(
             .Distinct()
             .ToList();
 
-        var strength = CalculateStrength(bestDistance, averageDistance, uniqueChunks.Count, allKeywords.Count, filename, uniqueChunks);
+        var strength = CalculateStrength(bestDistance, uniqueChunks.Count, allKeywords.Count, filename, uniqueChunks);
         var comment = GenerateComment(uniqueChunks.Count, allKeywords.Count, bestDistance, filename);
 
         return new DocumentMetrics(bestDistance, strength, comment, allKeywords);
@@ -186,7 +186,6 @@ public sealed class DocumentAggregationService(
 
     private static int CalculateStrength(
         double bestDistance,
-        double averageDistance,
         int chunkCount,
         int keywordCount,
         string filename,
@@ -240,9 +239,8 @@ public sealed class DocumentAggregationService(
             return 0.0;
 
         // Count how many keywords appear in the filename (case-insensitive)
-        var filenameLower = filename.ToLowerInvariant();
         var matchedInFilename = allKeywords
-            .Count(kw => filenameLower.Contains(kw.ToLowerInvariant()));
+            .Count(kw => filename.Contains(kw, StringComparison.OrdinalIgnoreCase));
 
         // Return 0-1 score based on percentage of keywords in filename
         return Math.Clamp((double)matchedInFilename / allKeywords.Count, 0.0, 1.0);

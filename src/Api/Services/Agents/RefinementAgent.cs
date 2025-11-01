@@ -113,7 +113,7 @@ public sealed class RefinementAgent(
             .ToList();
 
         var findingsContext = string.Join("\n", topFindings.Select((f, i) =>
-            $"{i + 1}. {f.Filename} (strength: {f.Strength}) - Keywords: {string.Join(", ", f.Keywords ?? new List<string>())}"));
+            $"{i + 1}. {f.Filename} (strength: {f.Strength}) - Keywords: {string.Join(", ", f.Keywords ?? [])}"));
 
         var systemPrompt = @"You are a search refinement expert. Generate a NATURAL LANGUAGE search query for semantic vector search.
 

@@ -17,6 +17,8 @@ public sealed class VectorSearchService(
     IOptions<SearchOptions> searchOptions,
     ILogger<VectorSearchService> _logger) : IVectorSearchService
 {
+    private const string AndSeparator = " AND ";
+
     // Explicit field declarations needed for null validation
     private readonly DbOptions _dbOptions = dbOptions?.Value ?? throw new ArgumentNullException(nameof(dbOptions));
     private readonly SearchOptions _searchOptions = searchOptions?.Value ?? throw new ArgumentNullException(nameof(searchOptions));
@@ -34,7 +36,7 @@ public sealed class VectorSearchService(
     {
         ArgumentNullException.ThrowIfNull(queryEmbedding);
 
-        var searchParams = PrepareSearchParameters(queryEmbedding, queryText, topK, searchDepth);
+        var searchParams = PrepareSearchParameters(queryText, topK, searchDepth);
 
         LogSearchStart(searchParams, providerType, providerName);
 
@@ -79,7 +81,6 @@ public sealed class VectorSearchService(
     }
 
     private SearchParameters PrepareSearchParameters(
-        float[] queryEmbedding,
         string? queryText,
         int? topK,
         int searchDepth)
@@ -153,7 +154,7 @@ public sealed class VectorSearchService(
         return docIds;
     }
 
-    private async Task<List<Source>> ExecuteVectorSearchIfNeededAsync(
+    private static async Task<List<Source>> ExecuteVectorSearchIfNeededAsync(
         NpgsqlConnection conn,
         float[] queryEmbedding,
         SearchParameters searchParams,
@@ -240,7 +241,7 @@ public sealed class VectorSearchService(
 
         if (whereConditions.Count > 0)
         {
-            sql += $" WHERE {string.Join(" AND ", whereConditions)}";
+            sql += $" WHERE {string.Join(AndSeparator, whereConditions)}";
         }
 
         sql += @"
@@ -385,7 +386,7 @@ public sealed class VectorSearchService(
 
         if (whereConditions.Count > 0)
         {
-            sql += " AND " + string.Join(" AND ", whereConditions);
+            sql += AndSeparator + string.Join(AndSeparator, whereConditions);
         }
 
         sql += @"
@@ -499,7 +500,7 @@ public sealed class VectorSearchService(
         var sqlBuilder = new StringBuilder(baseSql);
         sqlBuilder.AppendLine();
         sqlBuilder.Append("WHERE ");
-        sqlBuilder.Append(string.Join(" AND ", whereConditions));
+        sqlBuilder.Append(string.Join(AndSeparator, whereConditions));
         sqlBuilder.AppendLine();
         sqlBuilder.AppendLine("ORDER BY rank DESC");
         sqlBuilder.AppendLine("LIMIT @limit");

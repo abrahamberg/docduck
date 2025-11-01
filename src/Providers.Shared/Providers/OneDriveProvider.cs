@@ -249,7 +249,7 @@ public sealed class OneDriveProvider : IDocumentProvider
         return (filesProcessed, filesSkipped, foldersFound);
     }
 
-    private void ProcessFolder(
+    private static void ProcessFolder(
         DriveItem item,
         string folderPath,
         List<(string Id, string Path)> foldersToScan,

@@ -132,7 +132,7 @@ public sealed class SearchOrchestrationService(
 
         var rawResults = await ExecuteParallelSearchesAsync(plan, context, depth, thinkingSteps, onThinkingStep, ct);
 
-        if (IsEmptyResults(rawResults, depth))
+        if (IsEmptyResults(rawResults))
         {
             await RecordNoResultsAsync(depth, thinkingSteps, onThinkingStep);
             return SearchStepResult.Stop();
@@ -143,19 +143,20 @@ public sealed class SearchOrchestrationService(
         var step = CreateSearchStep(plan, evaluatedFindings, depth);
 
         var refinementDecision = await CheckRefinementNeededAsync(
-            context.OriginalQuery,
-            previousSteps,
-            step,
-            depth,
-            context.MaxDepth,
-            thinkingSteps,
-            onThinkingStep,
+            new RefinementCheckContext(
+                context.OriginalQuery,
+                previousSteps,
+                step,
+                depth,
+                context.MaxDepth,
+                thinkingSteps,
+                onThinkingStep),
             ct);
 
         return SearchStepResult.Continue(step, refinementDecision.ShouldContinue, refinementDecision.RefinedQuery);
     }
 
-    private async Task AddThinkingStepAsync(
+    private static async Task AddThinkingStepAsync(
         string message,
         List<string> thinkingSteps,
         Func<string, Task>? onThinkingStep,
@@ -266,7 +267,7 @@ public sealed class SearchOrchestrationService(
             return;
         }
 
-        var selectedChunks = SelectRelevantChunks(results, "vector");
+        var selectedChunks = SelectRelevantChunks(results);
         await RecordSelectedChunksAsync(selectedChunks, thinkingSteps, onThinkingStep, includeAdaptiveNote: true);
     }
 
@@ -287,7 +288,7 @@ public sealed class SearchOrchestrationService(
             return;
         }
 
-        var selectedChunks = SelectRelevantChunks(results, "keyword");
+        var selectedChunks = SelectRelevantChunks(results);
         await RecordSelectedChunksAsync(selectedChunks, thinkingSteps, onThinkingStep, includeAdaptiveNote: false);
     }
 
@@ -376,7 +377,7 @@ public sealed class SearchOrchestrationService(
         return $"         chunk {chunk.ChunkNum}{keywordInfo} - distance: {chunk.Distance:F3}";
     }
 
-    private static bool IsEmptyResults(List<RawSearchResult> results, int depth)
+    private static bool IsEmptyResults(List<RawSearchResult> results)
     {
         return results.Count == 0;
     }
@@ -474,29 +475,23 @@ public sealed class SearchOrchestrationService(
     }
 
     private async Task<AgentRefinementDecision> CheckRefinementNeededAsync(
-        string originalQuery,
-        List<SearchStep> previousSteps,
-        SearchStep currentStep,
-        int currentDepth,
-        int maxDepth,
-        List<string> thinkingSteps,
-        Func<string, Task>? onThinkingStep,
+        RefinementCheckContext context,
         CancellationToken ct)
     {
-        var allSteps = previousSteps.Concat(new[] { currentStep }).ToList();
+        var allSteps = context.PreviousSteps.Concat(new[] { context.CurrentStep }).ToList();
 
         var decision = await refinement.ShouldRefineAsync(
-            originalQuery,
+            context.OriginalQuery,
             allSteps,
-            currentDepth,
-            maxDepth,
+            context.CurrentDepth,
+            context.MaxDepth,
             ct);
 
-        await AddThinkingStepAsync($"   🤔 Refinement check: {decision.Reason}", thinkingSteps, onThinkingStep);
+        await AddThinkingStepAsync($"   🤔 Refinement check: {decision.Reason}", context.ThinkingSteps, context.OnThinkingStep);
 
         logger.LogInformation(
             "Step {Depth}: Refinement decision - Continue: {Continue}, Reason: {Reason}",
-            currentDepth,
+            context.CurrentDepth,
             decision.ShouldContinue,
             decision.Reason);
 
@@ -605,7 +600,7 @@ public sealed class SearchOrchestrationService(
     /// - If big distance gap exists: only take chunks before the gap
     /// - Min 5 chunks, max 30 chunks
     /// </summary>
-    private List<RawSearchResult> SelectRelevantChunks(List<RawSearchResult> results, string searchType)
+    private static List<RawSearchResult> SelectRelevantChunks(List<RawSearchResult> results)
     {
         if (results.Count == 0) return results;
 
@@ -655,4 +650,13 @@ public sealed class SearchOrchestrationService(
 
         return sorted.Take(cutoffIndex).ToList();
     }
+
+    private record RefinementCheckContext(
+        string OriginalQuery,
+        List<SearchStep> PreviousSteps,
+        SearchStep CurrentStep,
+        int CurrentDepth,
+        int MaxDepth,
+        List<string> ThinkingSteps,
+        Func<string, Task>? OnThinkingStep);
 }

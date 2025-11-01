@@ -3,17 +3,27 @@ using Api.Services.Agents.Models;
 using Api.Services.Interfaces;
 using DocDuck.Providers.Ai;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Api.Services.Agents;
 
 /// <summary>
 /// Query planner agent implementation using AI for intelligent query analysis.
 /// </summary>
-public sealed class QueryPlannerAgent(
+public sealed partial class QueryPlannerAgent(
     IModelAgnosticAiService aiService,
     IKeywordSearchService keywordService,
     ILogger<QueryPlannerAgent> logger) : IQueryPlannerAgent
 {
+    [GeneratedRegex(@"""([^""]+)""")]
+    private static partial Regex QuotePattern();
+
+    [GeneratedRegex(@"\b[A-ZÅÄÖ]{2,}(?:\s+[A-ZÅÄÖ]{2,})*\b")]
+    private static partial Regex CapsPattern();
+
+    [GeneratedRegex(@"[åäöÅÄÖ]")]
+    private static partial Regex SwedishPattern();
+
     public async Task<SearchPlan> PlanSearchAsync(string query, CancellationToken ct = default)
     {
         logger.LogDebug("Planning search for query: {Query}", query);
@@ -98,17 +108,15 @@ public sealed class QueryPlannerAgent(
         var keywords = new List<string>();
 
         // Extract exact phrases in quotes first
-        var quotePattern = new System.Text.RegularExpressions.Regex(@"""([^""]+)""");
-        var matches = quotePattern.Matches(query);
-        foreach (System.Text.RegularExpressions.Match match in matches)
+        var matches = QuotePattern().Matches(query);
+        foreach (Match match in matches)
         {
             keywords.Add(match.Groups[1].Value);
         }
 
         // Extract ALL-CAPS terms (likely important identifiers)
-        var capsPattern = new System.Text.RegularExpressions.Regex(@"\b[A-ZÅÄÖ]{2,}(?:\s+[A-ZÅÄÖ]{2,})*\b");
-        var capsMatches = capsPattern.Matches(query);
-        foreach (System.Text.RegularExpressions.Match match in capsMatches)
+        var capsMatches = CapsPattern().Matches(query);
+        foreach (Match match in capsMatches)
         {
             var term = match.Value.Trim();
             if (!keywords.Contains(term, StringComparer.OrdinalIgnoreCase))
@@ -120,14 +128,9 @@ public sealed class QueryPlannerAgent(
         // If we don't have enough keywords, use the basic extraction
         if (keywords.Count < 3)
         {
-            var basicKeywords = keywordService.ExtractKeywords(query, maxKeywords: 5);
-            foreach (var kw in basicKeywords)
-            {
-                if (!keywords.Contains(kw, StringComparer.OrdinalIgnoreCase))
-                {
-                    keywords.Add(kw);
-                }
-            }
+            var basicKeywords = keywordService.ExtractKeywords(query, maxKeywords: 5)
+                .Where(kw => !keywords.Contains(kw, StringComparer.OrdinalIgnoreCase));
+            keywords.AddRange(basicKeywords);
         }
 
         // Limit to reasonable number
@@ -156,7 +159,7 @@ public sealed class QueryPlannerAgent(
     private static string? DetectLanguage(string query)
     {
         // Detect natural language (Swedish, English, etc.)
-        var hasSwedish = System.Text.RegularExpressions.Regex.IsMatch(query, @"[åäöÅÄÖ]");
+        var hasSwedish = SwedishPattern().IsMatch(query);
         if (hasSwedish)
             return "swedish";
 

@@ -17,6 +17,8 @@ public sealed class KeywordSearchService(
     IOptions<SearchOptions> searchOptions,
     ILogger<KeywordSearchService> logger) : IKeywordSearchService
 {
+    private static readonly char[] WordDelimiters = [' ', '\t', '\n', '\r', ',', '.', '!', '?', ';', ':', '(', ')', '[', ']'];
+
     public async Task<List<RawSearchResult>> SearchByKeywordsAsync(
         List<string> keywords,
         float[]? queryEmbedding = null,
@@ -73,7 +75,7 @@ public sealed class KeywordSearchService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Keyword search failed for keywords: {Keywords}", string.Join(", ", keywords));
-            throw;
+            throw new InvalidOperationException($"Full-text keyword search failed for {keywords.Count} keywords", ex);
         }
     }
 
@@ -226,7 +228,7 @@ public sealed class KeywordSearchService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Pattern match search failed for keywords: {Keywords}", string.Join(", ", keywords));
-            throw;
+            throw new InvalidOperationException($"Pattern match search failed for {keywords.Count} keywords", ex);
         }
     }
 
@@ -267,7 +269,7 @@ public sealed class KeywordSearchService(
 
         var keywordConditions = keywords.Select((_, i) => $"c.text ILIKE @keyword{i}");
         sqlBuilder.Append(string.Join(" OR ", keywordConditions));
-        sqlBuilder.Append(")");
+        sqlBuilder.Append(')');
 
         if (!string.IsNullOrWhiteSpace(providerType))
         {
@@ -401,8 +403,7 @@ public sealed class KeywordSearchService(
 
         // Split on various delimiters but preserve quoted phrases
         var words = query
-            .Split(new[] { ' ', '\t', '\n', '\r', ',', '.', '!', '?', ';', ':', '(', ')', '[', ']' },
-                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Split(WordDelimiters, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(w => w.Length > 2 && !commonWords.Contains(w)) // Filter out very short words (length <= 2)
             .Select(w => w.Trim('"', '\'')) // Remove quotes but keep the word
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -416,18 +417,10 @@ public sealed class KeywordSearchService(
 
     private static List<string> ExtractMatchedKeywords(string text, List<string> keywords)
     {
-        var matched = new List<string>();
         var lowerText = text.ToLowerInvariant();
-
-        foreach (var keyword in keywords)
-        {
-            if (lowerText.Contains(keyword.ToLowerInvariant()))
-            {
-                matched.Add(keyword);
-            }
-        }
-
-        return matched;
+        return keywords
+            .Where(keyword => lowerText.Contains(keyword.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase))
+            .ToList();
     }
 
     private static double NormalizeRank(double rank)
