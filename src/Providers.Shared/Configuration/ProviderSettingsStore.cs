@@ -7,14 +7,9 @@ namespace DocDuck.Providers.Configuration;
 /// <summary>
 /// Direct database access for provider settings. Keeps things simple until we adopt a full migration framework.
 /// </summary>
-public sealed class ProviderSettingsStore
+public sealed class ProviderSettingsStore(string connectionString)
 {
-    private readonly string _connectionString;
-
-    public ProviderSettingsStore(string connectionString)
-    {
-        _connectionString = connectionString;
-    }
+    private readonly string _connectionString = connectionString;
 
     public async Task<IReadOnlyList<ProviderSettingsRecord>> GetAllAsync(CancellationToken ct = default)
     {

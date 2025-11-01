@@ -10,18 +10,12 @@ namespace Api.Services;
 /// Service for aggregating search results at the document level.
 /// Combines chunks, adds context, deduplicates, and calculates strength scores.
 /// </summary>
-public sealed class DocumentAggregationService : IDocumentAggregationService
+public sealed class DocumentAggregationService(
+    IOptions<DbOptions> dbOptions,
+    ILogger<DocumentAggregationService> logger) : IDocumentAggregationService
 {
-    private readonly DbOptions _dbOptions;
-    private readonly ILogger<DocumentAggregationService> _logger;
-
-    public DocumentAggregationService(
-        IOptions<DbOptions> dbOptions,
-        ILogger<DocumentAggregationService> logger)
-    {
-        _dbOptions = dbOptions.Value;
-        _logger = logger;
-    }
+    private readonly DbOptions _dbOptions = dbOptions.Value;
+    private readonly ILogger<DocumentAggregationService> _logger = logger;
 
     public async Task<List<SearchFinding>> AggregateByDocumentAsync(
         List<RawSearchResult> rawResults,

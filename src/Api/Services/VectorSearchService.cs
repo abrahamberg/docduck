@@ -12,26 +12,15 @@ namespace Api.Services;
 /// <summary>
 /// Repository for vector similarity search against PostgreSQL + pgvector.
 /// </summary>
-public sealed class VectorSearchService : IVectorSearchService
+public sealed class VectorSearchService(
+    IOptions<DbOptions> dbOptions,
+    IOptions<SearchOptions> searchOptions,
+    ILogger<VectorSearchService> logger) : IVectorSearchService
 {
-    private readonly DbOptions _dbOptions;
-    private readonly SearchOptions _searchOptions;
-    private readonly ILogger<VectorSearchService> _logger;
+    private readonly DbOptions _dbOptions = dbOptions?.Value ?? throw new ArgumentNullException(nameof(dbOptions));
+    private readonly SearchOptions _searchOptions = searchOptions?.Value ?? throw new ArgumentNullException(nameof(searchOptions));
+    private readonly ILogger<VectorSearchService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private bool _lexicalSearchUnavailable;
-
-    public VectorSearchService(
-        IOptions<DbOptions> dbOptions,
-        IOptions<SearchOptions> searchOptions,
-        ILogger<VectorSearchService> logger)
-    {
-        ArgumentNullException.ThrowIfNull(dbOptions);
-        ArgumentNullException.ThrowIfNull(searchOptions);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _dbOptions = dbOptions.Value;
-        _searchOptions = searchOptions.Value;
-        _logger = logger;
-    }
 
     public async Task<List<Source>> SearchAsync(
         float[] queryEmbedding,

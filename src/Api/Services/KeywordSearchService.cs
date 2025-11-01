@@ -12,21 +12,14 @@ namespace Api.Services;
 /// Service for keyword-based search using PostgreSQL full-text search.
 /// Provides exact phrase matching and keyword extraction capabilities.
 /// </summary>
-public sealed class KeywordSearchService : IKeywordSearchService
+public sealed class KeywordSearchService(
+    IOptions<DbOptions> dbOptions,
+    IOptions<SearchOptions> searchOptions,
+    ILogger<KeywordSearchService> logger) : IKeywordSearchService
 {
-    private readonly DbOptions _dbOptions;
-    private readonly SearchOptions _searchOptions;
-    private readonly ILogger<KeywordSearchService> _logger;
-
-    public KeywordSearchService(
-        IOptions<DbOptions> dbOptions,
-        IOptions<SearchOptions> searchOptions,
-        ILogger<KeywordSearchService> logger)
-    {
-        _dbOptions = dbOptions.Value;
-        _searchOptions = searchOptions.Value;
-        _logger = logger;
-    }
+    private readonly DbOptions _dbOptions = dbOptions.Value;
+    private readonly SearchOptions _searchOptions = searchOptions.Value;
+    private readonly ILogger<KeywordSearchService> _logger = logger;
 
     public async Task<List<RawSearchResult>> SearchByKeywordsAsync(
         List<string> keywords,
@@ -414,7 +407,7 @@ public sealed class KeywordSearchService : IKeywordSearchService
         var words = query
             .Split(new[] { ' ', '\t', '\n', '\r', ',', '.', '!', '?', ';', ':', '(', ')', '[', ']' },
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(w => w.Length > 1 && !commonWords.Contains(w)) // Allow 2+ char words (was 3+)
+            .Where(w => w.Length > 2 && !commonWords.Contains(w)) // Filter out very short words (length <= 2)
             .Select(w => w.Trim('"', '\'')) // Remove quotes but keep the word
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(maxKeywords)

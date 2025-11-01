@@ -7,9 +7,9 @@ namespace Indexer.Services.TextExtraction;
 /// <summary>
 /// Extracts text from PDF files using PdfPig library.
 /// </summary>
-public class PdfTextExtractor : ITextExtractor
+public class PdfTextExtractor(ILogger<PdfTextExtractor> logger) : ITextExtractor
 {
-    private readonly ILogger<PdfTextExtractor> _logger;
+    private readonly ILogger<PdfTextExtractor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     private static readonly HashSet<string> _supportedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -17,12 +17,6 @@ public class PdfTextExtractor : ITextExtractor
     };
 
     public IReadOnlySet<string> SupportedExtensions => _supportedExtensions;
-
-    public PdfTextExtractor(ILogger<PdfTextExtractor> logger)
-    {
-        ArgumentNullException.ThrowIfNull(logger);
-        _logger = logger;
-    }
 
     public Task<string> ExtractTextAsync(Stream stream, string filename, CancellationToken ct = default)
     {

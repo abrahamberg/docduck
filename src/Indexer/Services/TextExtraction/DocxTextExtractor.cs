@@ -8,9 +8,9 @@ namespace Indexer.Services.TextExtraction;
 /// <summary>
 /// Extracts plain text from .docx files using OpenXML SDK.
 /// </summary>
-public class DocxTextExtractor : ITextExtractor
+public class DocxTextExtractor(ILogger<DocxTextExtractor> logger) : ITextExtractor
 {
-    private readonly ILogger<DocxTextExtractor> _logger;
+    private readonly ILogger<DocxTextExtractor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     private static readonly HashSet<string> _supportedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -18,12 +18,6 @@ public class DocxTextExtractor : ITextExtractor
     };
 
     public IReadOnlySet<string> SupportedExtensions => _supportedExtensions;
-
-    public DocxTextExtractor(ILogger<DocxTextExtractor> logger)
-    {
-        ArgumentNullException.ThrowIfNull(logger);
-        _logger = logger;
-    }
 
     public async Task<string> ExtractTextAsync(Stream stream, string filename, CancellationToken ct = default)
     {

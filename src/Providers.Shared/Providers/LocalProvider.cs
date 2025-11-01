@@ -9,30 +9,28 @@ namespace DocDuck.Providers.Providers;
 /// <summary>
 /// Document provider for local filesystem access.
 /// </summary>
-public sealed class LocalProvider : IDocumentProvider
+public sealed class LocalProvider(LocalProviderSettings settings, ILogger<LocalProvider> logger) : IDocumentProvider
 {
-    private readonly LocalProviderSettings _settings;
-    private readonly ILogger<LocalProvider> _logger;
+    private readonly LocalProviderSettings _settings = InitializeSettings(settings, logger);
+    private readonly ILogger<LocalProvider> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public string ProviderType => "local";
     public string ProviderName => _settings.Name;
     public bool IsEnabled => _settings.Enabled;
 
-    public LocalProvider(LocalProviderSettings settings, ILogger<LocalProvider> logger)
+    private static LocalProviderSettings InitializeSettings(LocalProviderSettings settings, ILogger<LocalProvider> logger)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _settings = settings;
-        _logger = logger;
-
-        if (!Directory.Exists(_settings.RootPath))
+        if (!Directory.Exists(settings.RootPath))
         {
-            _logger.LogWarning("Local provider root path does not exist: {Path}. Creating directory.", _settings.RootPath);
-            Directory.CreateDirectory(_settings.RootPath);
+            logger.LogWarning("Local provider root path does not exist: {Path}. Creating directory.", settings.RootPath);
+            Directory.CreateDirectory(settings.RootPath);
         }
 
-        _logger.LogInformation("Local provider '{Name}' initialized with root path: {Path}", _settings.Name, _settings.RootPath);
+        logger.LogInformation("Local provider '{Name}' initialized with root path: {Path}", settings.Name, settings.RootPath);
+        return settings;
     }
 
     public Task<IReadOnlyList<ProviderDocument>> ListDocumentsAsync(CancellationToken ct = default)

@@ -9,24 +9,16 @@ namespace Api.Services.Agents;
 /// <summary>
 /// Searcher agent: executes parallel searches using vector, lexical, and keyword strategies.
 /// </summary>
-public sealed class SearcherAgent : ISearcherAgent
+public sealed class SearcherAgent(
+    IVectorSearchService vectorSearch,
+    IKeywordSearchService keywordSearch,
+    IModelAgnosticAiService aiService,
+    ILogger<SearcherAgent> logger) : ISearcherAgent
 {
-    private readonly IVectorSearchService _vectorSearch;
-    private readonly IKeywordSearchService _keywordSearch;
-    private readonly IModelAgnosticAiService _aiService;
-    private readonly ILogger<SearcherAgent> _logger;
-
-    public SearcherAgent(
-        IVectorSearchService vectorSearch,
-        IKeywordSearchService keywordSearch,
-        IModelAgnosticAiService aiService,
-        ILogger<SearcherAgent> logger)
-    {
-        _vectorSearch = vectorSearch;
-        _keywordSearch = keywordSearch;
-        _aiService = aiService;
-        _logger = logger;
-    }
+    private readonly IVectorSearchService vectorSearch = vectorSearch;
+    private readonly IKeywordSearchService keywordSearch = keywordSearch;
+    private readonly IModelAgnosticAiService aiService = aiService;
+    private readonly ILogger<SearcherAgent> logger = logger;
 
     public async Task<List<RawSearchResult>> SearchAsync(
         SearchPlan plan,
@@ -35,15 +27,15 @@ public sealed class SearcherAgent : ISearcherAgent
         string? providerName,
         CancellationToken ct = default)
     {
-        _logger.LogInformation(
+        logger.LogInformation(
             "Executing parallel searches: vector + keyword (topK={TopK}, provider={Type}/{Name})",
             topK,
             providerType ?? "all",
             providerName ?? "all");
 
         // Generate embedding once for both vector and keyword searches
-        _logger.LogDebug("Generating embedding for phrase: {Phrase}", plan.Phrase);
-        var embedding = await _aiService.EmbedAsync(plan.Phrase, ct);
+        logger.LogDebug("Generating embedding for phrase: {Phrase}", plan.Phrase);
+        var embedding = await aiService.EmbedAsync(plan.Phrase, ct);
 
         // Execute searches in parallel with shared embedding
         var vectorTask = ExecuteVectorSearchAsync(plan.Phrase, embedding, topK, providerType, providerName, ct);
@@ -59,7 +51,7 @@ public sealed class SearcherAgent : ISearcherAgent
         allResults.AddRange(vectorResults);
         allResults.AddRange(keywordResults);
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Search completed: {VectorCount} vector results, {KeywordCount} keyword results, {TotalCount} total",
             vectorResults.Count,
             keywordResults.Count,
@@ -78,10 +70,10 @@ public sealed class SearcherAgent : ISearcherAgent
     {
         try
         {
-            _logger.LogDebug("Executing vector search with pre-generated embedding (topK={TopK})", topK);
+            logger.LogDebug("Executing vector search with pre-generated embedding (topK={TopK})", topK);
 
             // Execute vector search (using existing VectorSearchService)
-            var sources = await _vectorSearch.SearchAsync(
+            var sources = await vectorSearch.SearchAsync(
                 embedding,
                 phrase,
                 topK,
@@ -90,7 +82,7 @@ public sealed class SearcherAgent : ISearcherAgent
                 searchDepth: 1, // Simple search, no refinement
                 ct);
 
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Vector search for phrase \"{Phrase}\" returned {Count} results, best distance: {BestDist:F3}",
                 phrase,
                 sources.Count,
@@ -112,7 +104,7 @@ public sealed class SearcherAgent : ISearcherAgent
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Vector search failed for phrase: {Phrase}", phrase);
+            logger.LogError(ex, "Vector search failed for phrase: {Phrase}", phrase);
             return [];
         }
     }
@@ -132,7 +124,7 @@ public sealed class SearcherAgent : ISearcherAgent
 
         try
         {
-            return await _keywordSearch.SearchByKeywordsAsync(
+            return await keywordSearch.SearchByKeywordsAsync(
                 keywords,
                 embedding,
                 providerType,
@@ -142,7 +134,7 @@ public sealed class SearcherAgent : ISearcherAgent
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Keyword search failed for keywords: {Keywords}", string.Join(", ", keywords));
+            logger.LogError(ex, "Keyword search failed for keywords: {Keywords}", string.Join(", ", keywords));
             return [];
         }
     }

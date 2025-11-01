@@ -16,41 +16,22 @@ namespace Indexer;
 /// Main orchestration service that coordinates indexing across multiple document providers.
 /// Supports modular, plugin-based provider architecture.
 /// </summary>
-public class MultiProviderIndexerService
-{
-    private readonly ProviderCatalog _providerCatalog;
-    private readonly TextExtractionService _textExtractor;
-    private readonly TextChunker _textChunker;
-    private readonly IModelAgnosticAiService _aiService;
-    private readonly VectorRepository _vectorRepository;
-    private readonly ChunkingOptions _chunkingOptions;
-    private readonly ILogger<MultiProviderIndexerService> _logger;
-
-    public MultiProviderIndexerService(
+public class MultiProviderIndexerService(
     ProviderCatalog providerCatalog,
-        TextExtractionService textExtractor,
-        TextChunker textChunker,
-        IModelAgnosticAiService aiService,
-        VectorRepository vectorRepository,
-        IOptions<ChunkingOptions> chunkingOptions,
-        ILogger<MultiProviderIndexerService> logger)
-    {
-        ArgumentNullException.ThrowIfNull(providerCatalog);
-        ArgumentNullException.ThrowIfNull(textExtractor);
-        ArgumentNullException.ThrowIfNull(textChunker);
-        ArgumentNullException.ThrowIfNull(aiService);
-        ArgumentNullException.ThrowIfNull(vectorRepository);
-        ArgumentNullException.ThrowIfNull(chunkingOptions);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _providerCatalog = providerCatalog;
-        _textExtractor = textExtractor;
-        _textChunker = textChunker;
-        _aiService = aiService;
-        _vectorRepository = vectorRepository;
-        _chunkingOptions = chunkingOptions.Value;
-        _logger = logger;
-    }
+    TextExtractionService textExtractor,
+    TextChunker textChunker,
+    IModelAgnosticAiService aiService,
+    VectorRepository vectorRepository,
+    IOptions<ChunkingOptions> chunkingOptions,
+    ILogger<MultiProviderIndexerService> logger)
+{
+    private readonly ProviderCatalog _providerCatalog = providerCatalog ?? throw new ArgumentNullException(nameof(providerCatalog));
+    private readonly TextExtractionService _textExtractor = textExtractor ?? throw new ArgumentNullException(nameof(textExtractor));
+    private readonly TextChunker _textChunker = textChunker ?? throw new ArgumentNullException(nameof(textChunker));
+    private readonly IModelAgnosticAiService _aiService = aiService ?? throw new ArgumentNullException(nameof(aiService));
+    private readonly VectorRepository _vectorRepository = vectorRepository ?? throw new ArgumentNullException(nameof(vectorRepository));
+    private readonly ChunkingOptions _chunkingOptions = (chunkingOptions ?? throw new ArgumentNullException(nameof(chunkingOptions))).Value;
+    private readonly ILogger<MultiProviderIndexerService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <summary>
     /// Executes the full indexing pipeline across all enabled providers.

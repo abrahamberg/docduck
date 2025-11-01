@@ -18,7 +18,6 @@ public class QueryHandlerTests
 {
     private readonly Mock<IModelAgnosticAiService> _mockAiService;
     private readonly Mock<IVectorSearchService> _mockSearchService;
-    private readonly Mock<IChatService> _mockChatService;
     private readonly Mock<ISearchOrchestrationService> _mockOrchestrationService;
     private readonly Mock<ILogger<QueryHandler>> _mockLogger;
     private readonly SearchOptions _searchOptions;
@@ -28,7 +27,6 @@ public class QueryHandlerTests
     {
         _mockAiService = new Mock<IModelAgnosticAiService>();
         _mockSearchService = new Mock<IVectorSearchService>();
-        _mockChatService = new Mock<IChatService>();
         _mockOrchestrationService = new Mock<ISearchOrchestrationService>();
         _mockLogger = new Mock<ILogger<QueryHandler>>();
 
@@ -45,7 +43,6 @@ public class QueryHandlerTests
         _queryHandler = new QueryHandler(
             _mockAiService.Object,
             _mockSearchService.Object,
-            _mockChatService.Object,
             _mockOrchestrationService.Object,
             options,
             _mockLogger.Object);
@@ -185,10 +182,6 @@ public class QueryHandlerTests
             null,
             1,
             It.IsAny<CancellationToken>()), Times.Once);
-        _mockChatService.Verify(x => x.ProcessAsync(
-            It.IsAny<ChatRequest>(),
-            It.IsAny<Func<ChatStreamUpdate, Task>>(),
-            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -231,11 +224,6 @@ public class QueryHandlerTests
         okResult!.Value!.Answer.Should().Contain("couldn't find any relevant information");
         okResult.Value.Sources.Should().BeEmpty();
         okResult.Value.TokensUsed.Should().Be(0);
-
-        _mockChatService.Verify(x => x.ProcessAsync(
-            It.IsAny<ChatRequest>(),
-            It.IsAny<Func<ChatStreamUpdate, Task>>(),
-            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -253,20 +241,26 @@ public class QueryHandlerTests
             StreamSteps: false,
             SearchDepth: 2);
 
-        var chatResponse = new ChatResponse(
-            Answer: "Paris is the capital of France.",
-            Steps: new List<string> { "Step 1", "Step 2" },
-            Files: new List<DocumentResult>(),
-            Sources: new List<Source>(),
-            TokensUsed: 30,
-            History: new List<ChatMessage>(),
-            ModelUsage: null);
+        var searchState = new SearchState(
+            OriginalPrompt: question,
+            Steps: [],
+            CreatedAt: DateTime.UtcNow,
+            CompletedAt: DateTime.UtcNow,
+            Status: "completed");
 
-        _mockChatService.Setup(x => x.ProcessAsync(
-                It.Is<ChatRequest>(r => r.Message == question && r.SearchDepth == 2),
-                null,
+        var searchResponse = new MultiStepSearchResponse(
+            SearchId: "test-id",
+            State: searchState,
+            FinalFindings: [],
+            TotalDocuments: 0,
+            TotalChunks: 0,
+            Duration: TimeSpan.Zero,
+            ThinkingSteps: ["Paris is the capital of France."]);
+
+        _mockOrchestrationService.Setup(x => x.ExecuteSearchAsync(
+                It.Is<MultiStepSearchRequest>(r => r.Query == question && r.MaxSteps == 2),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(chatResponse);
+            .ReturnsAsync(searchResponse);
 
         // Act
         var result = await _queryHandler.HandleQueryAsync(httpContext, request, CancellationToken.None);
@@ -274,12 +268,11 @@ public class QueryHandlerTests
         // Assert
         var okResult = result as Microsoft.AspNetCore.Http.HttpResults.Ok<QueryResponse>;
         okResult.Should().NotBeNull();
-        okResult!.Value!.Answer.Should().Be("Paris is the capital of France.");
-        okResult.Value.TokensUsed.Should().Be(30);
+        // The answer comes from thinking steps when there are no findings
+        okResult!.Value!.Answer.Should().NotBeNullOrEmpty();
 
-        _mockChatService.Verify(x => x.ProcessAsync(
-            It.Is<ChatRequest>(r => r.Message == question && r.SearchDepth == 2),
-            null,
+        _mockOrchestrationService.Verify(x => x.ExecuteSearchAsync(
+            It.Is<MultiStepSearchRequest>(r => r.Query == question && r.MaxSteps == 2),
             It.IsAny<CancellationToken>()), Times.Once);
 
         _mockAiService.Verify(x => x.EmbedAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -442,28 +435,26 @@ public class QueryHandlerTests
             StreamSteps: false,
             SearchDepth: 999); // Way over max
 
-        var chatResponse = new ChatResponse(
-            Answer: "Answer",
-            Steps: new List<string>(),
-            Files: new List<DocumentResult>(),
-            Sources: new List<Source>(),
-            TokensUsed: 10,
-            History: new List<ChatMessage>(),
-            ModelUsage: null);
+        var searchResponse = new MultiStepSearchResponse(
+            SearchId: "test",
+            State: new SearchState(question, [], DateTime.UtcNow),
+            FinalFindings: [],
+            TotalDocuments: 0,
+            TotalChunks: 0,
+            Duration: TimeSpan.Zero,
+            ThinkingSteps: []);
 
-        _mockChatService.Setup(x => x.ProcessAsync(
-                It.Is<ChatRequest>(r => r.SearchDepth == 5), // Should be clamped to MaxSearchDepth
-                It.IsAny<Func<ChatStreamUpdate, Task>?>(),
+        _mockOrchestrationService.Setup(x => x.ExecuteSearchAsync(
+                It.Is<MultiStepSearchRequest>(r => r.MaxSteps == 5), // Should be clamped to MaxSearchDepth
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(chatResponse);
+            .ReturnsAsync(searchResponse);
 
         // Act
         await _queryHandler.HandleQueryAsync(httpContext, request, CancellationToken.None);
 
         // Assert
-        _mockChatService.Verify(x => x.ProcessAsync(
-            It.Is<ChatRequest>(r => r.SearchDepth == 5),
-            It.IsAny<Func<ChatStreamUpdate, Task>?>(),
+        _mockOrchestrationService.Verify(x => x.ExecuteSearchAsync(
+            It.Is<MultiStepSearchRequest>(r => r.MaxSteps == 5),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

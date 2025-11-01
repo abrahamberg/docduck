@@ -16,32 +16,20 @@ namespace Api.Handlers;
 /// Handles the /query endpoint logic, reducing complexity in Program.cs.
 /// Implements single responsibility: process user queries with appropriate depth and streaming.
 /// </summary>
-public sealed class QueryHandler
+public sealed class QueryHandler(
+    IModelAgnosticAiService aiService,
+    IVectorSearchService searchService,
+    ISearchOrchestrationService orchestrationService,
+    IOptions<SearchOptions> searchOptions,
+    ILogger<QueryHandler> logger)
 {
     private static readonly JsonSerializerOptions StreamJsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly IModelAgnosticAiService _aiService;
-    private readonly IVectorSearchService _searchService;
-    private readonly IChatService _chatService;
-    private readonly ISearchOrchestrationService _orchestrationService;
-    private readonly SearchOptions _searchOptions;
-    private readonly ILogger<QueryHandler> _logger;
-
-    public QueryHandler(
-        IModelAgnosticAiService aiService,
-        IVectorSearchService searchService,
-        IChatService chatService,
-        ISearchOrchestrationService orchestrationService,
-        IOptions<SearchOptions> searchOptions,
-        ILogger<QueryHandler> logger)
-    {
-        _aiService = aiService;
-        _searchService = searchService;
-        _chatService = chatService;
-        _orchestrationService = orchestrationService;
-        _searchOptions = searchOptions.Value;
-        _logger = logger;
-    }
+    private readonly IModelAgnosticAiService _aiService = aiService;
+    private readonly IVectorSearchService _searchService = searchService;
+    private readonly ISearchOrchestrationService _orchestrationService = orchestrationService;
+    private readonly SearchOptions _searchOptions = searchOptions.Value;
+    private readonly ILogger<QueryHandler> _logger = logger;
 
     public async Task<IResult> HandleQueryAsync(
         HttpContext httpContext,

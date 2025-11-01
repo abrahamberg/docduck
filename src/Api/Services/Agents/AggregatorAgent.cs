@@ -6,20 +6,13 @@ namespace Api.Services.Agents;
 /// <summary>
 /// Aggregator agent: merges findings from multiple steps, deduplicates, and produces final ranking.
 /// </summary>
-public sealed class AggregatorAgent : IAggregatorAgent
+public sealed class AggregatorAgent(ILogger<AggregatorAgent> logger) : IAggregatorAgent
 {
-    private readonly ILogger<AggregatorAgent> _logger;
-
-    public AggregatorAgent(ILogger<AggregatorAgent> logger)
-    {
-        _logger = logger;
-    }
-
     public Task<List<SearchFinding>> AggregateAsync(
         List<SearchStep> steps,
         CancellationToken ct = default)
     {
-        _logger.LogInformation("Aggregating findings from {StepCount} steps", steps.Count);
+        logger.LogInformation("Aggregating findings from {StepCount} steps", steps.Count);
 
         if (steps.Count == 0)
         {
@@ -52,7 +45,7 @@ public sealed class AggregatorAgent : IAggregatorAgent
             .OrderByDescending(f => f.Strength)
             .ToList();
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Aggregation complete: {DocumentCount} documents, top strength: {TopStrength}",
             sortedFindings.Count,
             sortedFindings.FirstOrDefault()?.Strength ?? 0);

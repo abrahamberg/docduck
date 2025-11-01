@@ -6,44 +6,42 @@ namespace Indexer.Services.TextExtraction;
 /// Orchestrates text extraction by delegating to format-specific extractors.
 /// Automatically selects the appropriate extractor based on file extension.
 /// </summary>
-public class TextExtractionService
+public class TextExtractionService(
+    IEnumerable<ITextExtractor> extractors,
+    ILogger<TextExtractionService> logger)
 {
-    private readonly ILogger<TextExtractionService> _logger;
-    private readonly Dictionary<string, ITextExtractor> _extensionMap;
+    private readonly ILogger<TextExtractionService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly Dictionary<string, ITextExtractor> _extensionMap = BuildExtensionMap(extractors, logger);
 
-    public TextExtractionService(
-        IEnumerable<ITextExtractor> extractors,
-        ILogger<TextExtractionService> logger)
+    private static Dictionary<string, ITextExtractor> BuildExtensionMap(IEnumerable<ITextExtractor> extractors, ILogger<TextExtractionService> logger)
     {
         ArgumentNullException.ThrowIfNull(extractors);
-        ArgumentNullException.ThrowIfNull(logger);
 
-        _logger = logger;
-
-        // Build extension -> extractor lookup map
-        _extensionMap = new Dictionary<string, ITextExtractor>(StringComparer.OrdinalIgnoreCase);
-
+        var extensionMap = new Dictionary<string, ITextExtractor>(StringComparer.OrdinalIgnoreCase);
         var extractorList = extractors.ToList();
+
         foreach (var extractor in extractorList)
         {
             foreach (var extension in extractor.SupportedExtensions)
             {
-                if (_extensionMap.TryAdd(extension, extractor))
+                if (extensionMap.TryAdd(extension, extractor))
                 {
-                    _logger.LogDebug("Registered {ExtractorType} for {Extension}",
+                    logger.LogDebug("Registered {ExtractorType} for {Extension}",
                         extractor.GetType().Name, extension);
                 }
                 else
                 {
-                    _logger.LogWarning(
+                    logger.LogWarning(
                         "Extension {Extension} already registered to {ExistingExtractor}, ignoring {NewExtractor}",
-                        extension, _extensionMap[extension].GetType().Name, extractor.GetType().Name);
+                        extension, extensionMap[extension].GetType().Name, extractor.GetType().Name);
                 }
             }
         }
 
-        _logger.LogInformation("Text extraction service initialized with {Count} extractor(s) supporting {Extensions} file types",
-            extractorList.Count, _extensionMap.Count);
+        logger.LogInformation("Text extraction service initialized with {Count} extractor(s) supporting {Extensions} file types",
+            extractorList.Count, extensionMap.Count);
+
+        return extensionMap;
     }
 
     /// <summary>

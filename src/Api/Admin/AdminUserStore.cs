@@ -3,19 +3,13 @@ using Npgsql;
 
 namespace Api.Admin;
 
-public sealed class AdminUserStore
+public sealed class AdminUserStore(string connectionString, ILogger<AdminUserStore> logger)
 {
     private const string PasswordHashColumn = "password_hash";
     private const string IsAdminColumn = "is_admin";
 
-    private readonly string _connectionString;
-    private readonly ILogger<AdminUserStore> _logger;
-
-    public AdminUserStore(string connectionString, ILogger<AdminUserStore> logger)
-    {
-        _connectionString = connectionString;
-        _logger = logger;
-    }
+    private readonly string _connectionString = connectionString;
+    private readonly ILogger<AdminUserStore> _logger = logger;
 
     public async Task EnsureDefaultAdminAsync(CancellationToken ct)
     {

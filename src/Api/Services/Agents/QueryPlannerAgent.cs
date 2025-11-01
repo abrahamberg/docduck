@@ -9,25 +9,14 @@ namespace Api.Services.Agents;
 /// <summary>
 /// Query planner agent implementation using AI for intelligent query analysis.
 /// </summary>
-public sealed class QueryPlannerAgent : IQueryPlannerAgent
+public sealed class QueryPlannerAgent(
+    IModelAgnosticAiService aiService,
+    IKeywordSearchService keywordService,
+    ILogger<QueryPlannerAgent> logger) : IQueryPlannerAgent
 {
-    private readonly IModelAgnosticAiService _aiService;
-    private readonly IKeywordSearchService _keywordService;
-    private readonly ILogger<QueryPlannerAgent> _logger;
-
-    public QueryPlannerAgent(
-        IModelAgnosticAiService aiService,
-        IKeywordSearchService keywordService,
-        ILogger<QueryPlannerAgent> logger)
-    {
-        _aiService = aiService;
-        _keywordService = keywordService;
-        _logger = logger;
-    }
-
     public async Task<SearchPlan> PlanSearchAsync(string query, CancellationToken ct = default)
     {
-        _logger.LogDebug("Planning search for query: {Query}", query);
+        logger.LogDebug("Planning search for query: {Query}", query);
 
         // Extract keywords - preserve exact phrases in quotes and important terms
         var keywords = ExtractKeywordsPreservingLanguage(query);
@@ -67,7 +56,7 @@ public sealed class QueryPlannerAgent : IQueryPlannerAgent
             new("user", query)
         };
 
-        var result = await _aiService.CompleteChatAsync(
+        var result = await aiService.CompleteChatAsync(
             messages,
             TaskComplexity.Simple,
             strategy: null,
@@ -91,7 +80,7 @@ public sealed class QueryPlannerAgent : IQueryPlannerAgent
             LookingFor: $"Documents about: {phrase}"
         );
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Query plan created: phrase=\"{Phrase}\", keywords=[{Keywords}], docType={DocType}, language={Language}",
             plan.Phrase,
             string.Join(", ", plan.Keywords),
@@ -131,7 +120,7 @@ public sealed class QueryPlannerAgent : IQueryPlannerAgent
         // If we don't have enough keywords, use the basic extraction
         if (keywords.Count < 3)
         {
-            var basicKeywords = _keywordService.ExtractKeywords(query, maxKeywords: 5);
+            var basicKeywords = keywordService.ExtractKeywords(query, maxKeywords: 5);
             foreach (var kw in basicKeywords)
             {
                 if (!keywords.Contains(kw, StringComparer.OrdinalIgnoreCase))

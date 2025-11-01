@@ -5,9 +5,9 @@ namespace Indexer.Services.TextExtraction;
 /// <summary>
 /// Extracts plain text from text-based files (.txt, .md, .csv, etc.).
 /// </summary>
-public class PlainTextExtractor : ITextExtractor
+public class PlainTextExtractor(ILogger<PlainTextExtractor> logger) : ITextExtractor
 {
-    private readonly ILogger<PlainTextExtractor> _logger;
+    private readonly ILogger<PlainTextExtractor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     private static readonly HashSet<string> _supportedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -32,12 +32,6 @@ public class PlainTextExtractor : ITextExtractor
     };
 
     public IReadOnlySet<string> SupportedExtensions => _supportedExtensions;
-
-    public PlainTextExtractor(ILogger<PlainTextExtractor> logger)
-    {
-        ArgumentNullException.ThrowIfNull(logger);
-        _logger = logger;
-    }
 
     public async Task<string> ExtractTextAsync(Stream stream, string filename, CancellationToken ct = default)
     {

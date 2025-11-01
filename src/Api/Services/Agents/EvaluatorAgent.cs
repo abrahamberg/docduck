@@ -8,25 +8,19 @@ namespace Api.Services.Agents;
 /// <summary>
 /// Evaluator agent: scores findings and adds explanatory comments.
 /// </summary>
-public sealed class EvaluatorAgent : IEvaluatorAgent
+public sealed class EvaluatorAgent(
+    IDocumentAggregationService aggregationService,
+    ILogger<EvaluatorAgent> logger) : IEvaluatorAgent
 {
-    private readonly IDocumentAggregationService _aggregationService;
-    private readonly ILogger<EvaluatorAgent> _logger;
-
-    public EvaluatorAgent(
-        IDocumentAggregationService aggregationService,
-        ILogger<EvaluatorAgent> logger)
-    {
-        _aggregationService = aggregationService;
-        _logger = logger;
-    }
+    private readonly IDocumentAggregationService aggregationService = aggregationService;
+    private readonly ILogger<EvaluatorAgent> logger = logger;
 
     public async Task<List<SearchFinding>> EvaluateAsync(
         SearchPlan plan,
         List<RawSearchResult> rawResults,
         CancellationToken ct = default)
     {
-        _logger.LogInformation("Evaluating {Count} raw results", rawResults.Count);
+        logger.LogInformation("Evaluating {Count} raw results", rawResults.Count);
 
         if (rawResults.Count == 0)
         {
@@ -34,7 +28,7 @@ public sealed class EvaluatorAgent : IEvaluatorAgent
         }
 
         // Use document aggregation service to group by document, fetch context, and calculate strength
-        var findings = await _aggregationService.AggregateByDocumentAsync(
+        var findings = await aggregationService.AggregateByDocumentAsync(
             rawResults,
             contextChunkCount: 2,
             ct);
@@ -42,7 +36,7 @@ public sealed class EvaluatorAgent : IEvaluatorAgent
         // Enhance comments with plan-specific context
         var enhancedFindings = findings.Select(f => EnhanceFinding(f, plan)).ToList();
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Evaluation complete: {FindingCount} findings, top strength: {TopStrength}",
             enhancedFindings.Count,
             enhancedFindings.MaxBy(f => f.Strength)?.Strength ?? 0);

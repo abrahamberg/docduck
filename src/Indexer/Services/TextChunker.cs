@@ -7,19 +7,10 @@ namespace Indexer.Services;
 /// <summary>
 /// Chunks text into overlapping segments by character count.
 /// </summary>
-public class TextChunker
+public class TextChunker(IOptions<ChunkingOptions> options, ILogger<TextChunker> logger)
 {
-    private readonly ChunkingOptions _options;
-    private readonly ILogger<TextChunker> _logger;
-
-    public TextChunker(IOptions<ChunkingOptions> options, ILogger<TextChunker> logger)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _options = options.Value;
-        _logger = logger;
-    }
+    private readonly ChunkingOptions _options = (options ?? throw new ArgumentNullException(nameof(options))).Value;
+    private readonly ILogger<TextChunker> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <summary>
     /// Splits text into overlapping chunks with position metadata.

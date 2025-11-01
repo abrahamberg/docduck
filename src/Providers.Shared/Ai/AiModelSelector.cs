@@ -27,19 +27,10 @@ public enum TaskComplexity
 /// Intelligently selects the appropriate AI model based on task requirements,
 /// available models, user strategy preference, and model capabilities.
 /// </summary>
-public sealed class AiModelSelector
+public sealed class AiModelSelector(AiProviderConfiguration config, ILogger<AiModelSelector> logger)
 {
-    private readonly AiProviderConfiguration _config;
-    private readonly ILogger<AiModelSelector> _logger;
-
-    public AiModelSelector(AiProviderConfiguration config, ILogger<AiModelSelector> logger)
-    {
-        ArgumentNullException.ThrowIfNull(config);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _config = config;
-        _logger = logger;
-    }
+    private readonly AiProviderConfiguration _config = config ?? throw new ArgumentNullException(nameof(config));
+    private readonly ILogger<AiModelSelector> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <summary>
     /// Select the best available model for a task based on complexity, context size, and strategy.

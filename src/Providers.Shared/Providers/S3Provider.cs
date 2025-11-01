@@ -11,53 +11,54 @@ namespace DocDuck.Providers.Providers;
 /// <summary>
 /// Document provider for AWS S3 buckets.
 /// </summary>
-public sealed class S3Provider : IDocumentProvider, IDisposable
+public sealed class S3Provider(S3ProviderSettings settings, ILogger<S3Provider> logger) : IDocumentProvider, IDisposable
 {
-    private readonly AmazonS3Client _s3Client;
-    private readonly S3ProviderSettings _settings;
-    private readonly ILogger<S3Provider> _logger;
+    private readonly AmazonS3Client _s3Client = InitializeS3Client(settings, logger);
+    private readonly S3ProviderSettings _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+    private readonly ILogger<S3Provider> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public string ProviderType => "s3";
     public string ProviderName => _settings.Name;
     public bool IsEnabled => _settings.Enabled;
 
-    public S3Provider(S3ProviderSettings settings, ILogger<S3Provider> logger)
+    private static AmazonS3Client InitializeS3Client(S3ProviderSettings settings, ILogger<S3Provider> logger)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _settings = settings;
-        _logger = logger;
-
         var s3Config = new AmazonS3Config
         {
-            RegionEndpoint = RegionEndpoint.GetBySystemName(_settings.Region)
+            RegionEndpoint = RegionEndpoint.GetBySystemName(settings.Region)
         };
 
-        if (_settings.UseInstanceProfile)
+        AmazonS3Client client;
+
+        if (settings.UseInstanceProfile)
         {
-            _logger.LogInformation("Using instance profile / IAM role for S3 authentication");
-            _s3Client = new AmazonS3Client(s3Config);
+            logger.LogInformation("Using instance profile / IAM role for S3 authentication");
+            client = new AmazonS3Client(s3Config);
         }
         else
         {
-            if (string.IsNullOrEmpty(_settings.AccessKeyId) || string.IsNullOrEmpty(_settings.SecretAccessKey))
+            if (string.IsNullOrEmpty(settings.AccessKeyId) || string.IsNullOrEmpty(settings.SecretAccessKey))
             {
                 throw new InvalidOperationException(
-                    $"AccessKeyId and SecretAccessKey are required for S3 provider '{_settings.Name}' when not using instance profile");
+                    $"AccessKeyId and SecretAccessKey are required for S3 provider '{settings.Name}' when not using instance profile");
             }
 
-            _logger.LogInformation("Using access key for S3 authentication");
+            logger.LogInformation("Using access key for S3 authentication");
 
-            AWSCredentials credentials = string.IsNullOrEmpty(_settings.SessionToken)
-                ? new BasicAWSCredentials(_settings.AccessKeyId, _settings.SecretAccessKey)
-                : new SessionAWSCredentials(_settings.AccessKeyId, _settings.SecretAccessKey, _settings.SessionToken);
+            AWSCredentials credentials = string.IsNullOrEmpty(settings.SessionToken)
+                ? new BasicAWSCredentials(settings.AccessKeyId, settings.SecretAccessKey)
+                : new SessionAWSCredentials(settings.AccessKeyId, settings.SecretAccessKey, settings.SessionToken);
 
-            _s3Client = new AmazonS3Client(credentials, s3Config);
+            client = new AmazonS3Client(credentials, s3Config);
         }
 
-        _logger.LogInformation("S3 provider '{Name}' initialized for bucket: {Bucket}, prefix: {Prefix}",
-            _settings.Name, _settings.BucketName, _settings.Prefix ?? "(root)");
+        logger.LogInformation("S3 provider '{Name}' initialized for bucket: {Bucket}, prefix: {Prefix}",
+            settings.Name, settings.BucketName, settings.Prefix ?? "(root)");
+
+        return client;
     }
 
     public async Task<IReadOnlyList<ProviderDocument>> ListDocumentsAsync(CancellationToken ct = default)

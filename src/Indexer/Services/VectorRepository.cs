@@ -12,19 +12,10 @@ namespace Indexer.Services;
 /// Repository for inserting and managing vector embeddings in PostgreSQL with pgvector.
 /// Updated to support multiple document providers.
 /// </summary>
-public class VectorRepository
+public class VectorRepository(IOptions<DbOptions> options, ILogger<VectorRepository> logger)
 {
-    private readonly DbOptions _options;
-    private readonly ILogger<VectorRepository> _logger;
-
-    public VectorRepository(IOptions<DbOptions> options, ILogger<VectorRepository> logger)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _options = options.Value;
-        _logger = logger;
-    }
+    private readonly DbOptions _options = (options ?? throw new ArgumentNullException(nameof(options))).Value;
+    private readonly ILogger<VectorRepository> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <summary>
     /// Registers or updates a provider in the database.

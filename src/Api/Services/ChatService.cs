@@ -20,27 +20,19 @@ namespace Api.Services;
 ///
 /// Uses function calling for structured, reliable decision-making across any OpenAI-compatible model.
 /// </summary>
-public sealed class ChatService : IChatService
+public sealed class ChatService(
+    IVectorSearchService searchService,
+    IModelAgnosticAiService aiService,
+    IOptions<SearchOptions> searchOptions,
+    ILogger<ChatService> logger) : IChatService
 {
     private const string SystemRole = "system";
     private const string StreamTypeFinal = "final";
 
-    private readonly IVectorSearchService _searchService;
-    private readonly IModelAgnosticAiService _aiService;
-    private readonly ILogger<ChatService> _logger;
-    private readonly SearchOptions _searchOptions;
-
-    public ChatService(
-        IVectorSearchService searchService,
-        IModelAgnosticAiService aiService,
-        IOptions<SearchOptions> searchOptions,
-        ILogger<ChatService> logger)
-    {
-        _searchService = searchService;
-        _aiService = aiService;
-        _searchOptions = searchOptions.Value;
-        _logger = logger;
-    }
+    private readonly IVectorSearchService _searchService = searchService;
+    private readonly IModelAgnosticAiService _aiService = aiService;
+    private readonly SearchOptions _searchOptions = searchOptions.Value;
+    private readonly ILogger<ChatService> _logger = logger;
 
     public async Task<ChatResponse> ProcessAsync(
         ChatRequest request,

@@ -179,34 +179,6 @@ public sealed class OneDriveProvider : IDocumentProvider
         }
     }
 
-    private bool ProcessDriveItem(DriveItem item, List<ProviderDocument> documents)
-    {
-        if (item.File == null || item.Name == null)
-        {
-            return true;
-        }
-
-        var ext = Path.GetExtension(item.Name).ToLowerInvariant();
-        if (!_settings.FileExtensions.Contains(ext))
-        {
-            return true;
-        }
-
-        documents.Add(new ProviderDocument(
-            DocumentId: item.Id!,
-            Filename: item.Name,
-            ProviderType: ProviderType,
-            ProviderName: ProviderName,
-            ETag: item.ETag,
-            LastModified: item.LastModifiedDateTime,
-            SizeBytes: item.Size,
-            MimeType: item.File.MimeType,
-            RelativePath: _settings.FolderPath
-        ));
-
-        return true;
-    }
-
     private async Task ScanFolderRecursivelyAsync(
         string driveId,
         string folderId,
@@ -233,8 +205,23 @@ public sealed class OneDriveProvider : IDocumentProvider
         _logger.LogInformation("📂 Found {Count} items in folder: {FolderPath}", driveItems.Value.Count, displayPath);
         Console.WriteLine($"📂 Found {driveItems.Value.Count} items in folder: {displayPath}");
 
-        // Process all items using PageIterator to handle pagination
         var foldersToScan = new List<(string Id, string Path)>();
+        var (filesProcessed, filesSkipped, foldersFound) = await ProcessDriveItemsAsync(
+            driveItems, folderPath, documents, foldersToScan, ct);
+
+        LogScanResults(displayPath, filesProcessed, filesSkipped, foldersFound);
+
+        // Recursively scan all discovered folders
+        await ScanSubfoldersAsync(driveId, foldersToScan, documents, displayPath, ct);
+    }
+
+    private async Task<(int FilesProcessed, int FilesSkipped, int FoldersFound)> ProcessDriveItemsAsync(
+        DriveItemCollectionResponse driveItems,
+        string folderPath,
+        List<ProviderDocument> documents,
+        List<(string Id, string Path)> foldersToScan,
+        CancellationToken ct)
+    {
         var filesProcessed = 0;
         var filesSkipped = 0;
         var foldersFound = 0;
@@ -247,43 +234,11 @@ public sealed class OneDriveProvider : IDocumentProvider
                 {
                     if (item.Folder != null)
                     {
-                        // Collect folders to scan recursively
-                        var subFolderPath = string.IsNullOrEmpty(folderPath)
-                            ? item.Name
-                            : $"{folderPath}/{item.Name}";
-                        foldersToScan.Add((item.Id!, subFolderPath!));
-                        foldersFound++;
+                        ProcessFolder(item, folderPath, foldersToScan, ref foldersFound);
                     }
                     else if (item.File != null && item.Name != null)
                     {
-                        // Process file
-                        var ext = Path.GetExtension(item.Name).ToLowerInvariant();
-                        if (_settings.FileExtensions.Contains(ext))
-                        {
-                            var relativePath = string.IsNullOrEmpty(folderPath)
-                                ? "/"
-                                : $"/{folderPath}";
-
-                            documents.Add(new ProviderDocument(
-                                DocumentId: item.Id!,
-                                Filename: item.Name,
-                                ProviderType: ProviderType,
-                                ProviderName: ProviderName,
-                                ETag: item.ETag,
-                                LastModified: item.LastModifiedDateTime,
-                                SizeBytes: item.Size,
-                                MimeType: item.File.MimeType,
-                                RelativePath: relativePath
-                            ));
-                            filesProcessed++;
-                            _logger.LogInformation("Added file: {FileName} (ext: {Ext}) from {Path}", item.Name, ext, folderPath);
-                        }
-                        else
-                        {
-                            filesSkipped++;
-                            _logger.LogInformation("Skipped file: {FileName} (ext: {Ext}) - not in allowed extensions [{AllowedExts}]",
-                                item.Name, ext, string.Join(", ", _settings.FileExtensions));
-                        }
+                        ProcessFile(item, folderPath, documents, ref filesProcessed, ref filesSkipped);
                     }
                     return true;
                 },
@@ -291,15 +246,72 @@ public sealed class OneDriveProvider : IDocumentProvider
             );
 
         await pageIterator.IterateAsync(ct);
+        return (filesProcessed, filesSkipped, foldersFound);
+    }
 
+    private void ProcessFolder(
+        DriveItem item,
+        string folderPath,
+        List<(string Id, string Path)> foldersToScan,
+        ref int foldersFound)
+    {
+        var subFolderPath = string.IsNullOrEmpty(folderPath)
+            ? item.Name
+            : $"{folderPath}/{item.Name}";
+        foldersToScan.Add((item.Id!, subFolderPath!));
+        foldersFound++;
+    }
+
+    private void ProcessFile(
+        DriveItem item,
+        string folderPath,
+        List<ProviderDocument> documents,
+        ref int filesProcessed,
+        ref int filesSkipped)
+    {
+        var ext = Path.GetExtension(item.Name!).ToLowerInvariant();
+        if (_settings.FileExtensions.Contains(ext))
+        {
+            var relativePath = string.IsNullOrEmpty(folderPath) ? "/" : $"/{folderPath}";
+            documents.Add(new ProviderDocument(
+                DocumentId: item.Id!,
+                Filename: item.Name!,
+                ProviderType: ProviderType,
+                ProviderName: ProviderName,
+                ETag: item.ETag,
+                LastModified: item.LastModifiedDateTime,
+                SizeBytes: item.Size,
+                MimeType: item.File!.MimeType,
+                RelativePath: relativePath
+            ));
+            filesProcessed++;
+            _logger.LogInformation("Added file: {FileName} (ext: {Ext}) from {Path}", item.Name, ext, folderPath);
+        }
+        else
+        {
+            filesSkipped++;
+            _logger.LogInformation("Skipped file: {FileName} (ext: {Ext}) - not in allowed extensions [{AllowedExts}]",
+                item.Name, ext, string.Join(", ", _settings.FileExtensions));
+        }
+    }
+
+    private void LogScanResults(string displayPath, int filesProcessed, int filesSkipped, int foldersFound)
+    {
         if (filesProcessed > 0 || filesSkipped > 0 || foldersFound > 0)
         {
             _logger.LogInformation("✅ Scanned folder '{Path}': {FileCount} files added, {SkippedCount} files skipped, {FolderCount} subfolders",
                 displayPath, filesProcessed, filesSkipped, foldersFound);
             Console.WriteLine($"✅ Scanned '{displayPath}': {filesProcessed} files added, {filesSkipped} skipped, {foldersFound} subfolders");
         }
+    }
 
-        // Recursively scan all discovered folders
+    private async Task ScanSubfoldersAsync(
+        string driveId,
+        List<(string Id, string Path)> foldersToScan,
+        List<ProviderDocument> documents,
+        string displayPath,
+        CancellationToken ct)
+    {
         Console.WriteLine($"🔄 Recursively scanning {foldersToScan.Count} subfolders from {displayPath}");
         foreach (var (subfolderId, subfolderPath) in foldersToScan)
         {
@@ -336,10 +348,24 @@ public sealed class OneDriveProvider : IDocumentProvider
             return;
         }
 
+        var foldersToCheck = ProcessItemsForQuickScan(
+            driveItems.Value, folderPath, samples, maxDocuments, displayPath);
+
+        // If we still need more samples, check subfolders (breadth-first)
+        await ScanSubfoldersForSamplesAsync(
+            driveId, foldersToCheck, samples, maxDocuments, ct);
+    }
+
+    private List<(string Id, string Path)> ProcessItemsForQuickScan(
+        IEnumerable<DriveItem> items,
+        string folderPath,
+        List<ProviderDocument> samples,
+        int maxDocuments,
+        string displayPath)
+    {
         var foldersToCheck = new List<(string Id, string Path)>();
 
-        // First pass: look for files in current folder
-        foreach (var item in driveItems.Value)
+        foreach (var item in items)
         {
             if (samples.Count >= maxDocuments)
             {
@@ -355,27 +381,45 @@ public sealed class OneDriveProvider : IDocumentProvider
             }
             else if (item.File != null && item.Name != null)
             {
-                var ext = Path.GetExtension(item.Name).ToLowerInvariant();
-                if (_settings.FileExtensions.Contains(ext))
-                {
-                    var relativePath = string.IsNullOrEmpty(folderPath) ? "/" : $"/{folderPath}";
-                    samples.Add(new ProviderDocument(
-                        DocumentId: item.Id!,
-                        Filename: item.Name,
-                        ProviderType: ProviderType,
-                        ProviderName: ProviderName,
-                        ETag: item.ETag,
-                        LastModified: item.LastModifiedDateTime,
-                        SizeBytes: item.Size,
-                        MimeType: item.File.MimeType,
-                        RelativePath: relativePath
-                    ));
-                    _logger.LogInformation("✅ Found sample: {FileName} from {Path}", item.Name, displayPath);
-                }
+                AddSampleIfAllowed(item, folderPath, samples, displayPath);
             }
         }
 
-        // If we still need more samples, check subfolders (breadth-first)
+        return foldersToCheck;
+    }
+
+    private void AddSampleIfAllowed(
+        DriveItem item,
+        string folderPath,
+        List<ProviderDocument> samples,
+        string displayPath)
+    {
+        var ext = Path.GetExtension(item.Name!).ToLowerInvariant();
+        if (_settings.FileExtensions.Contains(ext))
+        {
+            var relativePath = string.IsNullOrEmpty(folderPath) ? "/" : $"/{folderPath}";
+            samples.Add(new ProviderDocument(
+                DocumentId: item.Id!,
+                Filename: item.Name!,
+                ProviderType: ProviderType,
+                ProviderName: ProviderName,
+                ETag: item.ETag,
+                LastModified: item.LastModifiedDateTime,
+                SizeBytes: item.Size,
+                MimeType: item.File!.MimeType,
+                RelativePath: relativePath
+            ));
+            _logger.LogInformation("✅ Found sample: {FileName} from {Path}", item.Name, displayPath);
+        }
+    }
+
+    private async Task ScanSubfoldersForSamplesAsync(
+        string driveId,
+        List<(string Id, string Path)> foldersToCheck,
+        List<ProviderDocument> samples,
+        int maxDocuments,
+        CancellationToken ct)
+    {
         foreach (var (subfolderId, subfolderPath) in foldersToCheck)
         {
             if (samples.Count >= maxDocuments)

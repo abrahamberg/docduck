@@ -53,6 +53,11 @@ These instructions guide suggestions and edits in this repository. Favor readabi
   - Use `record`/`record struct` for immutable DTOs and value-like models; prefer `init` setters over mutable state.
   - Favor composition and small types over large, multi-purpose classes.
   - Use pattern matching and switch expressions for clear branching; avoid deep if/else pyramids.
+- Primary constructors (C# 12)
+  - Use primary constructor parameters directly in method bodies - avoid creating redundant private fields.
+  - Only declare explicit private fields when you need: validation/transformation logic, null checks with throw expressions, or to make the dependency explicit in class API surface.
+  - Example (preferred): `public class Service(ILogger logger) { void Log() => logger.LogInfo("..."); }`
+  - Example (when fields needed): `public class Service(IOptions<T> opts) { private readonly T _config = opts.Value; }`
 - Error handling
   - Throw `ArgumentNullException.ThrowIfNull(...)` for guard clauses; keep messages actionable.
   - Reserve exceptions for exceptional paths; prefer `Try*` patterns for expected misses.

@@ -5,19 +5,10 @@ using DocDuck.Providers.Ai;
 
 namespace Api.Services.Agents;
 
-public sealed class RefinementAgent : IRefinementAgent
+public sealed class RefinementAgent(
+    IModelAgnosticAiService aiService,
+    ILogger<RefinementAgent> logger) : IRefinementAgent
 {
-    private readonly IModelAgnosticAiService _aiService;
-    private readonly ILogger<RefinementAgent> _logger;
-
-    public RefinementAgent(
-        IModelAgnosticAiService aiService,
-        ILogger<RefinementAgent> logger)
-    {
-        _aiService = aiService;
-        _logger = logger;
-    }
-
     public async Task<AgentRefinementDecision> ShouldRefineAsync(
         string originalQuery,
         List<SearchStep> steps,
@@ -28,7 +19,7 @@ public sealed class RefinementAgent : IRefinementAgent
         // Don't refine if we've reached max depth
         if (currentDepth >= maxDepth)
         {
-            _logger.LogInformation("Max depth {MaxDepth} reached, stopping refinement", maxDepth);
+            logger.LogInformation("Max depth {MaxDepth} reached, stopping refinement", maxDepth);
             return new AgentRefinementDecision(
                 ShouldContinue: false,
                 Reason: $"Maximum search depth ({maxDepth}) reached"
@@ -38,7 +29,7 @@ public sealed class RefinementAgent : IRefinementAgent
         // Don't refine if we have no results to work with
         if (steps.Count == 0 || steps.All(s => s.Findings.Count == 0))
         {
-            _logger.LogInformation("No findings to refine, stopping");
+            logger.LogInformation("No findings to refine, stopping");
             return new AgentRefinementDecision(
                 ShouldContinue: false,
                 Reason: "No results found to refine"
@@ -54,7 +45,7 @@ public sealed class RefinementAgent : IRefinementAgent
         // If we have strong results, we might not need refinement
         if (topStrength >= 80 && uniqueDocs >= 3)
         {
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Strong results found (strength: {Top}, docs: {Docs}), no refinement needed",
                 topStrength, uniqueDocs);
             return new AgentRefinementDecision(
@@ -66,7 +57,7 @@ public sealed class RefinementAgent : IRefinementAgent
         // If results are weak or limited, try refinement
         if (topStrength < 60 || uniqueDocs < 2)
         {
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Weak results (strength: {Avg}, docs: {Docs}), attempting refinement",
                 avgStrength, uniqueDocs);
 
@@ -161,7 +152,7 @@ Generate a refined query that explores different angles or uses alternative term
                 new("user", userPrompt)
             };
 
-            var result = await _aiService.CompleteChatAsync(
+            var result = await aiService.CompleteChatAsync(
                 messages,
                 TaskComplexity.Simple,
                 strategy: null,
@@ -169,12 +160,12 @@ Generate a refined query that explores different angles or uses alternative term
                 ct: ct);
 
             var refinedQuery = result.Content?.Trim().Trim('"') ?? originalQuery;
-            _logger.LogInformation("Generated refined query: {Query}", refinedQuery);
+            logger.LogInformation("Generated refined query: {Query}", refinedQuery);
             return refinedQuery;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate refined query, using original");
+            logger.LogError(ex, "Failed to generate refined query, using original");
             return originalQuery;
         }
     }

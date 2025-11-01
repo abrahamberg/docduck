@@ -10,29 +10,30 @@ namespace DocDuck.Providers.Ai;
 /// Generic HTTP client for OpenAI-compatible inference APIs.
 /// Works with OpenAI, Azure Foundry, local servers (llama.cpp, vllm, ollama with OpenAI shim), and other compatible endpoints.
 /// </summary>
-public sealed class GenericAiHttpClient : IDisposable
+public sealed class GenericAiHttpClient(AiModelAssignment model, ILogger? logger = null) : IDisposable
 {
-    private readonly HttpClient _httpClient;
-    private readonly AiModelAssignment _model;
-    private readonly ILogger? _logger;
+    private readonly AiModelAssignment _model = ValidateModel(model);
+    private readonly HttpClient _httpClient = InitializeHttpClient(ValidateModel(model));
+    private readonly ILogger? _logger = logger;
 
-    public GenericAiHttpClient(AiModelAssignment model, ILogger? logger = null)
+    private static AiModelAssignment ValidateModel(AiModelAssignment model)
     {
         ArgumentNullException.ThrowIfNull(model);
         model.Validate();
-
-        _model = model;
-        _logger = logger;
-
         ArgumentException.ThrowIfNullOrWhiteSpace(model.Url);
+        return model;
+    }
 
-        _httpClient = new HttpClient
+    private static HttpClient InitializeHttpClient(AiModelAssignment model)
+    {
+        var client = new HttpClient
         {
             BaseAddress = new Uri(model.Url, UriKind.Absolute),
             Timeout = TimeSpan.FromSeconds(model.TimeoutSeconds)
         };
 
-        HttpClientConfigurator.ConfigureHeaders(_httpClient, model.Headers);
+        HttpClientConfigurator.ConfigureHeaders(client, model.Headers);
+        return client;
     }
 
     /// <summary>

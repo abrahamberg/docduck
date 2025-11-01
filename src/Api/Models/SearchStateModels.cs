@@ -96,14 +96,14 @@ public sealed record SearchState(
     /// <summary>
     /// Gets all findings from all steps, flattened.
     /// </summary>
-    public List<SearchFinding> AllFindings =>
+    public List<SearchFinding> GetAllFindings() =>
         Steps.SelectMany(s => s.Findings).ToList();
 
     /// <summary>
     /// Gets the highest strength finding.
     /// </summary>
     public SearchFinding? TopFinding =>
-        AllFindings.OrderByDescending(f => f.Strength).FirstOrDefault();
+        GetAllFindings().OrderByDescending(f => f.Strength).FirstOrDefault();
 }
 
 /// <summary>
