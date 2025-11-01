@@ -1,6 +1,7 @@
 using Api.Models;
 using Api.Options;
 using Api.Services;
+using Api.Services.Interfaces;
 using DocDuck.Providers.Ai;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;

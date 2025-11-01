@@ -2,6 +2,9 @@ using Api.Handlers;
 using Api.Models;
 using Api.Options;
 using Api.Services;
+using Api.Services.Agents;
+using Api.Services.Agents.Interfaces;
+using Api.Services.Interfaces;
 using DocDuck.Providers.Ai;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
@@ -16,6 +19,7 @@ public class QueryHandlerTests
     private readonly Mock<IModelAgnosticAiService> _mockAiService;
     private readonly Mock<IVectorSearchService> _mockSearchService;
     private readonly Mock<IChatService> _mockChatService;
+    private readonly Mock<ISearchOrchestrationService> _mockOrchestrationService;
     private readonly Mock<ILogger<QueryHandler>> _mockLogger;
     private readonly SearchOptions _searchOptions;
     private readonly QueryHandler _queryHandler;
@@ -25,6 +29,7 @@ public class QueryHandlerTests
         _mockAiService = new Mock<IModelAgnosticAiService>();
         _mockSearchService = new Mock<IVectorSearchService>();
         _mockChatService = new Mock<IChatService>();
+        _mockOrchestrationService = new Mock<ISearchOrchestrationService>();
         _mockLogger = new Mock<ILogger<QueryHandler>>();
 
         _searchOptions = new SearchOptions
@@ -41,6 +46,7 @@ public class QueryHandlerTests
             _mockAiService.Object,
             _mockSearchService.Object,
             _mockChatService.Object,
+            _mockOrchestrationService.Object,
             options,
             _mockLogger.Object);
     }

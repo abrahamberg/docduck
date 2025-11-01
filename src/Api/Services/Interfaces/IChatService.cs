@@ -1,6 +1,6 @@
 using Api.Models;
 
-namespace Api.Services;
+namespace Api.Services.Interfaces;
 
 /// <summary>
 /// Interface for multi-step chat interaction with LLM-driven refinement.

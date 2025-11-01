@@ -3,6 +3,8 @@ using Api.Handlers;
 using Api.Models;
 using Api.Options;
 using Api.Services;
+using Api.Services.Agents.Interfaces;
+using Api.Services.Interfaces;
 using DocDuck.Providers.Ai;
 using DocDuck.Providers.Configuration;
 using System.Text;
@@ -336,8 +338,21 @@ static void RegisterServices(WebApplicationBuilder builder, string dbConnectionS
 
     builder.Services.AddSingleton<VectorSearchService>();
     builder.Services.AddSingleton<IVectorSearchService>(sp => sp.GetRequiredService<VectorSearchService>());
+    builder.Services.AddSingleton<KeywordSearchService>();
+    builder.Services.AddSingleton<IKeywordSearchService>(sp => sp.GetRequiredService<KeywordSearchService>());
     builder.Services.AddSingleton<ChatService>();
     builder.Services.AddSingleton<IChatService>(sp => sp.GetRequiredService<ChatService>());
+
+    // Multi-agent search services
+    builder.Services.AddSingleton<DocumentAggregationService>();
+    builder.Services.AddSingleton<IDocumentAggregationService>(sp => sp.GetRequiredService<DocumentAggregationService>());
+    builder.Services.AddSingleton<IQueryPlannerAgent, Api.Services.Agents.QueryPlannerAgent>();
+    builder.Services.AddSingleton<ISearcherAgent, Api.Services.Agents.SearcherAgent>();
+    builder.Services.AddSingleton<IEvaluatorAgent, Api.Services.Agents.EvaluatorAgent>();
+    builder.Services.AddSingleton<IAggregatorAgent, Api.Services.Agents.AggregatorAgent>();
+    builder.Services.AddSingleton<IRefinementAgent, Api.Services.Agents.RefinementAgent>();
+    builder.Services.AddSingleton<ISearchOrchestrationService, Api.Services.Agents.SearchOrchestrationService>();
+
     builder.Services.AddSingleton<QueryHandler>();
 
     // Add CORS for development

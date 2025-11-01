@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Api.Models;
 using Api.Options;
+using Api.Services.Interfaces;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
@@ -11,7 +12,7 @@ namespace Api.Services;
 /// <summary>
 /// Repository for vector similarity search against PostgreSQL + pgvector.
 /// </summary>
-public class VectorSearchService : IVectorSearchService
+public sealed class VectorSearchService : IVectorSearchService
 {
     private readonly DbOptions _dbOptions;
     private readonly SearchOptions _searchOptions;
@@ -32,10 +33,6 @@ public class VectorSearchService : IVectorSearchService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Search for similar chunks using vector similarity (cosine distance).
-    /// Optionally filter by provider.
-    /// </summary>
     public async Task<List<Source>> SearchAsync(
         float[] queryEmbedding,
         string queryText,
@@ -46,67 +43,164 @@ public class VectorSearchService : IVectorSearchService
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(queryEmbedding);
-        queryText ??= string.Empty;
 
-        var depth = Math.Clamp(searchDepth, 1, _searchOptions.MaxSearchDepth);
-        var k = Math.Min(topK ?? _searchOptions.DefaultTopK, _searchOptions.MaxTopK);
-        var normalizedQuery = queryText.Trim();
-        var lexicalEnabled = _searchOptions.EnableLexicalSearch && !string.IsNullOrWhiteSpace(normalizedQuery);
-        var lexicalOnly = lexicalEnabled && depth == 1;
-        var lexicalLimit = Math.Max(1, Math.Min(_searchOptions.MaxLexicalResults, Math.Max(k * 3, k)));
+        var searchParams = PrepareSearchParameters(queryEmbedding, queryText, topK, searchDepth);
 
-        _logger.LogDebug(
-            "Searching depth {Depth} for top {K} chunks (Provider: {Type}/{Name}, Lexical:{LexicalEnabled}, Vector:{VectorEnabled})",
-            depth,
-            k,
-            providerType ?? "all",
-            providerName ?? "all",
-            lexicalEnabled,
-            !lexicalOnly);
+        LogSearchStart(searchParams, providerType, providerName);
 
         await using var conn = new NpgsqlConnection(_dbOptions.ConnectionString);
         await conn.OpenAsync(ct);
 
-        // Document-level filtering: First find top-N most relevant documents
-        HashSet<string>? allowedDocIds = null;
-        if (_searchOptions.EnableDocumentLevelFiltering && !lexicalOnly)
-        {
-            allowedDocIds = await ExecuteDocumentLevelFilterAsync(
-                conn,
-                queryEmbedding,
-                _searchOptions.DocumentLevelTopK,
-                providerType,
-                providerName,
-                ct);
+        var allowedDocIds = await GetDocumentFilterIfEnabledAsync(
+            conn,
+            queryEmbedding,
+            providerType,
+            providerName,
+            searchParams.LexicalOnly,
+            ct);
 
-            if (allowedDocIds.Count == 0)
-            {
-                _logger.LogWarning("Document-level filtering returned no documents. Falling back to standard search.");
-                allowedDocIds = null;
-            }
-        }
+        var vectorResults = await ExecuteVectorSearchIfNeededAsync(
+            conn,
+            queryEmbedding,
+            searchParams,
+            providerType,
+            providerName,
+            allowedDocIds,
+            ct);
 
-        // Vector search: either filtered by documents or unrestricted
-        var vectorResults = lexicalOnly
-            ? []
-            : allowedDocIds != null
-                ? await ExecuteVectorSearchWithDocFilterAsync(conn, queryEmbedding, k, providerType, providerName, allowedDocIds, ct)
-                : await ExecuteVectorSearchAsync(conn, queryEmbedding, k, providerType, providerName, ct);
+        var lexicalResults = await ExecuteLexicalSearchIfEnabledAsync(
+            conn,
+            searchParams,
+            providerType,
+            providerName,
+            ct);
 
-        var lexicalResults = lexicalEnabled
-            ? await ExecuteLexicalSearchAsync(conn, normalizedQuery, providerType, providerName, lexicalLimit, ct)
-            : [];
+        var combined = CombineCandidates(
+            vectorResults,
+            lexicalResults,
+            searchParams.K,
+            searchParams.Depth,
+            searchParams.LexicalEnabled,
+            !searchParams.LexicalOnly && vectorResults.Count > 0);
 
-        var combined = CombineCandidates(vectorResults, lexicalResults, k, depth, lexicalEnabled, !lexicalOnly && vectorResults.Count > 0);
-
-        _logger.LogInformation(
-            "Search produced {CombinedCount} chunks (vector: {VectorCount}, lexical: {LexicalCount}, doc-filter: {DocFilter})",
-            combined.Count,
-            vectorResults.Count,
-            lexicalResults.Count,
-            allowedDocIds != null ? "enabled" : "disabled");
+        LogSearchResults(combined.Count, vectorResults.Count, lexicalResults.Count, allowedDocIds != null);
 
         return combined;
+    }
+
+    private SearchParameters PrepareSearchParameters(
+        float[] queryEmbedding,
+        string? queryText,
+        int? topK,
+        int searchDepth)
+    {
+        var depth = Math.Clamp(searchDepth, 1, _searchOptions.MaxSearchDepth);
+        var k = Math.Min(topK ?? _searchOptions.DefaultTopK, _searchOptions.MaxTopK);
+        var normalizedQuery = (queryText ?? string.Empty).Trim();
+        var lexicalEnabled = _searchOptions.EnableLexicalSearch && !string.IsNullOrWhiteSpace(normalizedQuery);
+        var lexicalOnly = lexicalEnabled && depth == 1;
+        var lexicalLimit = Math.Max(1, Math.Min(_searchOptions.MaxLexicalResults, Math.Max(k * 3, k)));
+
+        return new SearchParameters(
+            Depth: depth,
+            K: k,
+            NormalizedQuery: normalizedQuery,
+            LexicalEnabled: lexicalEnabled,
+            LexicalOnly: lexicalOnly,
+            LexicalLimit: lexicalLimit
+        );
+    }
+
+    private void LogSearchStart(SearchParameters searchParams, string? providerType, string? providerName)
+    {
+        _logger.LogDebug(
+            "Searching depth {Depth} for top {K} chunks (Provider: {Type}/{Name}, Lexical:{LexicalEnabled}, Vector:{VectorEnabled})",
+            searchParams.Depth,
+            searchParams.K,
+            providerType ?? "all",
+            providerName ?? "all",
+            searchParams.LexicalEnabled,
+            !searchParams.LexicalOnly);
+    }
+
+    private void LogSearchResults(int combinedCount, int vectorCount, int lexicalCount, bool docFilterEnabled)
+    {
+        _logger.LogInformation(
+            "Search produced {CombinedCount} chunks (vector: {VectorCount}, lexical: {LexicalCount}, doc-filter: {DocFilter})",
+            combinedCount,
+            vectorCount,
+            lexicalCount,
+            docFilterEnabled ? "enabled" : "disabled");
+    }
+
+    private async Task<HashSet<string>?> GetDocumentFilterIfEnabledAsync(
+        NpgsqlConnection conn,
+        float[] queryEmbedding,
+        string? providerType,
+        string? providerName,
+        bool lexicalOnly,
+        CancellationToken ct)
+    {
+        if (!_searchOptions.EnableDocumentLevelFiltering || lexicalOnly)
+        {
+            return null;
+        }
+
+        var docIds = await ExecuteDocumentLevelFilterAsync(
+            conn,
+            queryEmbedding,
+            _searchOptions.DocumentLevelTopK,
+            providerType,
+            providerName,
+            ct);
+
+        if (docIds.Count == 0)
+        {
+            _logger.LogWarning("Document-level filtering returned no documents. Falling back to standard search.");
+            return null;
+        }
+
+        return docIds;
+    }
+
+    private async Task<List<Source>> ExecuteVectorSearchIfNeededAsync(
+        NpgsqlConnection conn,
+        float[] queryEmbedding,
+        SearchParameters searchParams,
+        string? providerType,
+        string? providerName,
+        HashSet<string>? allowedDocIds,
+        CancellationToken ct)
+    {
+        if (searchParams.LexicalOnly)
+        {
+            return [];
+        }
+
+        return allowedDocIds != null
+            ? await ExecuteVectorSearchWithDocFilterAsync(conn, queryEmbedding, searchParams.K, providerType, providerName, allowedDocIds, ct)
+            : await ExecuteVectorSearchAsync(conn, queryEmbedding, searchParams.K, providerType, providerName, ct);
+    }
+
+    private async Task<List<LexicalMatch>> ExecuteLexicalSearchIfEnabledAsync(
+        NpgsqlConnection conn,
+        SearchParameters searchParams,
+        string? providerType,
+        string? providerName,
+        CancellationToken ct)
+    {
+        if (!searchParams.LexicalEnabled)
+        {
+            return [];
+        }
+
+        return await ExecuteLexicalSearchAsync(
+            conn,
+            searchParams.NormalizedQuery,
+            providerType,
+            providerName,
+            searchParams.LexicalLimit,
+            ct);
     }
 
     private static async Task<List<Source>> ExecuteVectorSearchAsync(
@@ -116,6 +210,14 @@ public class VectorSearchService : IVectorSearchService
         string? providerType,
         string? providerName,
         CancellationToken ct)
+    {
+        var sql = BuildVectorSearchSql(providerType, providerName, docFilterEnabled: false);
+        await using var cmd = CreateVectorSearchCommand(conn, sql, queryEmbedding, limit, providerType, providerName, allowedDocIds: null);
+
+        return await ReadVectorSearchResultsAsync(cmd, limit, ct);
+    }
+
+    private static string BuildVectorSearchSql(string? providerType, string? providerName, bool docFilterEnabled)
     {
         var sql = @"
             SELECT
@@ -130,10 +232,17 @@ public class VectorSearchService : IVectorSearchService
             FROM docs_chunks";
 
         var whereConditions = new List<string>();
+
+        if (docFilterEnabled)
+        {
+            whereConditions.Add("doc_id = ANY(@allowed_doc_ids)");
+        }
+
         if (!string.IsNullOrWhiteSpace(providerType))
         {
             whereConditions.Add("provider_type = @provider_type");
         }
+
         if (!string.IsNullOrWhiteSpace(providerName))
         {
             whereConditions.Add("provider_name = @provider_name");
@@ -148,47 +257,85 @@ public class VectorSearchService : IVectorSearchService
             ORDER BY embedding <=> (@embedding)::vector
             LIMIT @limit";
 
-        await using var cmd = new NpgsqlCommand(sql, conn);
-        var embeddingText = "[" + string.Join(",", queryEmbedding.Select(f => f.ToString(CultureInfo.InvariantCulture))) + "]";
+        return sql;
+    }
+
+    private static NpgsqlCommand CreateVectorSearchCommand(
+        NpgsqlConnection conn,
+        string sql,
+        float[] queryEmbedding,
+        int limit,
+        string? providerType,
+        string? providerName,
+        HashSet<string>? allowedDocIds)
+    {
+        var cmd = new NpgsqlCommand(sql, conn);
+
+        var embeddingText = FormatEmbeddingArray(queryEmbedding);
         cmd.Parameters.AddWithValue("embedding", embeddingText);
         cmd.Parameters.AddWithValue("limit", limit);
+
+        if (allowedDocIds != null)
+        {
+            cmd.Parameters.AddWithValue("allowed_doc_ids", allowedDocIds.ToArray());
+        }
 
         if (!string.IsNullOrWhiteSpace(providerType))
         {
             cmd.Parameters.AddWithValue("provider_type", providerType);
         }
+
         if (!string.IsNullOrWhiteSpace(providerName))
         {
             cmd.Parameters.AddWithValue("provider_name", providerName);
         }
 
-        var results = new List<Source>(capacity: limit);
+        return cmd;
+    }
+
+    private static async Task<List<Source>> ReadVectorSearchResultsAsync(
+        NpgsqlCommand cmd,
+        int capacity,
+        CancellationToken ct)
+    {
+        var results = new List<Source>(capacity);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            var docId = reader.GetString(0);
-            var filename = reader.GetString(1);
-            var pType = reader.GetString(2);
-            var pName = reader.GetString(3);
-            var chunkNum = reader.GetInt32(4);
-            var text = reader.GetString(5);
-            var distance = reader.GetDouble(7);
-            var citation = BuildCitation(pType, pName, filename, chunkNum);
-
-            results.Add(new Source(
-                DocId: docId,
-                Filename: filename,
-                ChunkNum: chunkNum,
-                Text: text,
-                Distance: distance,
-                Citation: citation,
-                ProviderType: pType,
-                ProviderName: pName
-            ));
+            var source = ParseVectorSearchRow(reader);
+            results.Add(source);
         }
 
         return results;
+    }
+
+    private static Source ParseVectorSearchRow(NpgsqlDataReader reader)
+    {
+        var docId = reader.GetString(0);
+        var filename = reader.GetString(1);
+        var providerType = reader.GetString(2);
+        var providerName = reader.GetString(3);
+        var chunkNum = reader.GetInt32(4);
+        var text = reader.GetString(5);
+        var distance = reader.GetDouble(7);
+        var citation = BuildCitation(providerType, providerName, filename, chunkNum);
+
+        return new Source(
+            DocId: docId,
+            Filename: filename,
+            ChunkNum: chunkNum,
+            Text: text,
+            Distance: distance,
+            Citation: citation,
+            ProviderType: providerType,
+            ProviderName: providerName
+        );
+    }
+
+    private static string FormatEmbeddingArray(float[] queryEmbedding)
+    {
+        return "[" + string.Join(",", queryEmbedding.Select(f => f.ToString(CultureInfo.InvariantCulture))) + "]";
     }
 
     private static async Task<List<Source>> ExecuteVectorSearchWithDocFilterAsync(
@@ -200,76 +347,10 @@ public class VectorSearchService : IVectorSearchService
         HashSet<string> allowedDocIds,
         CancellationToken ct)
     {
-        var sql = @"
-            SELECT
-                doc_id,
-                filename,
-                provider_type,
-                provider_name,
-                chunk_num,
-                text,
-                metadata,
-                embedding <=> @embedding::vector AS distance
-            FROM docs_chunks";
+        var sql = BuildVectorSearchSql(providerType, providerName, docFilterEnabled: true);
+        await using var cmd = CreateVectorSearchCommand(conn, sql, queryEmbedding, limit, providerType, providerName, allowedDocIds);
 
-        var whereConditions = new List<string> { "doc_id = ANY(@allowed_doc_ids)" };
-
-        if (!string.IsNullOrWhiteSpace(providerType))
-        {
-            whereConditions.Add("provider_type = @provider_type");
-        }
-        if (!string.IsNullOrWhiteSpace(providerName))
-        {
-            whereConditions.Add("provider_name = @provider_name");
-        }
-
-        sql += $" WHERE {string.Join(" AND ", whereConditions)}";
-        sql += @"
-            ORDER BY embedding <=> (@embedding)::vector
-            LIMIT @limit";
-
-        await using var cmd = new NpgsqlCommand(sql, conn);
-        var embeddingText = "[" + string.Join(",", queryEmbedding.Select(f => f.ToString(CultureInfo.InvariantCulture))) + "]";
-        cmd.Parameters.AddWithValue("embedding", embeddingText);
-        cmd.Parameters.AddWithValue("limit", limit);
-        cmd.Parameters.AddWithValue("allowed_doc_ids", allowedDocIds.ToArray());
-
-        if (!string.IsNullOrWhiteSpace(providerType))
-        {
-            cmd.Parameters.AddWithValue("provider_type", providerType);
-        }
-        if (!string.IsNullOrWhiteSpace(providerName))
-        {
-            cmd.Parameters.AddWithValue("provider_name", providerName);
-        }
-
-        var results = new List<Source>(capacity: limit);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-        {
-            var docId = reader.GetString(0);
-            var filename = reader.GetString(1);
-            var pType = reader.GetString(2);
-            var pName = reader.GetString(3);
-            var chunkNum = reader.GetInt32(4);
-            var text = reader.GetString(5);
-            var distance = reader.GetDouble(7);
-            var citation = BuildCitation(pType, pName, filename, chunkNum);
-
-            results.Add(new Source(
-                DocId: docId,
-                Filename: filename,
-                ChunkNum: chunkNum,
-                Text: text,
-                Distance: distance,
-                Citation: citation,
-                ProviderType: pType,
-                ProviderName: pName
-            ));
-        }
-
-        return results;
+        return await ReadVectorSearchResultsAsync(cmd, limit, ct);
     }
 
     private async Task<HashSet<string>> ExecuteDocumentLevelFilterAsync(
@@ -280,16 +361,33 @@ public class VectorSearchService : IVectorSearchService
         string? providerName,
         CancellationToken ct)
     {
+        var sql = BuildDocumentFilterSql(providerType, providerName);
+        await using var cmd = CreateDocumentFilterCommand(conn, sql, queryEmbedding, topK, providerType, providerName);
+
+        var docIds = await ReadDocumentIdsAsync(cmd, ct);
+
+        _logger.LogInformation(
+            "Document-level filtering selected {Count} documents from top-{TopK}",
+            docIds.Count,
+            topK);
+
+        return docIds;
+    }
+
+    private static string BuildDocumentFilterSql(string? providerType, string? providerName)
+    {
         var sql = @"
             SELECT doc_id
             FROM docs_files
             WHERE avg_embedding IS NOT NULL";
 
         var whereConditions = new List<string>();
+
         if (!string.IsNullOrWhiteSpace(providerType))
         {
             whereConditions.Add("provider_type = @provider_type");
         }
+
         if (!string.IsNullOrWhiteSpace(providerName))
         {
             whereConditions.Add("provider_name = @provider_name");
@@ -304,8 +402,20 @@ public class VectorSearchService : IVectorSearchService
             ORDER BY avg_embedding <=> @embedding::vector
             LIMIT @limit";
 
-        await using var cmd = new NpgsqlCommand(sql, conn);
-        var embeddingText = "[" + string.Join(",", queryEmbedding.Select(f => f.ToString(CultureInfo.InvariantCulture))) + "]";
+        return sql;
+    }
+
+    private static NpgsqlCommand CreateDocumentFilterCommand(
+        NpgsqlConnection conn,
+        string sql,
+        float[] queryEmbedding,
+        int topK,
+        string? providerType,
+        string? providerName)
+    {
+        var cmd = new NpgsqlCommand(sql, conn);
+
+        var embeddingText = FormatEmbeddingArray(queryEmbedding);
         cmd.Parameters.AddWithValue("embedding", embeddingText);
         cmd.Parameters.AddWithValue("limit", topK);
 
@@ -313,11 +423,17 @@ public class VectorSearchService : IVectorSearchService
         {
             cmd.Parameters.AddWithValue("provider_type", providerType);
         }
+
         if (!string.IsNullOrWhiteSpace(providerName))
         {
             cmd.Parameters.AddWithValue("provider_name", providerName);
         }
 
+        return cmd;
+    }
+
+    private static async Task<HashSet<string>> ReadDocumentIdsAsync(NpgsqlCommand cmd, CancellationToken ct)
+    {
         var docIds = new HashSet<string>();
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -325,11 +441,6 @@ public class VectorSearchService : IVectorSearchService
         {
             docIds.Add(reader.GetString(0));
         }
-
-        _logger.LogInformation(
-            "Document-level filtering selected {Count} documents from top-{TopK}",
-            docIds.Count,
-            topK);
 
         return docIds;
     }
@@ -347,7 +458,28 @@ public class VectorSearchService : IVectorSearchService
             return [];
         }
 
-        const string sql = @"
+        var sql = BuildLexicalSearchSql(providerType, providerName);
+
+        try
+        {
+            await using var cmd = CreateLexicalSearchCommand(conn, sql, queryText, limit, providerType, providerName);
+            return await ReadLexicalSearchResultsAsync(cmd, limit, ct);
+        }
+        catch (PostgresException ex) when (ex.SqlState is "42P01" or "42703" or "42883")
+        {
+            HandleLexicalSearchDisabled(ex);
+            return [];
+        }
+        catch (PostgresException ex) when (ex.SqlState == "XX000")
+        {
+            LogLexicalSearchFailure(ex, queryText);
+            return [];
+        }
+    }
+
+    private static string BuildLexicalSearchSql(string? providerType, string? providerName)
+    {
+        const string baseSql = @"
             WITH search_query AS (
                 SELECT websearch_to_tsquery(CAST(@config AS regconfig), @query) AS q
             )
@@ -363,16 +495,18 @@ public class VectorSearchService : IVectorSearchService
             FROM docs_chunks c, search_query sq";
 
         var whereConditions = new List<string> { "c.search_lexeme @@ sq.q" };
+
         if (!string.IsNullOrWhiteSpace(providerType))
         {
             whereConditions.Add("c.provider_type = @provider_type");
         }
+
         if (!string.IsNullOrWhiteSpace(providerName))
         {
             whereConditions.Add("c.provider_name = @provider_name");
         }
 
-        var sqlBuilder = new StringBuilder(sql);
+        var sqlBuilder = new StringBuilder(baseSql);
         sqlBuilder.AppendLine();
         sqlBuilder.Append("WHERE ");
         sqlBuilder.Append(string.Join(" AND ", whereConditions));
@@ -380,65 +514,86 @@ public class VectorSearchService : IVectorSearchService
         sqlBuilder.AppendLine("ORDER BY rank DESC");
         sqlBuilder.AppendLine("LIMIT @limit");
 
-        try
+        return sqlBuilder.ToString();
+    }
+
+    private NpgsqlCommand CreateLexicalSearchCommand(
+        NpgsqlConnection conn,
+        string sql,
+        string queryText,
+        int limit,
+        string? providerType,
+        string? providerName)
+    {
+        var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("config", _searchOptions.LexicalConfiguration);
+        cmd.Parameters.AddWithValue("query", queryText);
+        cmd.Parameters.AddWithValue("limit", limit);
+
+        if (!string.IsNullOrWhiteSpace(providerType))
         {
-            await using var cmd = new NpgsqlCommand(sqlBuilder.ToString(), conn);
-            cmd.Parameters.AddWithValue("config", _searchOptions.LexicalConfiguration);
-            cmd.Parameters.AddWithValue("query", queryText);
-            cmd.Parameters.AddWithValue("limit", limit);
-
-            if (!string.IsNullOrWhiteSpace(providerType))
-            {
-                cmd.Parameters.AddWithValue("provider_type", providerType!);
-            }
-            if (!string.IsNullOrWhiteSpace(providerName))
-            {
-                cmd.Parameters.AddWithValue("provider_name", providerName!);
-            }
-
-            var matches = new List<LexicalMatch>(capacity: limit);
-
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct))
-            {
-                var docId = reader.GetString(0);
-                var filename = reader.GetString(1);
-                var pType = reader.GetString(2);
-                var pName = reader.GetString(3);
-                var chunkNum = reader.GetInt32(4);
-                var text = reader.GetString(5);
-                var rank = reader.GetDouble(7);
-                var citation = BuildCitation(pType, pName, filename, chunkNum);
-
-                var source = new Source(
-                    DocId: docId,
-                    Filename: filename,
-                    ChunkNum: chunkNum,
-                    Text: text,
-                    Distance: 1d,
-                    Citation: citation,
-                    ProviderType: pType,
-                    ProviderName: pName
-                );
-
-                matches.Add(new LexicalMatch(source, rank));
-            }
-
-            return matches;
+            cmd.Parameters.AddWithValue("provider_type", providerType!);
         }
-        catch (PostgresException ex) when (
-            ex.SqlState is "42P01" or "42703" or "42883")
+
+        if (!string.IsNullOrWhiteSpace(providerName))
         {
-            _lexicalSearchUnavailable = true;
-            _logger.LogWarning(ex, "Lexical search disabled because the database is missing the required schema or extension.");
-            return [];
+            cmd.Parameters.AddWithValue("provider_name", providerName!);
         }
-        catch (PostgresException ex) when (ex.SqlState == "XX000")
+
+        return cmd;
+    }
+
+    private static async Task<List<LexicalMatch>> ReadLexicalSearchResultsAsync(
+        NpgsqlCommand cmd,
+        int capacity,
+        CancellationToken ct)
+    {
+        var matches = new List<LexicalMatch>(capacity);
+
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
         {
-            // tsquery parse/plan error (often due to malformed user input). Swallow and fall back to vector-only results.
-            _logger.LogDebug(ex, "Lexical search failed for query '{Query}'. Falling back to vector-only results.", queryText);
-            return [];
+            var match = ParseLexicalSearchRow(reader);
+            matches.Add(match);
         }
+
+        return matches;
+    }
+
+    private static LexicalMatch ParseLexicalSearchRow(NpgsqlDataReader reader)
+    {
+        var docId = reader.GetString(0);
+        var filename = reader.GetString(1);
+        var providerType = reader.GetString(2);
+        var providerName = reader.GetString(3);
+        var chunkNum = reader.GetInt32(4);
+        var text = reader.GetString(5);
+        var rank = reader.GetDouble(7);
+        var citation = BuildCitation(providerType, providerName, filename, chunkNum);
+
+        var source = new Source(
+            DocId: docId,
+            Filename: filename,
+            ChunkNum: chunkNum,
+            Text: text,
+            Distance: 1d,
+            Citation: citation,
+            ProviderType: providerType,
+            ProviderName: providerName
+        );
+
+        return new LexicalMatch(source, rank);
+    }
+
+    private void HandleLexicalSearchDisabled(PostgresException ex)
+    {
+        _lexicalSearchUnavailable = true;
+        _logger.LogWarning(ex, "Lexical search disabled because the database is missing the required schema or extension.");
+    }
+
+    private void LogLexicalSearchFailure(PostgresException ex, string queryText)
+    {
+        _logger.LogDebug(ex, "Lexical search failed for query '{Query}'. Falling back to vector-only results.", queryText);
     }
 
     private List<Source> CombineCandidates(
@@ -571,21 +726,6 @@ public class VectorSearchService : IVectorSearchService
     private static string BuildCitation(string providerType, string providerName, string filename, int chunkNum)
     {
         return $"[{providerType}/{providerName}:{filename}#chunk{chunkNum}]";
-    }
-
-    private sealed record LexicalMatch(Source Source, double Rank);
-
-    private sealed class CandidateScore
-    {
-        public CandidateScore(Source source)
-        {
-            Source = source;
-        }
-
-        public Source Source { get; set; }
-        public double? VectorDistance { get; set; }
-        public double VectorScore { get; set; }
-        public double LexicalScore { get; set; }
     }
 
     /// <summary>
